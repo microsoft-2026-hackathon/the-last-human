@@ -348,6 +348,20 @@ def _question_counts(view: PresentationView) -> tuple[int, int, int]:
     return len(view.question_anchors), len(referenced_regions), len(referenced_files)
 
 
+def reason_lines(snapshot: Snapshot, locale: PresentationLocale) -> tuple[str, ...]:
+    """면담 화면의 "왜 게이트됐나" 목록. 카드의 근거 요약과 같은 문구를, 불릿 없이 한 줄씩.
+
+    risk.reasons 원문은 채점기 언어(한국어)로 남고, 사람에게 보이는 줄은 locale 을 따른다.
+    HTML 이스케이프가 끝난 문자열이므로 템플릿에서 그대로 출력한다.
+    """
+    catalog = catalog_for_locale(locale)
+    caps = _RenderCaps(8, 8, 3, _SHORT_TEXT_LIMIT, True, True, locale)
+    return tuple(
+        _summary_reason_line(catalog, group, caps).removeprefix("- ")
+        for group in _reason_groups(snapshot)[: caps.reason_limit]
+    )
+
+
 def _risk_summary(snapshot: Snapshot, caps: _RenderCaps) -> str:
     catalog = catalog_for_locale(caps.locale)
     groups = _reason_groups(snapshot)
