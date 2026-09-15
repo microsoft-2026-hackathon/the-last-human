@@ -418,9 +418,17 @@ TLH_SECRET_KEY='REPLACE_WITH_RANDOM_SECRET'
 TLH_DATABASE="$HOME/.local/share/the-last-human/demo/lasthuman.sqlite3"
 TLH_MODE='live'
 TLH_STATUS_CONTEXT='comprehension-gate'
+TLH_CHECK_RUNS='false'
+TLH_CHECK_NAME='The Last Human'
 TLH_WORKFLOW='lasthuman-app.yml'
 TLH_WORKFLOW_REF='refs/heads/main'
 TLH_OIDC_AUDIENCE='hunhoon21/the-last-human'
+TLH_PRESENTATION_NAME='The Last Human'
+TLH_PRESENTATION_LOCALE='ko'
+TLH_PRESENTATION_MAX_CHARS='6000'
+TLH_PRESENTATION_REASON_LIMIT='3'
+TLH_PRESENTATION_DETAIL_LIMIT='10'
+TLH_PRESENTATION_PATHS_PER_GROUP='2'
 
 LASTHUMAN_PROVIDER='azure'
 LASTHUMAN_AUTH_MODE='azure-cli'
@@ -432,7 +440,7 @@ AZURE_OPENAI_SCOPE='REPLACE_WITH_PORTAL_SCOPE'
 unset LASTHUMAN_API_KEY LASTHUMAN_TOKEN
 ```
 
-실제 배포 이름이 `gpt-4.1-mini`와 다르면 그 이름으로 바꾼다. Azure access token은 이 파일에 저장하지 않는다. 마지막 `unset`은 이전 수동 토큰/API 키를 현재 셸에서 제거하며, GitHub App의 `TLH_CLIENT_SECRET`이나 PEM에는 영향을 주지 않는다.
+실제 배포 이름이 `gpt-4.1-mini`와 다르면 그 이름으로 바꾼다. `TLH_CHECK_RUNS` 기본값은 `false`다. 보조 Check를 켜려면 먼저 GitHub App 권한과 설치 승인에 `Checks: Read and write` 를 추가한 뒤 trusted 서버를 재시작해야 하며, 표시 이름 `TLH_CHECK_NAME` 은 필수 status context `comprehension-gate` 와 다르게 유지한다. `TLH_PRESENTATION_*` 값은 공개 카드/보조 Check의 이름·locale·표시 예산만 바꾼다. Azure access token은 이 파일에 저장하지 않는다. 마지막 `unset`은 이전 수동 토큰/API 키를 현재 셸에서 제거하며, GitHub App의 `TLH_CLIENT_SECRET`이나 PEM에는 영향을 주지 않는다.
 
 `TLH_SECRET_KEY`는 32자 이상의 랜덤 값으로 만든다. Mac에서는 아래 명령으로 clipboard에 넣은 값을 환경 파일에 붙여 넣을 수 있다. 키를 터미널에 표시하지 않는다.
 
@@ -652,9 +660,11 @@ gh variable set LASTHUMAN_RUNTIME --repo "$TLH_REPO" --body app
 
 변수가 비어 있거나 앞 저장이 실패하면 App 전환은 실행되지 않는다. 값을 다시 로드하고 원인을 해결한 뒤 이 블록을 다시 실행한다. `LASTHUMAN_RUNTIME=app` 명령만 따로 실행하지 않는다.
 
-**실제 저장소 동작을 바꾸는 단계다.** `LASTHUMAN_RUNTIME=app`은 relay를 켜고 legacy gate/dashboard를 끈다. App 개인키·client secret·모델 키를 Actions secrets에 넣지 않는다.
+**실제 저장소 동작을 바꾸는 단계다.** `LASTHUMAN_RUNTIME=app`은 relay를 켜고 dashboard workflow를 끈다. 예전 `.github/workflows/comprehension-gate.yml` 파일은 이미 제거된 상태여야 하며, 그래도 권위 있는 최종 신호는 계속 `comprehension-gate` commit status다. App 개인키·client secret·모델 키를 Actions secrets에 넣지 않는다. 예전 Actions 실행 기록은 삭제되지 않는다.
 
 이번 가이드는 `comprehension-gate` context를 사용한다. 별도 staging 이름만 쓰면 기존 필수 context를 갱신할 writer가 없어질 수 있으므로, 그것을 병행 검증이라고 간주하지 않는다. 다음 단계의 App pending이 보이고 기대 발급자 설정을 마칠 때까지 관련 PR을 머지하지 않는다.
+
+보조 Check는 여기서 자동으로 켜지지 않는다. 필요하면 먼저 App owner가 `Checks: Read and write` 권한과 설치 업데이트를 승인하고, 터미널 C의 trusted `runtime.env`에 `TLH_CHECK_RUNS=true` 와 필요한 `TLH_CHECK_NAME`/`TLH_PRESENTATION_*` 값을 반영한 뒤 서버를 재시작한다. 이미 열려 있는 PR은 설정 변경만으로 다시 렌더링되지 않으므로 새 PR 이벤트를 만들거나 승인된 재동기화 절차를 실행한다.
 
 기존에 열린 PR이 변수 변경만으로 자동 재처리되는 것은 아니다. 아래에서 새 PR 이벤트를 만든다.
 
@@ -779,14 +789,14 @@ gh api "repos/$TLH_REPO/commits/$DEMO_HEAD/status" \
   --jq '.statuses[] | select(.context == "comprehension-gate") | {state,context,creator:.creator.login,description,target_url}'
 ```
 
-**기대 결과:** `TLH App relay`가 새 PR 이벤트를 처리하고, 제품 App 봇의 시작 댓글과 현재 SHA의 `comprehension-gate: pending`이 보인다. 면담 링크는 공개 터널 origin의 `/prs/<번호>`다.
+**기대 결과:** workflow 파일은 계속 `lasthuman-app.yml`이고, UI의 run title은 준비 단계에서 `Prepare PR #...`로 보인다. 제품 App 봇의 시작 댓글과 현재 SHA의 `comprehension-gate: pending`이 보인다. 면담 링크는 공개 터널 origin의 `/prs/<번호>`다.
 
 GitHub `Settings → Rules → Rulesets` 또는 `Branches`에서 `main`의 필수 상태를 확인한다.
 
 1. `comprehension-gate`를 필수로 지정한다.
 2. 기대 발급자를 **이번 제품 GitHub App**으로 지정한다. `Any source`나 `GitHub Actions`로 그대로 두지 않는다.
 3. 기존 CI·리뷰와 최신 base 반영 조건은 유지한다.
-4. `TLH App relay` 작업 이름만 필수로 지정하고 끝내지 않는다.
+4. `TLH App relay` 작업 이름이나 보조 Check 표시 이름 `The Last Human` 만 필수로 지정하고 끝내지 않는다.
 
 App이 상태를 한 번 보내기 전에는 선택 목록에 나타나지 않을 수 있다. 기존 규칙에서 발급자를 바꾸는 동안에는 머지 동결을 유지한다. UI에서 지정할 수 없거나 기존 규칙과 충돌하면 멈추고 관리자와 해결한다.
 
@@ -801,6 +811,8 @@ App이 상태를 한 번 보내기 전에는 선택 목록에 나타나지 않�
 5. 통과 후 성공 receipt가 저장되면 `awaiting_verification` 단계로 이동한다. 여기서 아직 최종 머지가 허용된 것은 아니다.
 6. App이 요청한 `workflow_dispatch` 실행이 receipt를 독립 검증하도록 기다린다.
 7. App의 성공 댓글과 현재 SHA의 `comprehension-gate: success`를 확인한다.
+
+`TLH_CHECK_RUNS=true`를 승인해 둔 환경이라면 같은 snapshot에 대해 보조 Check 하나가 더 보일 수 있다. 이 표시는 현재 SHA/base/policy 설명 보강용이며, 머지 조건의 권위는 계속 `comprehension-gate` status다. 권한/API 오류가 나면 보조 Check 쪽 운영 오류로 다루고, private 답변이나 보류 세부 내용은 공개하지 않는다.
 
 ```bash
 gh run list --repo "$TLH_REPO" --workflow lasthuman-app.yml --limit 10
