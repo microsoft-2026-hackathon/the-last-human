@@ -389,6 +389,15 @@ class BotService:
                     continue
                 try:
                     outcome = self._deliver_event(event)
+                except (SnapshotError, json.JSONDecodeError):
+                    self.store.mark_publication_retry(
+                        event.event_id,
+                        now=now,
+                        due_at=self._future_iso(event.attempts + 1),
+                        error_code="stored_snapshot_invalid",
+                        error_message="Stored snapshot could not be restored.",
+                    )
+                    continue
                 except GitHubError as error:
                     if event.kind == "verifier_dispatch" and event.attempts + 1 >= _MAX_VERIFIER_DISPATCH_ATTEMPTS:
                         self.store.mark_publication_terminal(

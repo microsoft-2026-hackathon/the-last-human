@@ -894,7 +894,7 @@ def _hunk_from_object(value: object) -> Hunk:
     data = _require_mapping(value, "hunk")
     return Hunk(
         file=_require_nonempty_str(data.get("file"), "hunk file"),
-        new_start=_require_positive_int(data.get("new_start"), "hunk new_start"),
+        new_start=_require_positive_or_zero_int(data.get("new_start"), "hunk new_start"),
         old_start=_require_positive_or_zero_int(data.get("old_start"), "hunk old_start"),
         anchor=_require_nonempty_str(data.get("anchor"), "hunk anchor"),
         added=_require_str_tuple(data.get("added"), "hunk added"),
