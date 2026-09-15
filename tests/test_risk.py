@@ -74,3 +74,29 @@ def test_internal_모드에서는_외부_기여자_신호가_꺼진다():
     diff = parse_hunks(README_DIFF)
     result = score(diff, CONFIG, PrMeta(author_association="NONE"))
     assert not any("외부 기여자" in r for r in result.reasons)
+
+
+def test_oss_모드_라벨이_양쪽에서_같은_점수를_낸다():
+    """확장/Action 어느 쪽에서 채점해도 같아야 한다.
+
+    모드 판단이 워크플로 셸 한쪽에만 있으면 gate의 재계산이 다른 점수를 내고,
+    신뢰 경계가 자기 자신을 불일치로 막는다. 실제로 그렇게 한 번 막혔다.
+    """
+    diff = parse_hunks(AUTH_DIFF)
+    plain = score(diff, CONFIG, PrMeta(author_association="OWNER", labels=()))
+    labeled = score(
+        diff,
+        CONFIG,
+        PrMeta(author_association="OWNER", labels=("oss-mode", "external-contributor")),
+    )
+
+    assert labeled.score > plain.score, "라벨이 붙으면 외부 기여자 가점이 붙어야 한다"
+    assert any("외부 기여자" in r for r in labeled.reasons)
+    assert not any("외부 기여자" in r for r in plain.reasons)
+    # 같은 입력이면 항상 같은 출력. 두 번 불러도 동일해야 한다.
+    again = score(
+        diff,
+        CONFIG,
+        PrMeta(author_association="OWNER", labels=("oss-mode", "external-contributor")),
+    )
+    assert again.score == labeled.score

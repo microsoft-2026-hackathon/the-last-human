@@ -1,0 +1,150 @@
+# 이해 게이트 대시보드
+#
+# 저장소 단위 커버리지를 집계해 GitHub Pages의 /dashboard/ 로 올립니다.
+#
+# 집계하는 것 — 구역(CODEOWNERS 경로) 단위 인증 비율, 강제 머지, 답할 수 있는 사람의 수
+# 집계하지 않는 것 — 개인 점수, 등급, 순위, 사람 이름이 붙은 성과 지표
+#
+# 개인 이해 이력은 본인만 봅니다. 이 워크플로가 만드는 산출물에는 들어가지 않습니다.
+
+name: 이해 게이트 대시보드
+
+on:
+  push:
+    branches: [main]
+  schedule:
+    # 매일 한 번. 대기 중인 PR 수가 바뀌므로 머지가 없어도 다시 그린다.
+    - cron: "17 0 * * *"
+  workflow_dispatch:
+
+concurrency:
+  group: dashboard
+  cancel-in-progress: true
+
+permissions:
+  contents: write        # gh-pages 브랜치에 올린다
+  pull-requests: read
+  statuses: read
+
+env:
+  PYTHONIOENCODING: utf-8
+  GH_TOKEN: ${{ github.token }}
+  STATUS_CONTEXT: comprehension-gate
+  # 이 날짜 이전의 머지는 게이트를 거치지 않았다. 미인증으로 세면
+  # 숫자가 실제보다 나쁘게 보이므로 집계에서 뺀다.
+  MEASURED_SINCE: "2026-09-02"
+  WINDOW_DAYS: "30"
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - run: pip install -e .
+
+      - name: 머지 기록 수집
+        run: |
+          python3 - <<'PY'
+          import json, os, subprocess, urllib.parse
+          from datetime import datetime, timedelta, timezone
+
+          repo = os.environ["GITHUB_REPOSITORY"]
+          since = datetime.fromisoformat(os.environ["MEASURED_SINCE"]).replace(tzinfo=timezone.utc)
+          window = timedelta(days=int(os.environ["WINDOW_DAYS"]))
+          cutoff = max(since, datetime.now(timezone.utc) - window)
+
+          def gh(path, **params):
+              url = path + ("?" + urllib.parse.urlencode(params) if params else "")
+              out = subprocess.run(
+                  ["gh", "api", url, "--paginate"], capture_output=True, text=True
+              )
+              if out.returncode != 0:
+                  return []
+              # --paginate는 배열을 이어 붙여 여러 JSON 문서로 내보낸다.
+              chunks, dec = [], json.JSONDecoder()
+              text, i = out.stdout.strip(), 0
+              while i < len(text):
+                  obj, end = dec.raw_decode(text, i)
+                  chunks.extend(obj if isinstance(obj, list) else [obj])
+                  i = end
+                  while i < len(text) and text[i] in " \n\r\t":
+                      i += 1
+              return chunks
+
+          rows, waiting = [], 0
+          for pr in gh(f"repos/{repo}/pulls", state="all", per_page=100):
+              merged_at = pr.get("merged_at")
+              sha = pr["head"]["sha"]
+
+              # 게이트가 이 커밋에 남긴 상태. 없으면 게이트를 거치지 않은 PR이다.
+              states = [
+                  s for s in gh(f"repos/{repo}/commits/{sha}/status")
+                  for s in s.get("statuses", [])
+                  if s.get("context") == os.environ["STATUS_CONTEXT"]
+              ]
+              triggered = bool(states)
+              passed = any(s.get("state") == "success" for s in states)
+
+              if not merged_at:
+                  # 아직 열려 있고 인증을 기다리는 중.
+                  if triggered and not passed and pr.get("state") == "open":
+                      waiting += 1
+                  continue
+
+              if datetime.fromisoformat(merged_at.replace("Z", "+00:00")) < cutoff:
+                  continue
+
+              # 인증 코멘트가 실제로 남았는가. 상태만 믿지 않는다.
+              comments = gh(f"repos/{repo}/issues/{pr['number']}/comments", per_page=100)
+              attesters = {
+                  c["user"]["login"]
+                  for c in comments
+                  if "lasthuman:attestation:v1" in (c.get("body") or "")
+              }
+              files = [f["filename"] for f in gh(f"repos/{repo}/pulls/{pr['number']}/files", per_page=100)]
+
+              rows.append({
+                  "number": pr["number"],
+                  "mergedAt": merged_at,
+                  "files": files,
+                  "triggered": triggered,
+                  "attested": bool(attesters),
+                  "attesterCount": len(attesters),
+                  "forced": triggered and not attesters,
+                  "changedLines": (pr.get("additions") or 0) + (pr.get("deletions") or 0),
+              })
+
+          json.dump(rows, open("prs.json", "w", encoding="utf-8"), ensure_ascii=False)
+          with open(os.environ["GITHUB_ENV"], "a", encoding="utf-8") as fh:
+              fh.write(f"WAITING={waiting}\n")
+          print(f"머지 {len(rows)}건 · 대기 {waiting}건")
+          PY
+
+      - name: 대시보드 생성
+        run: |
+          lasthuman dashboard \
+            --repo "$GITHUB_REPOSITORY" --repo-path . \
+            --prs prs.json --out-dir site/dashboard \
+            --since "$MEASURED_SINCE" --window "$WINDOW_DAYS" --waiting "${WAITING:-0}"
+
+      - name: Pages에 올리기
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git fetch origin gh-pages
+          git checkout gh-pages
+          rm -rf dashboard
+          mv site/dashboard dashboard
+          git add dashboard
+          if git diff --cached --quiet; then
+            echo "바뀐 것이 없습니다."
+            exit 0
+          fi
+          git commit -q -m "chore: 대시보드 갱신 ${GITHUB_SHA::7}"
+          git push -q origin gh-pages
+          echo "https://${GITHUB_REPOSITORY_OWNER}.github.io/${GITHUB_REPOSITORY#*/}/dashboard/" >> "$GITHUB_STEP_SUMMARY"
