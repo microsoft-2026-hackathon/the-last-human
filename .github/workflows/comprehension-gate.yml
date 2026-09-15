@@ -83,8 +83,8 @@ jobs:
           BASE_REF: ${{ steps.ctx.outputs.base_ref }}
         run: |
           git fetch origin "$BASE_REF"
-          gh pr view "$PR_NUMBER" --repo "$GITHUB_REPOSITORY" \
-            --json title,body,author,authorAssociation,labels > raw.json
+          # gh pr view --json은 authorAssociation을 모른다. REST가 한 번에 다 준다.
+          gh api "repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER" > raw.json
           python3 - <<'PY'
           import json, os, subprocess
           raw = json.load(open("raw.json", encoding="utf-8"))
@@ -96,10 +96,10 @@ jobs:
           hints = ("co-authored-by: claude", "co-authored-by: copilot", "generated with")
           json.dump(
               {
-                  "title": raw["title"],
+                  "title": raw.get("title") or "",
                   "body": raw.get("body") or "",
-                  "author": raw["author"]["login"],
-                  "authorAssociation": raw.get("authorAssociation") or "OWNER",
+                  "author": (raw.get("user") or {}).get("login", ""),
+                  "authorAssociation": raw.get("author_association") or "OWNER",
                   "agentHint": any(k in log for k in hints),
                   "labels": [l["name"] for l in raw.get("labels") or []],
               },
