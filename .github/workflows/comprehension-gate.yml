@@ -82,7 +82,7 @@ jobs:
           PR_NUMBER: ${{ steps.ctx.outputs.pr }}
           BASE_REF: ${{ steps.ctx.outputs.base_ref }}
         run: |
-          git fetch origin "$BASE_REF" --depth=0
+          git fetch origin "$BASE_REF"
           gh pr view "$PR_NUMBER" --repo "$GITHUB_REPOSITORY" \
             --json title,body,author,authorAssociation,labels > raw.json
           python3 - <<'PY'
@@ -157,7 +157,7 @@ jobs:
 
       - name: 질문 생성과 면담 페이지 만들기
         run: |
-          git fetch origin "$BASE_REF" --depth=0
+          git fetch origin "$BASE_REF"
           gh pr view "$PR_NUMBER" --repo "$GITHUB_REPOSITORY" --json body --jq .body > pr-body.md
           TITLE=$(gh pr view "$PR_NUMBER" --repo "$GITHUB_REPOSITORY" --json title --jq .title)
           lasthuman page \
@@ -255,7 +255,7 @@ jobs:
         env:
           ACTOR: ${{ github.event.comment.user.login }}
         run: |
-          git fetch origin "$BASE_REF" --depth=0
+          git fetch origin "$BASE_REF"
           lasthuman grade \
             --base "origin/$BASE_REF" --head "$HEAD_SHA" \
             --comment-file comment.md \
@@ -296,7 +296,7 @@ jobs:
 
       - name: 위험 점수 재계산
         run: |
-          git fetch origin "$BASE_REF" --depth=0
+          git fetch origin "$BASE_REF"
           lasthuman score --base "origin/$BASE_REF" --head "$HEAD_SHA" \
             --meta meta.json --out recomputed.json
           python3 - <<'PY'
