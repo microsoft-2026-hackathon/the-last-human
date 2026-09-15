@@ -108,7 +108,9 @@ class MemoryJob:
     expires_at: float
     state: str = "queued"
     message: str = ""
-    feedback: list[dict[str, str]] = field(default_factory=list)
+    feedback: list[dict[str, object]] = field(default_factory=list)
+    #: 보류 회차에서 이미 통과한 문항. 화면이 Accepted 로 잠근다.
+    accepted: list[str] = field(default_factory=list)
     receipt_id: str | None = None
     question_version: str | None = None
     verified_at: str | None = None
@@ -121,6 +123,61 @@ class PresentationCheckCancelTarget:
     head_sha: str
     external_id: str
     check_run_id: int | None = None
+
+
+_EVIDENCE_RADIUS = 5
+_EVIDENCE_MAX_LINES = 28
+
+
+def _evidence_centers(snapshot: Snapshot, path: str, lines: Sequence[str]) -> list[int]:
+    """근거 파일에서 보여줄 중심 줄들 — 피호출자 정의, 그 파일의 상수 선언, 없으면 hunk 시작."""
+    centers: list[int] = []
+    for callee in snapshot.structure.callees:
+        if callee.defined_in != path:
+            continue
+        centers.append(callee.line)
+        for constant in callee.constants:
+            name = constant.split("=", 1)[0].strip()
+            for index, line in enumerate(lines, start=1):
+                if line.startswith(f"{name} ") or line.startswith(f"{name}=") or line.startswith(f"{name}:"):
+                    centers.append(index)
+                    break
+    if not centers:
+        for hunk in snapshot.risk.top_hunks:
+            if hunk.file == path:
+                centers.append(hunk.new_start)
+                break
+    return centers or [1]
+
+
+def excerpt_segments(
+    lines: Sequence[str],
+    centers: Sequence[int],
+    *,
+    radius: int = _EVIDENCE_RADIUS,
+    max_lines: int = _EVIDENCE_MAX_LINES,
+) -> list[dict[str, object]]:
+    """중심 줄들 주변을 잘라 겹치는 구간은 합친다. 파일 순서대로, 총 줄 수 상한 안에서."""
+    total = len(lines)
+    windows: list[tuple[int, int]] = []
+    for center in sorted(set(centers)):
+        start = max(1, center - radius)
+        end = min(total, center + radius)
+        if start > end:
+            continue
+        if windows and start <= windows[-1][1] + 1:
+            windows[-1] = (windows[-1][0], max(windows[-1][1], end))
+        else:
+            windows.append((start, end))
+    segments: list[dict[str, object]] = []
+    budget = max_lines
+    for start, end in windows:
+        if budget <= 0:
+            break
+        end = min(end, start + budget - 1)
+        segments.append({"start": start, "lines": list(lines[start - 1:end])})
+        budget -= end - start + 1
+    return segments
 
 
 class BotService:
@@ -795,7 +852,7 @@ class BotService:
             job.state = "running"
         hunk_by_anchor = {hunk.anchor: hunk for hunk in record.snapshot.diff.hunks}
         by_id = {item.id: item for item in record.questions}
-        feedback: list[dict[str, str]] = []
+        feedback: list[dict[str, object]] = []
         successful: list[ReceiptAnswer] = []
         for payload in answers:
             with self._lock:
@@ -805,12 +862,14 @@ class BotService:
             text = str(payload["text"])
             choice = payload.get("choice")
             if not text.strip() or (question.question.choices and choice is None):
-                feedback.append(
-                    {
-                        "id": question.id,
-                        "hint": f"inspect {question.question.anchor}",
-                    }
-                )
+                blank: dict[str, object] = {
+                    "id": question.id,
+                    "hint": f"inspect {question.question.anchor}",
+                }
+                evidence = self._evidence_for(record, question.question)
+                if evidence is not None:
+                    blank["evidence"] = evidence
+                feedback.append(blank)
                 continue
             graded = self.grade(
                 question.question,
@@ -824,12 +883,15 @@ class BotService:
             if graded.verdict not in {"pass", "hold"}:
                 raise BotError("grader returned an invalid verdict", code="grade_error", status_code=502)
             if graded.verdict == "hold":
-                feedback.append(
-                    {
-                        "id": question.id,
-                        "hint": self._safe_hint(question.question.anchor, graded.hint),
-                    }
-                )
+                item: dict[str, object] = {
+                    "id": question.id,
+                    "hint": self._safe_hint(question.question.anchor, graded.hint),
+                }
+                # 보류일 때만 근거 파일을 열어 준다. 정답이 아니라 어디를 볼지다.
+                evidence = self._evidence_for(record, question.question)
+                if evidence is not None:
+                    item["evidence"] = evidence
+                feedback.append(item)
                 continue
             successful.append(
                 ReceiptAnswer(
@@ -850,6 +912,7 @@ class BotService:
             if feedback:
                 job.state = "needs_followup"
                 job.feedback = feedback
+                job.accepted = [answer.question_id for answer in successful]
                 return
             receipt = self.store.save_receipt(
                 record,
@@ -1532,6 +1595,7 @@ class BotService:
         payload: dict[str, object] = {"state": job.state}
         if job.feedback:
             payload["feedback"] = list(job.feedback)
+            payload["accepted"] = list(job.accepted)
         if job.message:
             payload["message"] = job.message
         if job.receipt_id is not None:
@@ -1948,6 +2012,29 @@ class BotService:
     def _sha256_json(self, payload: object) -> str:
         blob = json.dumps(payload, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
         return hashlib.sha256(blob.encode("utf-8")).hexdigest()
+
+    def _evidence_for(self, record: StoredSnapshot, question: Question) -> dict[str, object] | None:
+        """보류된 문항의 근거 파일 발췌. 읽기에 실패하면 None — 보류를 막지 않는다.
+
+        피호출자 정의 주변과, 그 파일의 상수 선언 줄 주변을 함께 보여준다.
+        "전송 계층이 이미 3번 재시도한다"는 사실은 정의가 아니라 상수 줄에 있다.
+        """
+        path = question.evidence_path
+        if not path:
+            return None
+        reader = getattr(self.reader, "read_file", None)
+        if not callable(reader):
+            return None
+        try:
+            lines = reader(record.snapshot.head_sha, path)
+        except Exception:  # pylint: disable=broad-exception-caught
+            return None
+        if not lines:
+            return None
+        segments = excerpt_segments(lines, _evidence_centers(record.snapshot, path, lines))
+        if not segments:
+            return None
+        return {"path": path, "segments": segments}
 
     def _safe_hint(self, anchor: str, hint: object) -> str:
         text = " ".join(str(hint or "").split())

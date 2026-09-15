@@ -47,6 +47,7 @@ _QUESTION_KEYS = (
     "choices",
     "answerIndex",
     "expectedEvidence",
+    "evidencePath",
 )
 # Keep the schema within the conservative Chat Completions compatibility budget.
 _SCHEMA_ENUM_LIMIT = 500
@@ -79,12 +80,27 @@ QUESTION_PROMPT = """당신은 코드 리뷰 게이트입니다. 아래 변경�
   특히 PR 설명만 읽은 사람이 고를 법한 보기를 반드시 하나 넣는다
 - 보기 길이를 비슷하게 맞춘다. 유독 긴 보기가 정답이면 그것만 보고 찍는다
 
+답이 어디에 있는가 — 이 게이트의 난이도 곡선
+- {n}개 중 **최소 1개는 답이 아래 hunk 안에** 있어야 한다. diff만 읽으면 답할 수 있는 질문이다.
+  이것이 통과해야 게이트가 무조건 막는 도구가 아님이 드러난다
+- {n}개 중 **최소 1개는 답이 hunk 밖에** 있어야 한다 — "구조 사실"에 적힌 다른 파일의 동작이나
+  상수를 알아야 답할 수 있는 질문. 변경된 코드가 호출하는 것이 무엇을 하는지, 몇 번 하는지,
+  누가 이 변경에 영향을 받는지가 그 재료다. 구조 사실이 "없음"이면 전부 hunk 안으로 채운다
+- 답이 hunk 밖에 있는 질문의 보기에는 **실제 파일 경로**를 넣는다. 질문을 복사해 모델에 던져도
+  그 파일을 열어 붙여넣지 않고는 답이 나오지 않아야 한다
+- 배열 순서: 답이 hunk 안에 있는 질문을 먼저, 밖에 있는 질문을 나중에 둔다
+
 공통 규칙
 - 반드시 아래 hunk와 구조 사실 안에서만 묻는다. 일반 지식 질문 금지
-- 각 질문은 정확히 하나의 anchor(file:Lnnn)를 가리킨다
+- 각 질문은 정확히 하나의 anchor(file:Lnnn)를 가리킨다 — 질문이 *무엇에 대한* 것인지
+- evidencePath는 답의 **근거가 실제로 있는 파일**이다. 답이 hunk 안이면 hunk의 파일,
+  밖이면 구조 사실의 그 파일. 아래 목록에 있는 경로만 쓸 수 있다. 보류됐을 때 사람에게
+  이 파일을 열어 준다 — 정답을 알려주는 것이 아니라 어디를 보면 되는지를 알려준다
 - 사소한 것(변수명, 포매팅, 스타일)은 묻지 않는다
 - expectedEvidence는 **근거 한 줄**에 담겨야 할 사실이다.
   보기를 고른 뒤 "어디를 보고 그렇게 판단했는지"를 따로 쓰게 되어 있다
+- 질문·보기·expectedEvidence는 **PR 제목과 본문의 언어**로 쓴다. 영어 PR이면 영어.
+  코드 식별자와 파일 경로는 번역하지 않고 원문 그대로 둔다
 
 PR 제목: {title}
 PR 본문: {body}
@@ -96,10 +112,14 @@ PR 본문: {body}
 구조 사실:
 {structure}
 
+evidencePath로 쓸 수 있는 파일:
+{evidence_files}
+
 JSON 객체만 출력. questions 필드에 질문 배열을 넣으십시오. 다른 텍스트 금지.
 {{"questions":[{{"type":"structure","anchor":"src/x.py:L88","text":"...",
   "choices":["...","...","...","..."],"answerIndex":2,
-  "expectedEvidence":"근거 한 줄에 반드시 나와야 하는 사실"}}]}}
+  "expectedEvidence":"근거 한 줄에 반드시 나와야 하는 사실",
+  "evidencePath":"src/y.py"}}]}}
 """
 
 GRADE_PROMPT = """개발자가 객관식 보기를 고르고 그렇게 판단한 근거를 한 줄 썼습니다.
@@ -120,8 +140,8 @@ GRADE_PROMPT = """개발자가 객관식 보기를 고르고 그렇게 판단한
 {hunk}
 개발자가 쓴 근거: {answer}
 
-JSON만 출력.
-{{"verdict":"pass"|"hold","hint":"보류일 때 어디를 보면 되는지 한 문장"}}
+JSON만 출력. hint는 개발자가 쓴 근거와 **같은 언어**로, 어디를 보면 되는지 한 문장.
+{{"verdict":"pass"|"hold","hint":"..."}}
 """
 
 
@@ -153,8 +173,25 @@ def resolve_endpoint() -> tuple[str, str]:
     raise ModelError(f"알 수 없는 공급자입니다: {provider}")
 
 
-def question_response_format(risk: RiskResult) -> dict[str, object]:
-    """질문 생성용 엄격한 JSON 스키마를 만든다."""
+def evidence_paths(risk: RiskResult, structure: StructureContext | None = None) -> tuple[str, ...]:
+    """evidencePath 로 허용하는 실재 경로. hunk 파일이 먼저, 그다음 구조 사실의 파일."""
+    out: dict[str, None] = {}
+    for hunk in risk.top_hunks:
+        out.setdefault(hunk.file, None)
+    if structure is not None:
+        for path in structure.evidence_files:
+            out.setdefault(path, None)
+    return tuple(out)
+
+
+def question_response_format(
+    risk: RiskResult, structure: StructureContext | None = None
+) -> dict[str, object]:
+    """질문 생성용 엄격한 JSON 스키마를 만든다.
+
+    anchor 와 evidencePath 를 enum 으로 묶는다. 모델이 존재하지 않는 줄이나 파일을
+    가리키는 것을 스키마 단계에서 막는다.
+    """
     anchors: list[str] = []
     seen: set[str] = set()
     for hunk in risk.top_hunks:
@@ -166,12 +203,14 @@ def question_response_format(risk: RiskResult) -> dict[str, object]:
             anchors.append(anchor)
     if not anchors:
         raise ModelError("질문에 사용할 앵커가 없습니다.")
-    anchor_chars = sum(map(len, anchors))
+    paths = list(evidence_paths(risk, structure))
+    enum_values = len(anchors) + len(paths)
+    enum_chars = sum(map(len, anchors)) + sum(map(len, paths))
     fixed_chars = len("questions") + sum(map(len, _QUESTION_KEYS)) + sum(map(len, _QUESTION_TYPE_ENUM))
     if (
-        len(anchors) + len(_QUESTION_TYPE_ENUM) > _SCHEMA_ENUM_LIMIT
-        or anchor_chars + fixed_chars > _SCHEMA_STRING_LIMIT
-        or (len(anchors) > 250 and anchor_chars > _LARGE_ENUM_STRING_LIMIT)
+        enum_values + len(_QUESTION_TYPE_ENUM) > _SCHEMA_ENUM_LIMIT
+        or enum_chars + fixed_chars > _SCHEMA_STRING_LIMIT
+        or (enum_values > 250 and enum_chars > _LARGE_ENUM_STRING_LIMIT)
     ):
         raise ModelError("질문 앵커 목록이 지원하는 스키마 크기를 초과합니다.")
 
@@ -184,6 +223,7 @@ def question_response_format(risk: RiskResult) -> dict[str, object]:
             "choices": {"type": "array", "items": {"type": "string"}},
             "answerIndex": {"type": "integer"},
             "expectedEvidence": {"type": "string"},
+            "evidencePath": {"type": "string", "enum": paths},
         },
         "required": list(_QUESTION_KEYS),
         "additionalProperties": False,
@@ -357,7 +397,8 @@ def generate_questions(
     if dry_run:
         return _stub_questions(risk, n, structure)
 
-    response_format = question_response_format(risk)
+    response_format = question_response_format(risk, structure)
+    allowed_paths = evidence_paths(risk, structure)
     prompt = QUESTION_PROMPT.format(
         n=n,
         title=title,
@@ -365,12 +406,13 @@ def generate_questions(
         reasons="; ".join(risk.reasons),
         hunks=_format_hunks(risk.top_hunks),
         structure=structure.as_prompt() if structure and not structure.is_empty() else "없음",
+        evidence_files="\n".join(f"- {path}" for path in allowed_paths),
     )
     valid_anchors = {h.anchor for h in risk.top_hunks}
     for attempt in range(2):
         raw = call_model(prompt, token=token, response_format=response_format)
         try:
-            return _parse_questions(_extract_json(raw), valid_anchors, n)
+            return _parse_questions(_extract_json(raw), valid_anchors, n, allowed_paths=allowed_paths)
         except json.JSONDecodeError:
             if attempt == 1:
                 raise ModelError("질문 응답을 읽지 못했습니다.") from None
@@ -380,7 +422,13 @@ def generate_questions(
     raise AssertionError("unreachable")
 
 
-def _parse_questions(parsed: object, valid_anchors: set[str], n: int) -> list[Question]:
+def _parse_questions(
+    parsed: object,
+    valid_anchors: set[str],
+    n: int,
+    *,
+    allowed_paths: Sequence[str] = (),
+) -> list[Question]:
     if not isinstance(parsed, dict) or set(parsed) != {"questions"}:
         raise ModelError("질문 응답 루트 형식이 올바르지 않습니다.")
     items = parsed.get("questions")
@@ -413,6 +461,11 @@ def _parse_questions(parsed: object, valid_anchors: set[str], n: int) -> list[Qu
         choices = tuple(c.strip() for c in raw_choices)
         if any(not choice for choice in choices):
             raise ModelError("질문 보기는 비어 있지 않은 문자열이어야 합니다.")
+        evidence_path = item["evidencePath"]
+        if not isinstance(evidence_path, str) or not evidence_path.strip():
+            raise ModelError("질문 근거 파일의 형식이 올바르지 않습니다.")
+        if allowed_paths and evidence_path not in allowed_paths:
+            raise ModelError("질문 근거 파일이 허용 목록에 없습니다.")
         raw_index = item["answerIndex"]
         if isinstance(raw_index, bool) or not isinstance(raw_index, int):
             raise ModelError("질문 정답 위치의 형식이 올바르지 않습니다.")
@@ -431,6 +484,7 @@ def _parse_questions(parsed: object, valid_anchors: set[str], n: int) -> list[Qu
                 expected_evidence=evidence.strip(),
                 choices=choices,
                 answer_index=idx,
+                evidence_path=evidence_path,
             )
         )
     return out
@@ -461,7 +515,7 @@ def grade(
                 choice=choice,
                 verdict="hold",
                 choice_correct=False,
-                hint=f"{question.anchor}를 열어 실제 동작을 확인해 보세요.",
+                hint=f"Open {question.anchor} and check what the code actually does.",
             )
 
     if dry_run:
@@ -531,6 +585,7 @@ def _stub_questions(
                     expected_evidence=f"{sym.symbol}의 실제 호출 지점",
                     choices=shuffled[0],
                     answer_index=shuffled[1],
+                    evidence_path=sym.used_in[0] if sym.used_in else sym.defined_in,
                 )
             )
 
@@ -545,6 +600,7 @@ def _stub_questions(
                 anchor=h.anchor,
                 text=f"[dry-run] {h.anchor}의 변경이 어떤 상황에서 무슨 결과를 냅니까?",
                 expected_evidence=f"{h.file}의 해당 hunk에 실제로 있는 동작",
+                evidence_path=h.file,
             )
         )
     return out[:n]

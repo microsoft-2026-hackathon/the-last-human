@@ -13,7 +13,15 @@ from lasthuman.diff import parse_hunks
 from lasthuman.models import PrMeta
 from lasthuman.risk import score
 from lasthuman.server.config import Settings
-from lasthuman.server.snapshot import Snapshot, SnapshotError, SnapshotReader, UnsupportedSnapshot
+from lasthuman.server.snapshot import (
+    Snapshot,
+    SnapshotError,
+    SnapshotReader,
+    UnsupportedSnapshot,
+    _structure_from_object,
+    _structure_to_dict,
+)
+from lasthuman.structure import Callee, StructureContext, SymbolUse
 
 BASE_SHA = "a" * 40
 HEAD_SHA = "b" * 40
@@ -464,3 +472,26 @@ def test_snapshot_reader_rejects_file_count_bound(tmp_path: Path):
 
     with pytest.raises(UnsupportedSnapshot, match="200"):
         make_reader(tmp_path, client, runner).read(7)
+
+
+def test_structure_round_trip_keeps_callees_and_reads_old_payloads_without_them():
+    structure = StructureContext(
+        changed_files=("app/auth/token.py",),
+        importers={"app/auth/token.py": ("app/auth/session.py",)},
+        symbols=(SymbolUse(symbol="ensure_fresh", defined_in="app/auth/token.py", used_in=("app/auth/session.py",)),),
+        sibling_files=("app/db/client.py",),
+        callees=(
+            Callee(symbol="post_json", defined_in="app/http_client.py", line=30, constants=("MAX_ATTEMPTS = 3",)),
+        ),
+    )
+    payload = _structure_to_dict(structure)
+    assert payload["callees"] == [
+        {"symbol": "post_json", "defined_in": "app/http_client.py", "line": 30, "constants": ["MAX_ATTEMPTS = 3"]}
+    ]
+    assert _structure_from_object(payload) == structure
+
+    legacy = dict(payload)
+    del legacy["callees"]
+    restored = _structure_from_object(legacy)
+    assert restored.callees == ()
+    assert restored.symbols == structure.symbols
