@@ -1,0 +1,10 @@
+{
+  "name": "orderly",
+  "version": "0.3.1",
+  "private": true,
+  "type": "commonjs",
+  "scripts": {
+    "test": "node --test tests/",
+    "lint": "echo lint ok"
+  }
+}
