@@ -21,8 +21,8 @@ Mac에서 새 App 개인키·Azure OpenAI·Microsoft Dev Tunnels를 준비하고
 | owner ID | `36983960` |
 | 기본 워크플로 | `lasthuman-app.yml` |
 | trusted ref | `refs/heads/main` |
-| 개발 상태 이름 | `comprehension-gate-dev` |
-| 실사용 상태 이름 | `comprehension-gate` |
+| 개발 상태 이름 | `last-human/human-verified-dev` |
+| 실사용 상태 이름 | `last-human/human-verified` |
 | 웹훅 | 끔 |
 
 ## GitHub App 설정
@@ -84,7 +84,7 @@ set +a
 | `TLH_SECRET_KEY` | 32자 이상 랜덤 문자열 |
 | `TLH_DATABASE` | 기본값 `.work/lasthuman.sqlite3` |
 | `TLH_MODE` | `development` 또는 `live` |
-| `TLH_STATUS_CONTEXT` | 개발은 `comprehension-gate-dev`, 실사용은 `comprehension-gate` |
+| `TLH_STATUS_CONTEXT` | 개발은 `last-human/human-verified-dev`, 실사용은 `last-human/human-verified` |
 | `TLH_CHECK_RUNS` | 기본값 `false`. owner가 `Checks: Read and write` 승인과 설치 업데이트를 끝낸 뒤에만 `true` |
 | `TLH_CHECK_NAME` | 보조 Check 표시 이름. 기본값 `The Last Human` |
 | `TLH_WORKFLOW` | `lasthuman-app.yml` |
@@ -119,7 +119,7 @@ set +a
 - 실사용 모드는 `TLH_WORKFLOW_REF=refs/heads/main` 을 강제한다.
 - 실사용 모드에서 상태 이름이 `-dev` 로 끝나면 거부된다.
 - Actions 쪽에는 App private key, client secret, 모델 자격 증명을 넘기지 않는다.
-- `TLH_CHECK_NAME` 은 보조 Check 표시 이름이고, branch protection에 걸어 두는 권위 있는 값은 계속 `TLH_STATUS_CONTEXT=comprehension-gate` 다.
+- `TLH_CHECK_NAME` 은 보조 Check 표시 이름이고, branch protection에 걸어 두는 권위 있는 값은 계속 `TLH_STATUS_CONTEXT=last-human/human-verified` 다.
 - `TLH_PRESENTATION_LOCALE=en` 은 카탈로그 분리용 seam 이다. scorer가 주는 근거 문자열은 원문 언어로 남을 수 있으므로, 완전한 자동 번역을 약속하지 않는다.
 - 개발/`localhost` 경로는 production Check를 발행하지 않는다.
 - 이 문서는 Azure 자원을 자동으로 만들지 않는다. 기존 모델 자격 증명만 연결한다.
@@ -294,13 +294,13 @@ snapshot 은 아래 형태를 지원하지 않는다.
 
 질문 생성 방식이 바뀌어도 Actions의 책임은 바뀌지 않는다. 아래 relay는 계속 trusted main에서 위험도와 인증 결속을 독립 검증하며, 모델 호출은 App 서버에서 수행한다. 새로운 CI 작업, Azure 자격 증명 전달, 자동 머지 조건은 추가하지 않는다.
 
-`LASTHUMAN_RUNTIME=app` 을 켜면 `lasthuman-app.yml` relay workflow 가 동작하고 `dashboard.yml` 은 `vars.LASTHUMAN_RUNTIME != 'app'` 조건 때문에 멈춘다. 예전 `.github/workflows/comprehension-gate.yml` 파일은 제거되지만, 권위 있는 최종 신호는 그대로 commit status context `comprehension-gate` 다. 파일을 지워도 과거 Actions 실행 기록과 이미 남은 PR 댓글은 삭제되지 않는다.
+`LASTHUMAN_RUNTIME=app` 을 켜면 `lasthuman-app.yml` relay workflow 가 동작하고 `dashboard.yml` 은 `vars.LASTHUMAN_RUNTIME != 'app'` 조건 때문에 멈춘다. 예전 `.github/workflows/comprehension-gate.yml` 파일은 제거되지만, 권위 있는 최종 신호는 그대로 commit status context `last-human/human-verified` 다. 파일을 지워도 과거 Actions 실행 기록과 이미 남은 PR 댓글은 삭제되지 않는다.
 
 `lasthuman-app.yml` 의 실제 성격은 아래와 같다.
 
 - 이벤트는 `pull_request_target` 의 `opened`, `synchronize`, `reopened`, `edited`, `labeled`, `unlabeled`, `closed` 와 `workflow_dispatch` 하나다.
 - workflow token 권한은 `contents: read`, `pull-requests: read`, `statuses: read`, `id-token: write` 만 쓴다.
-- run title은 준비 단계에서 `Prepare PR #...`, receipt 재검사에서는 `Verify receipt ...` 로 보인다.
+- run title은 준비 단계에서 `Relay PR #...`, receipt 재검사에서는 `Verify receipt ...` 로 보인다.
 - workflow 는 PR head가 아니라 저장소 기본 브랜치를 checkout 한다.
 - relay 코드는 `python -m lasthuman.server.relay` 로 trusted source 에서만 돈다.
 - PR 이벤트에서는 metadata-only binding 을 서버에 넘긴다.
@@ -327,7 +327,7 @@ snapshot 은 아래 형태를 지원하지 않는다.
 중요한 점 두 가지가 있다.
 
 - `TLH_BOT_URL` 은 공개 `https` origin 이어야 한다. 이 런북에서는 `TLH_BASE_URL` 과 같은 공개 origin 으로 맞춘다.
-- `Prepare PR`의 성공은 면담 통과를 뜻하지 않는다. 기존 relay는 짧은 서버 작업을 최대 180초 기다리고, 서버 재시작으로 작업이 사라지면 같은 요청을 최대 2회 다시 접수한다. `Verify receipt`의 다섯 단계 성공은 조회 시점에 해당 receipt의 GitHub gate 성공까지 확인했다는 뜻이다. 사람의 면담을 runner에서 기다리지는 않으며, 새 변경 이후의 인증 재사용도 허용하지 않는다. 최종 머지 조건은 GitHub App의 commit status다.
+- `Relay PR`의 성공은 면담 통과를 뜻하지 않는다. 기존 relay는 짧은 서버 작업을 최대 180초 기다리고, 서버 재시작으로 작업이 사라지면 같은 요청을 최대 2회 다시 접수한다. `Verify receipt`의 다섯 단계 성공은 조회 시점에 해당 receipt의 GitHub gate 성공까지 확인했다는 뜻이다. 사람의 면담을 runner에서 기다리지는 않으며, 새 변경 이후의 인증 재사용도 허용하지 않는다. 최종 머지 조건은 GitHub App의 commit status다.
 
 ## 개발 모드와 실사용 모드 차이
 
@@ -339,7 +339,7 @@ snapshot 은 아래 형태를 지원하지 않는다.
 | 보조 App Check | 발행하지 않음 | 기본값은 꺼짐. 승인 후에만 발행 |
 | 시작 comment | 필요하면 로컬 전용 안내만 남김 | `/prs/<pr>` 링크 포함 |
 | success status target | 없음 | `/receipts/<id>` 링크 |
-| 상태 이름 기본값 | `comprehension-gate-dev` | `comprehension-gate` |
+| 상태 이름 기본값 | `last-human/human-verified-dev` | `last-human/human-verified` |
 
 `localhost` 개발 경로에서는 상태를 GitHub에 쓰지 않는다. 대신 동기화가 comment 를 남길 수는 있고, 그 comment 는 클릭 가능한 `localhost` 링크 대신 head SHA 확인 안내만 넣는다.
 
@@ -353,14 +353,14 @@ snapshot 은 아래 형태를 지원하지 않는다.
 gunicorn --bind 0.0.0.0:8000 --workers 1 --threads 4 'lasthuman.server.app:create_app()'
 ```
 
-4. 실사용 환경에서 `TLH_MODE=live`, 공개 `TLH_BASE_URL`, `TLH_WORKFLOW_REF=refs/heads/main`, `TLH_STATUS_CONTEXT=comprehension-gate`, 올바른 `TLH_OIDC_AUDIENCE` 를 맞춘다.
+4. 실사용 환경에서 `TLH_MODE=live`, 공개 `TLH_BASE_URL`, `TLH_WORKFLOW_REF=refs/heads/main`, `TLH_STATUS_CONTEXT=last-human/human-verified`, 올바른 `TLH_OIDC_AUDIENCE` 를 맞춘다.
 5. 저장소 변수 `LASTHUMAN_RUNTIME=app` 과 `TLH_BOT_URL` 을 넣는다. audience 를 기본 저장소명과 다르게 쓸 때만 `TLH_OIDC_AUDIENCE` 도 같이 맞춘다.
    - `TLH_CHECK_RUNS` 는 기본값 `false`다. 보조 Check가 필요하면 먼저 GitHub App 설정에서 `Checks: Read and write` 를 추가하고 owner/installation 승인을 마친다.
    - 승인 뒤에는 trusted 서버의 `runtime.env` 에 `TLH_CHECK_RUNS=true` 와 필요하면 `TLH_CHECK_NAME`, `TLH_PRESENTATION_NAME`, `TLH_PRESENTATION_LOCALE`, 각 presentation limit 값을 넣는다.
    - `TLH_CHECK_NAME` 기본값 `The Last Human` 은 보조 Check 표시 이름일 뿐이며, 필수 상태 이름 `TLH_STATUS_CONTEXT` 와 다르게 유지한다.
 6. 기존 CI, 리뷰, strict up-to-date 보호는 그대로 둔다. 준비되지 않은 백엔드 때문에 기존 보호를 먼저 내리지 않는다.
 7. 변수 변경 뒤에는 새 PR 이벤트를 만들거나 기존 이벤트를 다시 실행한다. 이미 열려 있던 PR이 자동으로 다시 흘렀다고 가정하지 않는다.
-8. App이 상태를 한 번 발행한 뒤 저장소 `Settings → Rules → Rulesets` 또는 `Branches`에서 대상 브랜치의 필수 상태를 `comprehension-gate`로 지정하고, 기대 발급자로 설치한 App을 선택한다. `TLH App relay` 작업 이름이나 보조 Check 표시 이름 `The Last Human` 만 필수로 선택하면 안 된다. 기존 CI·리뷰와 최신 base 반영 조건을 유지한다.
+8. App이 상태를 한 번 발행한 뒤 저장소 `Settings → Rules → Rulesets` 또는 `Branches`에서 대상 브랜치의 필수 상태를 `last-human/human-verified`로 지정하고, 기대 발급자로 설치한 App을 선택한다. `Last Human · relay` 작업 이름이나 보조 Check 표시 이름 `The Last Human` 만 필수로 선택하면 안 된다. 기존 CI·리뷰와 최신 base 반영 조건을 유지한다.
 9. 허가된 PR에서 시작 댓글의 App attribution, 작성자 로그인, 비공개 보완, 성공 기록의 SHA, 검증 workflow, 최종 상태, 실제 머지, 대시보드 증분을 차례로 확인한다. 댓글은 기록 표시용이고 게이트의 권위는 서버 성공 기록과 독립 재검사다.
 
 ## 업데이트 / 재시작 / 재동기화
@@ -409,9 +409,9 @@ gunicorn --bind 0.0.0.0:8000 --workers 1 --threads 4 'lasthuman.server.app:creat
 **대응:** 질문 생성 요청의 strict JSON Schema에서 앵커를 제공된 목록으로 제한한다. 응답을 로컬에서도 검증하고, 내용 형식이 잘못된 전체 묶음은 최대 한 번 다시 생성한다. 코드 반영과 실제 배포·PR 재실행은 별개다. 두 번 모두 유효하지 않으면 처리 오류로 중단하며, 성공을 보장하거나 질문 수를 줄이지 않는다.
 
 2026-09-10 [Pylint 전용 PR #3](https://github.com/hunhoon21/the-last-human/pull/3)의
-[`TLH App relay` 실행](https://github.com/hunhoon21/the-last-human/actions/runs/34447656851)에서
+[`Last Human · relay` 실행](https://github.com/hunhoon21/the-last-human/actions/runs/34447656851)에서
 `Relay metadata-only event` 단계가 다음 메시지와 종료 코드 1로 실패했다.
-해당 PR의 Pylint 검사는 통과했지만, 별도 App relay는 실패하고 `comprehension-gate`는 대기 상태였다.
+해당 PR의 Pylint 검사는 통과했지만, 별도 App relay는 실패하고 `last-human/human-verified`는 대기 상태였다.
 PR의 머지 여부는 이 현상의 해결 여부를 뜻하지 않는다.
 
 ```text

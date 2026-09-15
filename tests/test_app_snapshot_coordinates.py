@@ -143,7 +143,7 @@ def test_actual_scheduler_publishes_restored_zero_start_snapshot(
         assert github.pr_card is not None
         assert github.status_calls[-1]["state"] == "pending"
         assert github.check_calls[-1]["status"] == "in_progress"
-        assert "Human Verified" not in str(github.pr_card["body"])
+        assert "Human&#45;verified" not in str(github.pr_card["body"])
         assert "private evidence" not in str(github.pr_card["body"])
         assert runtime.background_health() == "ok"
     finally:

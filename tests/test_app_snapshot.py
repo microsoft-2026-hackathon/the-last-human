@@ -203,7 +203,7 @@ def make_settings(tmp_path: Path) -> Settings:
         secret_key="k" * 32,
         database=tmp_path / "lasthuman.sqlite3",
         mode="development",
-        status_context="comprehension-gate-dev",
+        status_context="last-human/human-verified-dev",
         workflow="lasthuman-app.yml",
         workflow_ref="refs/heads/main",
         oidc_audience="hunhoon21/the-last-human",
