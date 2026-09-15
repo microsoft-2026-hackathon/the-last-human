@@ -1713,7 +1713,11 @@ def test_hold_feedback_opens_the_evidence_file_and_reports_accepted_ids(tmp_path
         {
             "id": "0",
             "hint": "inspect app/auth/token.py:L10",
-            "evidence": {"path": "app/http_client.py", "start": 10, "lines": ["MAX_ATTEMPTS = 3", "", "async def post_json(...):"]},
+            "evidence": {
+                "path": "app/http_client.py",
+                "start": 10,
+                "lines": ["MAX_ATTEMPTS = 3", "", "async def post_json(...):"],
+            },
         }
     ]
     # 파일 발췌는 현재 head 에서, 근거 파일 하나만 읽는다. 정답·기대 근거는 나가지 않는다.
