@@ -18,6 +18,7 @@ concurrency:
 permissions:
   contents: read
   pull-requests: read
+  statuses: read
   id-token: write
 
 jobs:
@@ -45,5 +46,27 @@ jobs:
       - name: Install trusted relay dependencies
         run: pip install -e '.[bot]'
 
+      - name: 1. Load verification receipt
+        if: github.event_name == 'workflow_dispatch'
+        run: python -m lasthuman.server.relay --verification-step receipt --state-file "$RUNNER_TEMP/tlh-verification/state.json"
+
+      - name: 2. Read current PR snapshot
+        if: github.event_name == 'workflow_dispatch'
+        run: python -m lasthuman.server.relay --verification-step snapshot --state-file "$RUNNER_TEMP/tlh-verification/state.json"
+
+      - name: 3. Compare receipt and current change
+        if: github.event_name == 'workflow_dispatch'
+        run: python -m lasthuman.server.relay --verification-step compare --state-file "$RUNNER_TEMP/tlh-verification/state.json"
+
+      - name: 4. Wait for server verification
+        if: github.event_name == 'workflow_dispatch'
+        run: python -m lasthuman.server.relay --verification-step verify --state-file "$RUNNER_TEMP/tlh-verification/state.json"
+
+      - name: 5. Confirm GitHub gate success
+        if: github.event_name == 'workflow_dispatch'
+        timeout-minutes: 5
+        run: python -m lasthuman.server.relay --verification-step publication --state-file "$RUNNER_TEMP/tlh-verification/state.json"
+
       - name: Relay metadata-only event
+        if: github.event_name == 'pull_request_target'
         run: python -m lasthuman.server.relay

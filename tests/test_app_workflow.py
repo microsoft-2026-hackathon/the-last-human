@@ -37,17 +37,57 @@ def test_relay_uses_only_trusted_code_and_oidc_not_app_keys():
         "cancel-in-progress": "false",
     }
     assert workflow["permissions"] == {
-        "contents": "read", "pull-requests": "read", "id-token": "write",
+        "contents": "read", "pull-requests": "read", "statuses": "read", "id-token": "write",
     }
     job = workflow["jobs"]["relay"]
     assert job["name"] == expected_run_name
     assert job["if"] == "vars.LASTHUMAN_RUNTIME == 'app'"
     assert job["env"]["TLH_WORKFLOW"] == "lasthuman-app.yml"
+    assert "STATE_FILE" not in job["env"]
+    assert all("runner." not in str(value) for value in job["env"].values())
     checkout = next(step for step in job["steps"] if step.get("uses", "").startswith("actions/checkout@"))
     assert checkout["with"]["ref"] == "${{ github.event.repository.default_branch }}"
     assert checkout["with"]["persist-credentials"] == "false"
+    assert [step.get("name") for step in job["steps"]] == [
+        None,
+        None,
+        "Install trusted relay dependencies",
+        "1. Load verification receipt",
+        "2. Read current PR snapshot",
+        "3. Compare receipt and current change",
+        "4. Wait for server verification",
+        "5. Confirm GitHub gate success",
+        "Relay metadata-only event",
+    ]
+    stage_steps = {
+        "1. Load verification receipt": "receipt",
+        "2. Read current PR snapshot": "snapshot",
+        "3. Compare receipt and current change": "compare",
+        "4. Wait for server verification": "verify",
+        "5. Confirm GitHub gate success": "publication",
+    }
+    for name, stage in stage_steps.items():
+        step = next(step for step in job["steps"] if step.get("name") == name)
+        assert step["if"] == "github.event_name == 'workflow_dispatch'"
+        assert step["run"] == (
+            f'python -m lasthuman.server.relay --verification-step {stage} '
+            '--state-file "$RUNNER_TEMP/tlh-verification/state.json"'
+        )
+        assert "inputs.receipt_id" not in step["run"]
+    publication = next(step for step in job["steps"] if step.get("name") == "5. Confirm GitHub gate success")
+    assert publication["timeout-minutes"] == "5"
     relay = next(step for step in job["steps"] if step.get("name") == "Relay metadata-only event")
+    assert relay["if"] == "github.event_name == 'pull_request_target'"
     assert relay["run"] == "python -m lasthuman.server.relay"
     text = (WORKFLOWS / "lasthuman-app.yml").read_text()
-    for forbidden in ("secrets.", "pull_request.head", "issue_comment", "statuses: write", "checks: write"):
+    for forbidden in (
+        "secrets.",
+        "pull_request.head",
+        "issue_comment",
+        "statuses: write",
+        "checks: write",
+        "upload-artifact",
+        "continue-on-error",
+        "inputs.receipt_id --state-file",
+    ):
         assert forbidden not in text

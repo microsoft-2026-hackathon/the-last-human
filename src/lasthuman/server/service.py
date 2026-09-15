@@ -60,6 +60,18 @@ _MAX_VERIFIER_DISPATCH_ATTEMPTS = 3
 _MAX_PRESENTATION_ATTEMPTS = 3
 
 
+def _safe_publication_error_code(value: object) -> str | None:
+    if not isinstance(value, str):
+        return None
+    normalized = "".join(
+        character.lower()
+        if character.isascii() and (character.isalnum() or character in {"-", "_"})
+        else "-"
+        for character in value[:64]
+    ).strip("-")
+    return normalized or None
+
+
 class BotError(RuntimeError):
     """Sanitized service error."""
 
@@ -323,6 +335,89 @@ class BotService:
                 "issued_at": receipt.created_at,
                 "app_id": receipt.app_id,
                 "installation_id": receipt.installation_id,
+            }
+
+    def receipt_publication(self, receipt_id: str) -> dict[str, object]:
+        with self._lock:
+            receipt = self._receipt_or_404(receipt_id)
+            snapshot = self._snapshot_or_404(receipt.snapshot_id)
+            self._require_trusted_receipt(receipt, snapshot.snapshot)
+            receipt_facts = (
+                receipt.pr,
+                receipt.repo.casefold(),
+                receipt.head_sha,
+                receipt.base_sha,
+                receipt.policy_version,
+                receipt.actor_id,
+            )
+            snapshot_facts = (
+                snapshot.snapshot.pr,
+                snapshot.snapshot.repo.casefold(),
+                snapshot.snapshot.head_sha,
+                snapshot.snapshot.base_sha,
+                snapshot.snapshot.policy_version,
+                snapshot.snapshot.author_id,
+            )
+            if receipt_facts != snapshot_facts:
+                raise BotError(
+                    "receipt binding mismatch",
+                    code="stale",
+                    status_code=409,
+                )
+            current = self.store.load_current_snapshot(receipt.pr)
+            if (
+                current is None
+                or current.snapshot.snapshot_id != receipt.snapshot_id
+                or current.question_version != receipt.question_version
+            ):
+                raise BotError(
+                    "receipt is not current",
+                    code="stale",
+                    status_code=409,
+                )
+
+            target_url = self._receipt_url(receipt.receipt_id)
+            gate: dict[str, object] = {
+                "context": self.settings.status_context,
+                "target_url": target_url,
+                "state": "waiting_verification",
+                "status_id": None,
+                "error_code": None,
+            }
+            if receipt.verified:
+                event_id = self._status_event_id(
+                    "success-status",
+                    receipt.receipt_id,
+                    target_url,
+                )
+                event = next(
+                    (
+                        candidate
+                        for candidate in self.store.load_receipt_publications(
+                            receipt.receipt_id
+                        )
+                        if candidate.event_id == event_id
+                    ),
+                    None,
+                )
+                gate = self._receipt_gate_payload(
+                    receipt,
+                    snapshot,
+                    target_url,
+                    event,
+                )
+            return {
+                "receipt": {
+                    "receipt_id": receipt.receipt_id,
+                    "binding": snapshot.snapshot.binding(),
+                    "actor_id": receipt.actor_id,
+                    "question_version": receipt.question_version,
+                    "issued_at": receipt.created_at,
+                    "app_id": receipt.app_id,
+                    "installation_id": receipt.installation_id,
+                },
+                "verified_at": receipt.verified_at,
+                "gate": gate,
             }
 
     def publication_status(self, receipt_id: str, actor_id: int) -> dict[str, object]:
@@ -1907,6 +2002,78 @@ class BotService:
         if presentation_payload:
             payload["presentation"] = presentation_payload
         return payload
+
+    def _receipt_gate_payload(
+        self,
+        receipt: StoredReceipt,
+        snapshot: StoredSnapshot,
+        target_url: str,
+        event: OutboxEvent | None,
+    ) -> dict[str, object]:
+        gate: dict[str, object] = {
+            "context": self.settings.status_context,
+            "target_url": target_url,
+            "state": "missing",
+            "status_id": None,
+            "error_code": "publication_missing",
+        }
+        if event is None:
+            return gate
+        if (
+            event.kind != "success_status"
+            or event.pr != receipt.pr
+            or event.snapshot_id != snapshot.snapshot.snapshot_id
+            or event.receipt_id != receipt.receipt_id
+            or event.payload.get("target_url") != target_url
+        ):
+            gate["state"] = "invalid"
+            gate["error_code"] = "publication_invalid"
+            return gate
+        if event.status == "pending":
+            gate["state"] = "waiting_publication"
+            gate["error_code"] = _safe_publication_error_code(event.last_error_code)
+            return gate
+        if event.status != "sent":
+            gate["state"] = "invalid"
+            gate["error_code"] = "publication_invalid"
+            return gate
+        remote = event.remote
+        if not isinstance(remote, dict):
+            gate["state"] = "unavailable" if event.last_error_code else "invalid"
+            gate["error_code"] = (
+                _safe_publication_error_code(event.last_error_code)
+                or "publication_invalid"
+            )
+            return gate
+        if remote.get("skipped") is True:
+            gate["state"] = "skipped"
+            gate["error_code"] = (
+                _safe_publication_error_code(remote.get("reason"))
+                or _safe_publication_error_code(event.last_error_code)
+                or "publication_skipped"
+            )
+            return gate
+        if event.last_error_code is not None:
+            gate["state"] = "unavailable"
+            gate["error_code"] = (
+                _safe_publication_error_code(event.last_error_code)
+                or "publication_unavailable"
+            )
+            return gate
+        status_id = remote.get("id")
+        valid_status_id = isinstance(status_id, int) and not isinstance(status_id, bool) and status_id > 0
+        remote_facts = (remote.get("context"), remote.get("target_url"), remote.get("state"))
+        if not valid_status_id or remote_facts != (self.settings.status_context, target_url, "success"):
+            gate["state"] = "invalid"
+            gate["error_code"] = (
+                _safe_publication_error_code(event.last_error_code)
+                or "publication_invalid"
+            )
+            return gate
+        gate["state"] = "published"
+        gate["status_id"] = status_id
+        gate["error_code"] = None
+        return gate
 
     def _presentation_publication_payload(
         self,
