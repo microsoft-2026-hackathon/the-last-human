@@ -13,7 +13,7 @@ import re
 import subprocess
 from pathlib import Path
 
-from .models import DiffResult, FileChange, FileStatus, Hunk
+from .models import DiffResult, FileChange, Hunk
 
 _HUNK_RE = re.compile(r"^@@ -(\d+)(?:,(\d+))? \+(\d+)(?:,(\d+))? @@")
 

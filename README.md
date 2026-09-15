@@ -29,6 +29,25 @@ python -m pip install -e ".[dev]"
 python -m pytest
 ```
 
+### Pylint
+
+Python 3.11 또는 3.12에서 저장소 루트를 기준으로 실행합니다. CI와 같은 의존성을 설치하고,
+추적 중인 모든 Python 파일을 애플리케이션과 테스트로 나누어 검사합니다.
+
+```bash
+python -m pip install -e ".[dev,bot,lint]"
+python -m pylint $(git ls-files '*.py' ':!:tests/**' ':!:sample-app/tests/**')
+python -m pylint \
+  --disable=protected-access,redefined-outer-name,unused-argument,use-implicit-booleaness-not-comparison \
+  $(git ls-files 'tests/*.py' 'sample-app/tests/*.py')
+```
+
+`pyproject.toml`에 Pylint 버전과 규칙을 고정합니다. 줄 길이는 120자이며, 한국어 이름,
+문서 문자열 유무, 데이터 계약·서비스 경계의 복잡도와 중복 코드는 이번 검사에서 제외합니다.
+테스트에만 fixture 이름 재사용, 테스트 대역의 미사용 인자, 내부 메서드 접근,
+빈 리스트·튜플의 정확한 비교를 허용합니다. import 오류·미정의 이름·미사용 import 등은 유지하고,
+점수 기준을 낮추거나 실패 종료를 무시하지 않습니다.
+
 ### diff와 위험 점수 확인
 
 ```bash

@@ -24,7 +24,7 @@ from .diff import collect_hunks
 from .interview import ModelError, generate_questions, grade as grade_answer
 from .structure import build_context
 from .dashboard import render_dashboard
-from .ledger import MergedPr, aggregate, zones_from_repo
+from .ledger import MergedPr, aggregate, zone_of, zones_from_repo
 from .models import Answer, Attestation, PrMeta, Question, RiskResult
 from .risk import score as score_risk
 from .webui import render_page
@@ -190,8 +190,6 @@ def cmd_dashboard(args: argparse.Namespace) -> int:
         if not p.get("attested"):
             continue
         for f in p.get("files", ()):
-            from .ledger import zone_of
-
             z = zone_of(f, zones)
             if z:
                 answerers[z] = max(answerers.get(z, 0), int(p.get("attesterCount", 0)))
@@ -261,7 +259,6 @@ def cmd_grade(args: argparse.Namespace) -> int:
     questions = (
         [_question_from(q) for q in _read_json(args.questions) or []] if args.questions else []
     )
-    by_anchor = {q.anchor: q for q in questions}
     diff = collect_hunks(args.repo_path, args.base, args.head)
     hunks = {h.anchor: h for h in diff.hunks}
 
@@ -357,7 +354,10 @@ def cmd_gate(args: argparse.Namespace) -> int:
     # `gh api --paginate --slurp`은 페이지 배열의 배열을 준다. 한 겹 편다.
     flat: list[dict] = []
     for item in comments:
-        flat.extend(item) if isinstance(item, list) else flat.append(item)
+        if isinstance(item, list):
+            flat.extend(item)
+        else:
+            flat.append(item)
     comments = flat
 
     found: list[Attestation] = []

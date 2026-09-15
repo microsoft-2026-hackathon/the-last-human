@@ -12,6 +12,7 @@ import pytest
 import yaml
 from cryptography.hazmat.primitives.asymmetric import rsa
 
+from lasthuman.server import relay
 from lasthuman.server.config import Settings
 from lasthuman.server.events import (
     ActionsIdentity,
@@ -20,7 +21,6 @@ from lasthuman.server.events import (
     OIDCVerifier,
     decode_event,
 )
-import lasthuman.server.relay as relay
 
 BASE_SHA = "a" * 40
 HEAD_SHA = "b" * 40

@@ -13,7 +13,6 @@ from urllib.parse import parse_qs, urlsplit
 
 import pytest
 from flask.testing import FlaskClient
-import pytest
 
 from lasthuman.config import Config
 from lasthuman.models import Answer, DiffResult, FileChange, Hunk, Question, RiskResult
@@ -102,7 +101,9 @@ vm.runInNewContext(script,context);
     "Edited answers after a network error must not conflict with the earlier payload");
 })().catch(error=>{console.error(error.message);process.exitCode=1;});
 """
-    result = subprocess.run([node, "-e", harness], input=script, text=True, capture_output=True, timeout=10)
+    result = subprocess.run(
+        [node, "-e", harness], input=script, text=True, capture_output=True, timeout=10, check=False
+    )
     assert result.returncode == 0, result.stderr
     app.extensions["runtime"].shutdown()
 
@@ -505,7 +506,7 @@ def extract_csrf(response_text: str) -> str:
 def test_full_http_runtime_flow_from_sync_to_verify_publish_merge_and_dashboard(
     tmp_path: Path,
 ) -> None:
-    client, app, service, github, settings, _clock = make_app(tmp_path)
+    client, app, _service, github, settings, _clock = make_app(tmp_path)
 
     health = client.get("/healthz")
     assert health.status_code == 200
@@ -1129,7 +1130,10 @@ class LockProbeService:
 
     def flush_publications(self) -> int:
         assert self.runtime is not None
-        self.lock_released = self.runtime._lock.acquire(blocking=False)
+        # This probe must check availability without blocking on a context manager.
+        self.lock_released = self.runtime._lock.acquire(  # pylint: disable=consider-using-with
+            blocking=False
+        )
         if self.lock_released:
             self.runtime._lock.release()
         return 0
