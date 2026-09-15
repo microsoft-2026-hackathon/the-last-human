@@ -426,8 +426,8 @@ def test_sync_requires_a_complete_regenerated_batch(tmp_path: Path, monkeypatch,
     partial = [dict(item) for item in complete]
     partial[0]["anchor"] = "not-in-the-diff.py:L999"
     response = Mock(side_effect=[
-        json.dumps(partial),
-        json.dumps(complete if recovers else partial),
+        json.dumps({"questions": partial}),
+        json.dumps({"questions": complete if recovers else partial}),
     ])
     monkeypatch.setattr("lasthuman.interview.call_model", response)
     service, _github = make_service(
