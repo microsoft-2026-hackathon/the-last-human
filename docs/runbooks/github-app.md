@@ -313,7 +313,7 @@ snapshot 은 아래 형태를 지원하지 않는다.
 4. `4. Wait for server verification` — 서버 재검증 작업의 완료를 기다린다.
 5. `5. Confirm GitHub gate success` — GitHub의 최신 상태가 현재 receipt의 성공인지 확인한다.
 
-각 step은 `python -m lasthuman.server.relay --verification-step <stage> --state-file "$STATE_FILE"`로 독립 실행된다. `STATE_FILE`은 `RUNNER_TEMP/tlh-verification/state.json`의 runner-local 임시 파일이다. receipt 식별자·binding 등 명시적인 메타데이터만 저장하고, 답변 원문·질문 원문·raw diff·token은 저장하거나 artifact로 올리지 않는다. 재실행은 첫 단계부터 새 run attempt의 상태를 만든다.
+각 step은 `python -m lasthuman.server.relay --verification-step <stage> --state-file "$RUNNER_TEMP/tlh-verification/state.json"`로 독립 실행된다. 상태 파일은 runner-local 임시 파일이며, job-level `env`에서 사용할 수 없는 `runner` context 대신 step의 shell에서 `$RUNNER_TEMP`를 확장한다. receipt 식별자·binding 등 명시적인 메타데이터만 저장하고, 답변 원문·질문 원문·raw diff·token은 저장하거나 artifact로 올리지 않는다. 재실행은 첫 단계부터 새 run attempt의 상태를 만든다.
 
 첫 서버 호출은 `workflow_dispatch` 전용 OIDC 인증 `GET /api/actions/receipts/<id>/publication`이다. 새 경로가 없는 backend는 검증 요청을 보내기 전에 실패한다. 승인된 변경을 trusted `main`에 merge한 뒤 서버를 업데이트하고, 새 면담이나 검증 실행을 시작한다. 실행 중인 서버를 업데이트하지 않고 workflow만 먼저 사용하면 완료할 수 없다.
 
