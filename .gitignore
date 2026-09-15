@@ -4,8 +4,11 @@ out/
 *.vsix
 *.tsbuildinfo
 .env
+.env.*
+*.pem
 .DS_Store
 .patches/
+/docs/handoff/
 
 # Python
 __pycache__/

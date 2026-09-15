@@ -53,7 +53,7 @@ jobs:
   # ---------------------------------------------------------------- analyze --
   analyze:
     # PR 이벤트이거나, PR에 달린 코멘트일 때만 돈다.
-    if: github.event_name == 'pull_request' || github.event.issue.pull_request
+    if: vars.LASTHUMAN_RUNTIME != 'app' && (github.event_name == 'pull_request' || github.event.issue.pull_request)
     runs-on: ubuntu-latest
     outputs:
       pr: ${{ steps.ctx.outputs.pr }}
@@ -311,7 +311,7 @@ jobs:
   # 위험 점수를 스스로 다시 계산한 뒤 인증이 현재 커밋에 묶여 있는지 확인한다.
   gate:
     needs: [analyze, grade]
-    if: always() && needs.analyze.result == 'success'
+    if: always() && vars.LASTHUMAN_RUNTIME != 'app' && needs.analyze.result == 'success'
     runs-on: ubuntu-latest
     env:
       PR_NUMBER: ${{ needs.analyze.outputs.pr }}
