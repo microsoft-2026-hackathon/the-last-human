@@ -47,6 +47,7 @@ def valid_question(
         "choices": ["first", "second"] if choices is None else choices,
         "answerIndex": answer_index,
         "expectedEvidence": "return result",
+        "evidencePath": anchor.rsplit(":L", 1)[0],
     }
 
 
@@ -89,6 +90,7 @@ def test_question_response_format_shape_and_anchor_enum_are_stable() -> None:
         "choices",
         "answerIndex",
         "expectedEvidence",
+        "evidencePath",
     ]
     assert item["additionalProperties"] is False
     assert item["properties"]["type"] == {
@@ -103,6 +105,11 @@ def test_question_response_format_shape_and_anchor_enum_are_stable() -> None:
     assert item["properties"]["choices"] == {"type": "array", "items": {"type": "string"}}
     assert item["properties"]["answerIndex"] == {"type": "integer"}
     assert item["properties"]["expectedEvidence"] == {"type": "string"}
+    # evidencePath 도 enum 이다 — hunk 파일이 먼저. 모델이 없는 파일을 가리키지 못한다.
+    assert item["properties"]["evidencePath"] == {
+        "type": "string",
+        "enum": ["app/service.py", "docs/guide.md"],
+    }
 
 
 @pytest.mark.parametrize("hunks", [
@@ -128,7 +135,8 @@ def test_generate_questions_fails_before_model_call_without_valid_anchors(
     call.assert_not_called()
 
 
-@pytest.mark.parametrize(("count", "accepted"), [(496, True), (497, False)])
+# 앵커 enum + 질문 유형 4 + evidencePath enum(여기서는 파일 "a" 하나) 이 500 을 넘으면 안 된다.
+@pytest.mark.parametrize(("count", "accepted"), [(495, True), (496, False)])
 def test_schema_enum_budget_counts_question_types(
     monkeypatch: pytest.MonkeyPatch, count: int, accepted: bool,
 ) -> None:
@@ -150,14 +158,17 @@ def test_schema_enum_budget_counts_question_types(
 def test_schema_string_budgets_fail_without_truncation(
     monkeypatch: pytest.MonkeyPatch, large_enum: bool, extra: int,
 ) -> None:
-    keys = ["questions", "type", "anchor", "text", "choices", "answerIndex", "expectedEvidence"]
+    keys = ["questions", "type", "anchor", "text", "choices", "answerIndex", "expectedEvidence", "evidencePath"]
     types = ["claim", "consequence", "rationale", "structure"]
+    # make_hunk 는 모든 앵커를 같은 파일(app/service.py)에 둔다. 그 경로 하나가
+    # evidencePath enum 으로 예산에 한 번 더 들어간다.
+    shared_file = "app/service.py"
     if large_enum:
         anchors = [f"a:L{index}" for index in range(250)]
-        remaining = 7_500 - sum(map(len, anchors))
+        remaining = 7_500 - sum(map(len, anchors)) - len(shared_file)
     else:
         anchors = []
-        remaining = 15_000 - sum(map(len, keys + types))
+        remaining = 15_000 - sum(map(len, keys + types)) - len(shared_file)
     anchors.append("x" * (remaining - len(":L1") + extra) + ":L1")
     risk = make_risk(*(make_hunk(anchor) for anchor in anchors))
     call = Mock(side_effect=AssertionError("model call should not happen"))

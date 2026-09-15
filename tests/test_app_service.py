@@ -521,6 +521,7 @@ def test_sync_requires_a_complete_regenerated_batch(tmp_path: Path, monkeypatch,
             "choices": ["first", "second"],
             "answerIndex": 0,
             "expectedEvidence": "The changed return path.",
+            "evidencePath": anchor.rsplit(":L", 1)[0],
         }
         for index in range(3)
     ]

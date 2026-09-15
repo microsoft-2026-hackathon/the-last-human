@@ -31,6 +31,7 @@ _DEFAULT_PRESENTATION_DETAIL_LIMIT = 10
 _DEFAULT_PRESENTATION_PATHS_PER_GROUP = 2
 _DISPLAY_NAME_MAX_CHARS = 100
 _PRESENTATION_MAX_CHARS_RANGE = (1000, 100_000)
+_QUESTION_COUNT_RANGE = (1, 5)
 _PRESENTATION_LIMIT_RANGE = (1, 1000)
 
 
@@ -135,6 +136,12 @@ class Settings:
             workflow=workflow,
             workflow_ref=workflow_ref,
             oidc_audience=os.environ.get("TLH_OIDC_AUDIENCE", repository).strip() or repository,
+            question_count=_require_bounded_int(
+                "TLH_QUESTION_COUNT",
+                os.environ.get("TLH_QUESTION_COUNT"),
+                default=3,
+                bounds=_QUESTION_COUNT_RANGE,
+            ),
             checks_enabled=_parse_strict_bool(
                 os.environ.get("TLH_CHECK_RUNS", "false"),
                 "TLH_CHECK_RUNS",

@@ -22,7 +22,7 @@ from ..ledger import CODEOWNERS_PATHS, parse_codeowners
 from ..models import DiffResult, FileChange, FileStatus, Hunk, PrMeta, RiskResult
 from ..risk import score
 from ..structure import MAX_FILES as STRUCTURE_MAX_FILES
-from ..structure import SKIP_DIRS, StructureContext, SymbolUse, build_context
+from ..structure import SKIP_DIRS, Callee, StructureContext, SymbolUse, build_context
 from .github import GitHubClient
 
 _SHA_RE = re.compile(r"^[0-9a-f]{40}$")
@@ -941,6 +941,7 @@ def _structure_to_dict(structure: StructureContext) -> dict[str, object]:
         },
         "symbols": [_symbol_use_to_dict(symbol) for symbol in structure.symbols],
         "sibling_files": list(structure.sibling_files),
+        "callees": [_callee_to_dict(callee) for callee in structure.callees],
     }
 
 
@@ -954,11 +955,34 @@ def _structure_from_object(value: object) -> StructureContext:
             "structure importer value",
         )
     symbols = _require_sequence(data.get("symbols"), "structure symbols")
+    # callees 는 나중에 추가된 필드다. 옛 snapshot 에는 없으므로 비어 있는 것으로 읽는다.
+    callees_raw = data.get("callees", [])
+    callees = _require_sequence(callees_raw, "structure callees") if callees_raw else ()
     return StructureContext(
         changed_files=_require_str_tuple(data.get("changed_files"), "structure changed_files"),
         importers=importers,
         symbols=tuple(_symbol_use_from_object(item) for item in symbols),
         sibling_files=_require_str_tuple(data.get("sibling_files"), "structure sibling_files"),
+        callees=tuple(_callee_from_object(item) for item in callees),
+    )
+
+
+def _callee_to_dict(callee: Callee) -> dict[str, object]:
+    return {
+        "symbol": callee.symbol,
+        "defined_in": callee.defined_in,
+        "line": callee.line,
+        "constants": list(callee.constants),
+    }
+
+
+def _callee_from_object(value: object) -> Callee:
+    data = _require_mapping(value, "callee")
+    return Callee(
+        symbol=_require_nonempty_str(data.get("symbol"), "callee symbol"),
+        defined_in=_require_nonempty_str(data.get("defined_in"), "callee defined_in"),
+        line=_require_positive_int(data.get("line"), "callee line"),
+        constants=_require_str_tuple(data.get("constants", []), "callee constants"),
     )
 
 
