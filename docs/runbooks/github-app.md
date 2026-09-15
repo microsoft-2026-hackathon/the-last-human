@@ -96,6 +96,7 @@ set +a
 | `TLH_PRESENTATION_REASON_LIMIT` | 대표 reason group 수. 기본값 `3` |
 | `TLH_PRESENTATION_DETAIL_LIMIT` | detail row 수. 기본값 `10` |
 | `TLH_PRESENTATION_PATHS_PER_GROUP` | reason group당 path 예시 수. 기본값 `2` |
+| `TLH_DEMO_SEED` | 선택. 대시보드에 **집계 단계에서** 더하는 데모 이력 JSON 경로 (예: `docs/demo/dashboard-seed.json`). 켜면 화면에 `Demo data` 칩이 붙는다. snapshot·receipt 행을 만들지 않으며 운영에서는 비워 둔다 |
 | `LASTHUMAN_PROVIDER` | 모델 공급자 선택 |
 | `LASTHUMAN_AUTH_MODE` | 생략/빈 값/`default`는 기존 자격 증명 경로, `azure-cli`는 명시적 Entra CLI 경로 |
 | `LASTHUMAN_MODEL` | 배포명 또는 모델명 |
