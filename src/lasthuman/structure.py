@@ -253,6 +253,11 @@ def build_context(
     )
 
 
+def _is_test_path(rel: str) -> bool:
+    parts = rel.split("/")
+    return any(part in ("tests", "test") for part in parts[:-1]) or parts[-1].startswith("test_")
+
+
 def _shared_prefix(a: str, b: str) -> int:
     """두 경로가 앞에서부터 공유하는 디렉터리 수."""
     pa, pb = a.split("/")[:-1], b.split("/")[:-1]
@@ -285,6 +290,9 @@ def _resolve_callees(
     out: list[Callee] = []
     seen: set[tuple[str, str]] = set()
     for rel in sorted(changed):
+        # 테스트가 부르는 것은 "변경이 무엇 위에 서 있는가"가 아니다. 테스트 파일은 출처에서 뺀다.
+        if _is_test_path(rel):
+            continue
         local_defs = defs_by_file.get(rel, {})
         changed_names = [s.symbol for s in symbols if s.defined_in == rel]
         wanted: dict[str, None] = {}
@@ -299,14 +307,14 @@ def _resolve_callees(
         for called in wanted:
             if called in local_defs:
                 continue
+            # 변경 파일이 import 한 모듈의 정의만 본다. 그렇지 않으면 ``asyncio.run`` 의
+            # ``run`` 이 저장소 어딘가의 다른 ``run`` 에 붙는다.
             candidates = [
                 f for f, defs in defs_by_file.items()
-                if f != rel and called in defs and "test" not in f
+                if f != rel and called in defs and "test" not in f and (_module_tails(f) & imported)
             ]
             if not candidates:
                 continue
-            if len(candidates) > 1:
-                candidates = [f for f in candidates if _module_tails(f) & imported] or candidates
             if len(candidates) > 1:
                 # 같은 이름이 여러 곳에 있으면 변경 파일과 경로를 가장 길게 공유하는 쪽.
                 ranked = sorted(candidates, key=functools.partial(_shared_prefix_desc, rel))

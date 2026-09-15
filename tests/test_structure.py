@@ -105,3 +105,17 @@ def test_callees_are_capped_and_deduplicated(tmp_path: Path):
 def test_non_python_changes_yield_empty_context(tmp_path: Path):
     ctx = build_context(tmp_path, [_hunk("README.md", 1, ("+hello",))])
     assert ctx.is_empty() and ctx.callees == () and ctx.evidence_files == ()
+
+
+def test_test_files_and_unimported_definitions_do_not_become_callees(tmp_path: Path):
+    root = _repo(tmp_path)
+    # 저장소 어딘가에 같은 이름의 최상위 def 가 있어도, 변경 파일이 import 하지 않으면 붙지 않는다.
+    _write(root, "server/relay.py", "def run():\n    pass\n")
+    _write(root, "tests/test_token.py", "import asyncio\nfrom app.auth.token import ensure_fresh, TokenSet\n"
+           "def test_x():\n    asyncio.run(ensure_fresh(None, TokenSet()))\n")
+    hunks = [
+        _hunk("app/auth/token.py", 9, ("+    for attempt in range(3):",)),
+        _hunk("tests/test_token.py", 3, ("+def test_x():",)),
+    ]
+    ctx = build_context(root, hunks)
+    assert [(c.symbol, c.defined_in) for c in ctx.callees] == [("post_json", "app/http_client.py")]
