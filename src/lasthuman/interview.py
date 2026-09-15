@@ -88,6 +88,7 @@ QUESTION_PROMPT = """당신은 코드 리뷰 게이트입니다. 아래 변경�
   누가 이 변경에 영향을 받는지가 그 재료다. 구조 사실이 "없음"이면 전부 hunk 안으로 채운다
 - 답이 hunk 밖에 있는 질문의 보기에는 **실제 파일 경로**를 넣는다. 질문을 복사해 모델에 던져도
   그 파일을 열어 붙여넣지 않고는 답이 나오지 않아야 한다
+- 배열 순서: 답이 hunk 안에 있는 질문을 먼저, 밖에 있는 질문을 나중에 둔다
 
 공통 규칙
 - 반드시 아래 hunk와 구조 사실 안에서만 묻는다. 일반 지식 질문 금지
@@ -98,6 +99,8 @@ QUESTION_PROMPT = """당신은 코드 리뷰 게이트입니다. 아래 변경�
 - 사소한 것(변수명, 포매팅, 스타일)은 묻지 않는다
 - expectedEvidence는 **근거 한 줄**에 담겨야 할 사실이다.
   보기를 고른 뒤 "어디를 보고 그렇게 판단했는지"를 따로 쓰게 되어 있다
+- 질문·보기·expectedEvidence는 **PR 제목과 본문의 언어**로 쓴다. 영어 PR이면 영어.
+  코드 식별자와 파일 경로는 번역하지 않고 원문 그대로 둔다
 
 PR 제목: {title}
 PR 본문: {body}
@@ -137,8 +140,8 @@ GRADE_PROMPT = """개발자가 객관식 보기를 고르고 그렇게 판단한
 {hunk}
 개발자가 쓴 근거: {answer}
 
-JSON만 출력.
-{{"verdict":"pass"|"hold","hint":"보류일 때 어디를 보면 되는지 한 문장"}}
+JSON만 출력. hint는 개발자가 쓴 근거와 **같은 언어**로, 어디를 보면 되는지 한 문장.
+{{"verdict":"pass"|"hold","hint":"..."}}
 """
 
 
@@ -512,7 +515,7 @@ def grade(
                 choice=choice,
                 verdict="hold",
                 choice_correct=False,
-                hint=f"{question.anchor}를 열어 실제 동작을 확인해 보세요.",
+                hint=f"Open {question.anchor} and check what the code actually does.",
             )
 
     if dry_run:

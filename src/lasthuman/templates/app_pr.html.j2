@@ -88,6 +88,7 @@
   .evidence .path { padding: 6px 12px; background: var(--hold-soft); font-family: var(--mono); font-size: .8rem; color: var(--ink); }
   .evidence pre { margin: 0; border: 0; border-radius: 0; background: var(--surface); }
   .evidence .ln { display: inline-block; width: 3.2em; color: var(--muted); text-align: right; margin-right: 12px; user-select: none; }
+  .evidence .gap { display: block; color: var(--muted); padding-left: 1.2em; }
   form.inline { margin: 0; }
   button { font: inherit; border: 1px solid transparent; background: var(--ink); color: #fff; border-radius: var(--radius); padding: 8px 14px; cursor: pointer; }
   button[disabled] { opacity: .6; cursor: wait; }
@@ -393,16 +394,25 @@
       hint.querySelector(".hint-text").textContent = item.hint || "";
       hint.classList.add("show");
       var evidence = node.querySelector(".evidence");
-      if (item.evidence && item.evidence.lines && item.evidence.lines.length) {
-        evidence.querySelector(".path").textContent = item.evidence.path + ":L" + item.evidence.start;
+      var segments = (item.evidence && item.evidence.segments) || [];
+      if (segments.length) {
+        evidence.querySelector(".path").textContent = item.evidence.path;
         var pre = evidence.querySelector("pre");
         pre.textContent = "";
-        item.evidence.lines.forEach(function (line, index) {
-          var ln = document.createElement("span");
-          ln.className = "ln";
-          ln.textContent = String(item.evidence.start + index);
-          pre.appendChild(ln);
-          pre.appendChild(document.createTextNode(line + "\n"));
+        segments.forEach(function (segment, segmentIndex) {
+          if (segmentIndex > 0) {
+            var gap = document.createElement("span");
+            gap.className = "gap";
+            gap.textContent = "\u22ee\n";
+            pre.appendChild(gap);
+          }
+          (segment.lines || []).forEach(function (line, index) {
+            var ln = document.createElement("span");
+            ln.className = "ln";
+            ln.textContent = String(segment.start + index);
+            pre.appendChild(ln);
+            pre.appendChild(document.createTextNode(line + "\n"));
+          });
         });
         evidence.classList.add("show");
       }
