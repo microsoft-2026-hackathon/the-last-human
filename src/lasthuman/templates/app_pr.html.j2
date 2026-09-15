@@ -210,6 +210,9 @@
     {% else %}
     <p class="status warn">Verified, awaiting GitHub publication.</p>
     {% endif %}
+    {% if receipt.presentation is defined and receipt.presentation.check is defined and receipt.presentation.check.failed %}
+    <p class="status warn">Supplemental Check delivery needs operator attention; the private receipt remains authoritative.</p>
+    {% endif %}
     <p><a href="{{ url_for('receipt_page', receipt_id=receipt.receipt_id) }}">Open your private receipt</a></p>
   </div>
   {% endif %}
@@ -456,8 +459,12 @@
         return true;
       }
       if (body.state === "verified") {
+        var supplementalCheckFailed = body.publication && body.publication.presentation &&
+          body.publication.presentation.check && body.publication.presentation.check.failed;
         if (body.publication && body.publication.published) {
-          setStatus("Verified and published to GitHub.", "ok");
+          setStatus(supplementalCheckFailed ?
+            "Verified and published. Supplemental Check delivery needs operator attention." :
+            "Verified and published to GitHub.", supplementalCheckFailed ? "warn" : "ok");
         } else {
           setStatus("Verified, awaiting GitHub publication.", "warn");
         }

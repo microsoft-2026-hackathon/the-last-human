@@ -532,8 +532,17 @@ class AppRuntime:
                 """
                 SELECT 1
                 FROM outbox
-                WHERE status = 'pending'
-                  AND last_error_code IS NOT NULL
+                WHERE last_error_code IS NOT NULL
+                  AND (
+                    status = 'pending'
+                    OR kind IN (
+                      'presentation_card',
+                      'presentation_check',
+                      'presentation_check_cancel',
+                      'start_comment',
+                      'success_comment'
+                    )
+                  )
                 LIMIT 1
                 """
             ).fetchone()

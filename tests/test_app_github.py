@@ -38,6 +38,14 @@ ENV_NAMES = (
     "TLH_WORKFLOW",
     "TLH_WORKFLOW_REF",
     "TLH_OIDC_AUDIENCE",
+    "TLH_CHECK_RUNS",
+    "TLH_CHECK_NAME",
+    "TLH_PRESENTATION_NAME",
+    "TLH_PRESENTATION_LOCALE",
+    "TLH_PRESENTATION_MAX_CHARS",
+    "TLH_PRESENTATION_REASON_LIMIT",
+    "TLH_PRESENTATION_DETAIL_LIMIT",
+    "TLH_PRESENTATION_PATHS_PER_GROUP",
 )
 
 
@@ -256,6 +264,20 @@ def bootstrap_app_auth(session: FakeSession, settings: Settings, token: str = "i
     )
 
 
+def bootstrap_check_auth(
+    session: FakeSession,
+    settings: Settings,
+    token: str = "checks-token",
+    *,
+    expires_in: int = 3600,
+) -> None:
+    session.enqueue(
+        "POST",
+        api_url(f"app/installations/{settings.installation_id}/access_tokens"),
+        FakeResponse(201, {"token": token, "expires_at": iso8601_after(expires_in)}),
+    )
+
+
 def test_settings_from_env_applies_defaults_and_fixed_ttl(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
@@ -276,6 +298,14 @@ def test_settings_from_env_applies_defaults_and_fixed_ttl(
     assert settings.workflow_ref == "refs/heads/main"
     assert settings.oidc_audience == settings.repository
     assert settings.question_count == 3
+    assert settings.checks_enabled is False
+    assert settings.check_name == "The Last Human"
+    assert settings.presentation_name == "The Last Human"
+    assert settings.presentation_locale == "ko"
+    assert settings.presentation_max_chars == 6000
+    assert settings.presentation_reason_limit == 3
+    assert settings.presentation_detail_limit == 10
+    assert settings.presentation_paths_per_group == 2
     assert settings.session_ttl == timedelta(minutes=30)
     assert "client_secret" not in repr(settings)
     assert "private_key_file" not in repr(settings)
