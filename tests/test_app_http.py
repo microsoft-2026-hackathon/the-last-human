@@ -957,6 +957,20 @@ def test_http_actions_verify_returns_poll_url(
                 "installation_id": settings.installation_id,
             }
 
+        def receipt_publication(self, receipt_id: str) -> dict[str, object]:
+            assert receipt_id == "receipt-5"
+            return {
+                "receipt": self.receipt_binding(receipt_id),
+                "verified_at": None,
+                "gate": {
+                    "context": settings.status_context,
+                    "target_url": f"{settings.base_url}/receipts/receipt-5",
+                    "state": "waiting_verification",
+                    "status_id": None,
+                    "error_code": None,
+                },
+            }
+
         def verify(
             self,
             receipt_id: str,
@@ -989,6 +1003,30 @@ def test_http_actions_verify_returns_poll_url(
         headers={"Authorization": "Bearer workflow-token"},
     )
     assert receipt_binding.status_code == 200
+
+    publication = client.get(
+        "/api/actions/receipts/receipt-5/publication",
+        headers={"Authorization": "Bearer workflow-token"},
+    )
+    assert publication.status_code == 200
+    assert publication.get_json() == {
+        "receipt": receipt_binding.get_json(),
+        "verified_at": None,
+        "gate": {
+            "context": settings.status_context,
+            "target_url": f"{settings.base_url}/receipts/receipt-5",
+            "state": "waiting_verification",
+            "status_id": None,
+            "error_code": None,
+        },
+    }
+    denied_publication = client.get(
+        "/api/actions/receipts/receipt-5/publication",
+        headers={"Authorization": "Bearer pr-token"},
+    )
+    assert denied_publication.status_code == 400
+    missing_oidc = client.get("/api/actions/receipts/receipt-5/publication")
+    assert missing_oidc.status_code == 401
 
     verify = client.post(
         "/api/actions/receipts/receipt-5/verify",

@@ -15,7 +15,7 @@ from lasthuman.server.config import Settings
 from lasthuman.server.github import GitHubError
 from lasthuman.server.service import BotError, BotService
 from lasthuman.server.snapshot import Snapshot
-from lasthuman.server.store import ReceiptAnswer, Store
+from lasthuman.server.store import PublicationRequest, ReceiptAnswer, Store
 from lasthuman.structure import StructureContext, SymbolUse
 
 BASE_SHA = "a" * 40
@@ -97,7 +97,13 @@ class FakeGitHub:
                 "target_url": target_url,
             }
         )
-        return {"sha": sha, "state": state}
+        return {
+            "id": len(self.status_calls),
+            "sha": sha,
+            "state": state,
+            "context": "comprehension-gate",
+            "target_url": target_url,
+        }
 
     def ensure_comment(self, pr: int, body: str, publication_id: str) -> dict[str, object]:
         if self.fail_comment > 0:
@@ -1363,6 +1369,128 @@ def test_publication_status_distinguishes_verified_from_published_and_skips_stal
     assert published["publication_skipped"] == 2
     assert [call["state"] for call in github.status_calls] == ["pending"]
     assert len(github.comment_calls) == 1
+
+
+def test_receipt_publication_selects_only_current_exact_status_event(
+    tmp_path: Path,
+) -> None:
+    clock = FakeClock()
+    snapshot = make_snapshot()
+    service, _github = make_service(
+        tmp_path,
+        snapshot=snapshot,
+        pulls=[make_pull(snapshot)] * 12,
+        clock=clock,
+        live=True,
+    )
+    service.sync(snapshot.pr)
+    service.flush_publications()
+    job_id = service.submit(
+        snapshot.pr,
+        snapshot.author_id,
+        snapshot.snapshot_id,
+        "req-exact-publication",
+        [
+            {"id": "0", "text": "returns refresh(token)", "choice": 1},
+            {"id": "1", "text": "called from app/main.py", "choice": 0},
+            {"id": "2", "text": "Updated guide"},
+        ],
+    )
+    service.drain()
+    receipt_id = service.result(job_id, snapshot.author_id)["receipt_id"]
+    dispatch = service.store.load_verifier_dispatch(receipt_id)
+    assert dispatch is not None
+    service.store.mark_publication_sent(
+        dispatch.event_id,
+        now=service._now_iso(),
+        remote={"receipt_id": receipt_id},
+    )
+    clock.advance(301)
+
+    waiting = service.receipt_publication(receipt_id)
+    assert set(waiting) == {"receipt", "verified_at", "gate"}
+    assert waiting["verified_at"] is None
+    assert waiting["gate"] == {
+        "context": "comprehension-gate",
+        "target_url": f"https://example.com/receipts/{receipt_id}",
+        "state": "waiting_verification",
+        "status_id": None,
+        "error_code": None,
+    }
+    unchanged_dispatch = service.store.load_verifier_dispatch(receipt_id)
+    assert unchanged_dispatch is not None
+    assert unchanged_dispatch.status == "sent"
+
+    service.verify(receipt_id, snapshot.binding())
+    old_target = f"https://example.com/receipts/{receipt_id}?old-context=1"
+    old_event_id = service._status_event_id(
+        "success-status",
+        receipt_id,
+        old_target,
+    )
+    service.store.queue_publication(
+        PublicationRequest(
+            event_id=old_event_id,
+            kind="success_status",
+            pr=snapshot.pr,
+            snapshot_id=snapshot.snapshot_id,
+            receipt_id=receipt_id,
+            payload={
+                "description": "Old configured context",
+                "target_url": old_target,
+            },
+        ),
+        now=service._now_iso(),
+    )
+    service.store.mark_publication_sent(
+        old_event_id,
+        now=service._now_iso(),
+        remote={
+            "id": 999,
+            "context": "old-comprehension-gate",
+            "target_url": old_target,
+            "state": "success",
+        },
+    )
+
+    pending = service.receipt_publication(receipt_id)
+    assert pending["gate"]["state"] == "waiting_publication"
+    assert pending["gate"]["status_id"] is None
+
+    expected_target = f"https://example.com/receipts/{receipt_id}"
+    expected_event_id = service._status_event_id(
+        "success-status",
+        receipt_id,
+        expected_target,
+    )
+    service.store.mark_publication_sent(
+        expected_event_id,
+        now=service._now_iso(),
+        remote={
+            "id": 55,
+            "context": "wrong-context",
+            "target_url": expected_target,
+            "state": "success",
+        },
+    )
+    invalid = service.receipt_publication(receipt_id)
+    assert invalid["gate"]["state"] == "invalid"
+    service.store.mark_publication_retry(
+        expected_event_id,
+        now=service._now_iso(),
+        due_at=service._now_iso(),
+        error_code="github-502",
+        error_message="GitHub publication failed",
+    )
+
+    service.flush_publications()
+    published = service.receipt_publication(receipt_id)
+    assert published["gate"]["state"] == "published"
+    assert published["gate"]["status_id"] != 999
+    assert published["gate"]["target_url"] == (
+        f"https://example.com/receipts/{receipt_id}"
+    )
+    assert "successful_answers" not in json.dumps(published, sort_keys=True)
 
 
 def test_publication_status_reports_sanitized_outbox_failures(tmp_path: Path):

@@ -296,7 +296,7 @@ snapshot 은 아래 형태를 지원하지 않는다.
 `lasthuman-app.yml` 의 실제 성격은 아래와 같다.
 
 - 이벤트는 `pull_request_target` 의 `opened`, `synchronize`, `reopened`, `edited`, `labeled`, `unlabeled`, `closed` 와 `workflow_dispatch` 하나다.
-- workflow token 권한은 `contents: read`, `pull-requests: read`, `id-token: write` 만 쓴다.
+- workflow token 권한은 `contents: read`, `pull-requests: read`, `statuses: read`, `id-token: write` 만 쓴다.
 - run title은 준비 단계에서 `Prepare PR #...`, receipt 재검사에서는 `Verify receipt ...` 로 보인다.
 - workflow 는 PR head가 아니라 저장소 기본 브랜치를 checkout 한다.
 - relay 코드는 `python -m lasthuman.server.relay` 로 trusted source 에서만 돈다.
@@ -305,10 +305,26 @@ snapshot 은 아래 형태를 지원하지 않는다.
 - 서버는 OIDC 에서 issuer, audience, repository, repository_id, owner_id, workflow 파일, ref, event name 을 모두 확인한다.
 - 보조 App Check는 선택 사항이다. `TLH_CHECK_RUNS=true`여도 현재 SHA/base/policy/snapshot 설명 보강용이며, 필수 merge gate나 branch protection 이름을 대신하지 않는다.
 
+`workflow_dispatch` 검증 경로는 다섯 개의 실제 Actions step으로 보인다.
+
+1. `1. Load verification receipt` — 성공 기록과 새 서버 API의 준비 여부를 확인한다.
+2. `2. Read current PR snapshot` — Actions가 현재 PR의 snapshot을 독립 계산한다.
+3. `3. Compare receipt and current change` — 작성자와 코드·정책·위험도 결속을 대조한다.
+4. `4. Wait for server verification` — 서버 재검증 작업의 완료를 기다린다.
+5. `5. Confirm GitHub gate success` — GitHub의 최신 상태가 현재 receipt의 성공인지 확인한다.
+
+각 step은 `python -m lasthuman.server.relay --verification-step <stage> --state-file "$RUNNER_TEMP/tlh-verification/state.json"`로 독립 실행된다. 상태 파일은 runner-local 임시 파일이며, job-level `env`에서 사용할 수 없는 `runner` context 대신 step의 shell에서 `$RUNNER_TEMP`를 확장한다. receipt 식별자·binding 등 명시적인 메타데이터만 저장하고, 답변 원문·질문 원문·raw diff·token은 저장하거나 artifact로 올리지 않는다. 재실행은 첫 단계부터 새 run attempt의 상태를 만든다.
+
+첫 서버 호출은 `workflow_dispatch` 전용 OIDC 인증 `GET /api/actions/receipts/<id>/publication`이다. 새 경로가 없는 backend는 검증 요청을 보내기 전에 실패한다. 승인된 변경을 trusted `main`에 merge한 뒤 서버를 업데이트하고, 새 면담이나 검증 실행을 시작한다. 실행 중인 서버를 업데이트하지 않고 workflow만 먼저 사용하면 완료할 수 없다.
+
+마지막 단계는 최대 180초 동안 게시를 기다린다. 서버가 현재 설정의 정확한 outbox 이벤트에 기록한 status ID와 GitHub의 최신 context별 status ID·성공 상태·receipt URL을 대조하며, PR의 head/base/작성자가 여전히 같은지도 확인한다. `verified_at`, outbox 처리 시각, 보조 Check의 성공만으로 완료하지 않는다. Actions에는 상태 쓰기 권한을 주지 않는다.
+
+401/403, 잘못된 응답·상태 파일, 오래된 변경, 건너뛴 게시와 시간 초과는 명시적 실패다. 허용된 대기 상태만 제한된 시간 안에서 재조회한다. 로컬 테스트와 PR CI는 구현의 근거이며, 실제 trusted 서버와 현재 receipt로 다섯 단계를 완주하는 운영 확인은 별도로 남긴다.
+
 중요한 점 두 가지가 있다.
 
 - `TLH_BOT_URL` 은 공개 `https` origin 이어야 한다. 이 런북에서는 `TLH_BASE_URL` 과 같은 공개 origin 으로 맞춘다.
-- workflow가 초록이라고 곧바로 게이트가 통과된 것은 아니다. relay는 접수된 짧은 서버 작업이 끝날 때까지 최대 180초 기다리며, 서버 재시작으로 작업이 사라지면 동일 요청을 최대 2회 다시 접수한다. 사람의 면담을 기다리는 것은 아니다. 최종 머지 조건은 GitHub App의 commit status다.
+- `Prepare PR`의 성공은 면담 통과를 뜻하지 않는다. 기존 relay는 짧은 서버 작업을 최대 180초 기다리고, 서버 재시작으로 작업이 사라지면 같은 요청을 최대 2회 다시 접수한다. `Verify receipt`의 다섯 단계 성공은 조회 시점에 해당 receipt의 GitHub gate 성공까지 확인했다는 뜻이다. 사람의 면담을 runner에서 기다리지는 않으며, 새 변경 이후의 인증 재사용도 허용하지 않는다. 최종 머지 조건은 GitHub App의 commit status다.
 
 ## 개발 모드와 실사용 모드 차이
 
@@ -372,6 +388,8 @@ gunicorn --bind 0.0.0.0:8000 --workers 1 --threads 4 'lasthuman.server.app:creat
 | 제출 409 stale | PR이 바뀌었거나 닫혔다. 다시 sync 후 다시 제출 |
 | `/healthz` 가 503 | outbox 재시도·SQLite 접근 실패·게시 스레드 종료 여부를 확인한다. `scheduler_stopped`는 요청된 스케줄러가 실제로 살아 있지 않다는 뜻이다. |
 | workflow는 초록인데 상태가 안 바뀜 | 서버 작업 완료와 GitHub 발행 완료는 별개다. `/healthz`, 검증 Actions 실행, 현재 SHA의 App status를 함께 확인한다. 현재 receipt 화면은 상세 발행·재시도 상태를 모두 보여주지 않는다. |
+| 첫 `receipt` 단계가 404 | 새 publication 경로의 배포 여부와 receipt가 해당 서버 DB에 존재하는지 확인한다. backend 업데이트 또는 올바른 receipt 확인 후 첫 단계부터 다시 실행한다. |
+| 마지막 `publication` 단계 시간 초과 | App의 게시 대기·실패·skip 사유와 GitHub의 최신 context별 status를 확인한다. 과거의 성공이나 보조 Check만 보고 완료로 간주하지 않는다. |
 | 로컬에서 comment 만 생기고 상태가 없음 | 정상이다. `localhost` 개발 경로는 상태를 쓰지 않는다 |
 | 질문 생성이 안 됨 | 모델 자격 증명과 endpoint 설정 확인 |
 | 질문 준비 중 개수·유형 오류 | 모델 응답의 형식 문제와 연결·인증 오류를 구분한다. [질문 생성 형식 오류](#질문-생성-형식-오류)를 참고한다. |
