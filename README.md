@@ -56,7 +56,7 @@ files 1  hunks 3  +31 -13
 | `pr-3-readme-typo` | **반증. 전수 적용하지 않는다.** 임계값 아래라 중립 통과 |
 | `pr-4-external-rate-limit` | OSS 모드. 외부 기여는 기본 발동 |
 
-PR 본문과 심어둘 AI 리뷰 코멘트는 `demo-repo/.pr/`에 있습니다.
+PR 본문과 심어둘 AI 리뷰 코멘트는 [docs/demo-pr/](docs/demo-pr/)에 있습니다.
 
 ## 지켜야 할 선
 
