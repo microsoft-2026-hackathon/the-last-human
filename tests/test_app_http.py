@@ -391,7 +391,7 @@ def make_settings(tmp_path: Path, *, checks_enabled: bool = False) -> Settings:
         secret_key="k" * 32,
         database=tmp_path / "state" / "lasthuman.sqlite3",
         mode="live",
-        status_context="comprehension-gate",
+        status_context="last-human/human-verified",
         workflow="lasthuman-app.yml",
         workflow_ref="refs/heads/main",
         oidc_audience="hunhoon21/the-last-human",
@@ -695,7 +695,7 @@ def test_full_http_runtime_flow_from_sync_to_verify_publish_merge_and_dashboard(
     assert len(github.check_runs) == 1
     assert github.check_calls[-1]["status"] == "in_progress"
     assert github.check_calls[-1]["conclusion"] is None
-    assert "Human Verified" not in str(github.pr_card["body"])
+    assert "Human&#45;verified" not in str(github.pr_card["body"])
 
     pr_page = client.get("/prs/7")
     assert pr_page.status_code == 200
@@ -766,7 +766,7 @@ def test_full_http_runtime_flow_from_sync_to_verify_publish_merge_and_dashboard(
     receipt_id = awaiting_payload["receipt_id"]
     assert github.dispatch_calls == [receipt_id]
     assert github.check_calls[-1]["status"] == "in_progress"
-    assert "Human Verified" not in str(github.pr_card["body"])
+    assert "Human&#45;verified" not in str(github.pr_card["body"])
 
     receipt_binding = client.get(
         f"/api/actions/receipts/{receipt_id}",
@@ -802,7 +802,7 @@ def test_full_http_runtime_flow_from_sync_to_verify_publish_merge_and_dashboard(
     assert len(github.check_runs) == 1
     assert github.check_calls[-1]["conclusion"] == "success"
     assert github.check_calls[-1]["sha"] == HEAD_SHA
-    assert "Human Verified" in str(github.pr_card["body"])
+    assert "Human&#45;verified" in str(github.pr_card["body"])
     assert "returns refresh(token)" not in str(github.pr_card["body"])
 
     verified = client.get(
@@ -868,7 +868,7 @@ def test_full_http_runtime_flow_from_sync_to_verify_publish_merge_and_dashboard(
     assert merged_done.get_json()["result"]["state"] == "merged"
     assert len(github.check_runs) == 1
     assert github.check_calls[-1]["conclusion"] == "success"
-    assert "Human Verified" in str(github.pr_card["body"])
+    assert "Human&#45;verified" in str(github.pr_card["body"])
 
     dashboard_api = client.get(
         "/api/dashboard",

@@ -20,11 +20,11 @@ def test_relay_uses_only_trusted_code_and_oidc_not_app_keys():
     workflow = load_workflow("lasthuman-app.yml")
     expected_run_name = (
         "${{ github.event_name == 'pull_request_target' && "
-        "format('Prepare PR #{0}', github.event.pull_request.number) || "
+        "format('Relay PR #{0}', github.event.pull_request.number) || "
         "format('Verify receipt {0}', inputs.receipt_id) }}"
     )
 
-    assert workflow["name"] == "TLH App relay"
+    assert workflow["name"] == "Last Human · relay"
     assert workflow["run-name"] == expected_run_name
     assert set(workflow["on"]) == {"pull_request_target", "workflow_dispatch"}
     assert workflow["on"]["workflow_dispatch"]["inputs"]["receipt_id"] == {

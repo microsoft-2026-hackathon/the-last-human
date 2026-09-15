@@ -102,7 +102,7 @@ class FakeGitHub:
             "id": len(self.status_calls),
             "sha": sha,
             "state": state,
-            "context": "comprehension-gate",
+            "context": "last-human/human-verified",
             "target_url": target_url,
         }
 
@@ -242,7 +242,7 @@ def make_settings(tmp_path: Path, *, live: bool = False, checks_enabled: bool = 
         secret_key="k" * 32,
         database=tmp_path / "state" / "lasthuman.sqlite3",
         mode="live" if live else "development",
-        status_context="comprehension-gate" if live else "comprehension-gate-dev",
+        status_context="last-human/human-verified" if live else "last-human/human-verified-dev",
         workflow="lasthuman-app.yml",
         workflow_ref="refs/heads/main",
         oidc_audience="hunhoon21/the-last-human",
@@ -579,7 +579,7 @@ def test_sync_queues_canonical_card_with_real_renderer_and_no_localhost_status(t
     assert f"https://example.com/prs/{live_snapshot.pr}" in live_body
     assert live_snapshot.head_sha[:7] in live_body
     assert "localhost" not in live_body
-    assert "Human Verified" not in live_body
+    assert "Human&#45;verified" not in live_body
 
     dev_clock = FakeClock()
     dev_snapshot = make_snapshot(pr=8)
@@ -1413,7 +1413,7 @@ def test_receipt_publication_selects_only_current_exact_status_event(
     assert set(waiting) == {"receipt", "verified_at", "gate"}
     assert waiting["verified_at"] is None
     assert waiting["gate"] == {
-        "context": "comprehension-gate",
+        "context": "last-human/human-verified",
         "target_url": f"https://example.com/receipts/{receipt_id}",
         "state": "waiting_verification",
         "status_id": None,
@@ -1449,7 +1449,7 @@ def test_receipt_publication_selects_only_current_exact_status_event(
         now=service._now_iso(),
         remote={
             "id": 999,
-            "context": "old-comprehension-gate",
+            "context": "old-last-human/human-verified",
             "target_url": old_target,
             "state": "success",
         },

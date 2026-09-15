@@ -770,7 +770,7 @@ def test_restart_migrates_pending_legacy_comments_through_current_card(tmp_path:
                 snapshot_id=snapshot.snapshot_id,
                 receipt_id=receipt.receipt_id,
                 payload={
-                    "description": "Comprehension check verified",
+                    "description": "Human-verified",
                     "target_url": "https://example.com/receipts/legacy",
                 },
             ),
