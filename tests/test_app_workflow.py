@@ -43,7 +43,8 @@ def test_relay_uses_only_trusted_code_and_oidc_not_app_keys():
     assert job["name"] == expected_run_name
     assert job["if"] == "vars.LASTHUMAN_RUNTIME == 'app'"
     assert job["env"]["TLH_WORKFLOW"] == "lasthuman-app.yml"
-    assert job["env"]["STATE_FILE"] == "${{ runner.temp }}/tlh-verification/state.json"
+    assert "STATE_FILE" not in job["env"]
+    assert all("runner." not in str(value) for value in job["env"].values())
     checkout = next(step for step in job["steps"] if step.get("uses", "").startswith("actions/checkout@"))
     assert checkout["with"]["ref"] == "${{ github.event.repository.default_branch }}"
     assert checkout["with"]["persist-credentials"] == "false"
@@ -69,7 +70,8 @@ def test_relay_uses_only_trusted_code_and_oidc_not_app_keys():
         step = next(step for step in job["steps"] if step.get("name") == name)
         assert step["if"] == "github.event_name == 'workflow_dispatch'"
         assert step["run"] == (
-            f'python -m lasthuman.server.relay --verification-step {stage} --state-file "$STATE_FILE"'
+            f'python -m lasthuman.server.relay --verification-step {stage} '
+            '--state-file "$RUNNER_TEMP/tlh-verification/state.json"'
         )
         assert "inputs.receipt_id" not in step["run"]
     publication = next(step for step in job["steps"] if step.get("name") == "5. Confirm GitHub gate success")
