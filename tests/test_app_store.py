@@ -368,3 +368,44 @@ def test_store_requeues_unverified_dispatch_after_timeout_without_flooding(tmp_p
     assert final.status == "sent"
     assert final.attempts == 3
     assert store.load_due_publications(now="2026-09-08T12:16:51Z") == ()
+
+
+def test_store_persists_operational_presentation_metadata_without_receipt_changes(tmp_path: Path):
+    settings = make_settings(tmp_path)
+    store = Store(settings.database)
+    snapshot = make_snapshot()
+    store.save_snapshot(
+        snapshot,
+        (),
+        "pending",
+        now="2026-09-08T12:00:00Z",
+    )
+
+    store.mark_snapshot_preparation_error(
+        snapshot.snapshot_id,
+        code="model_error",
+        message="Model processing failed; retry later",
+        now="2026-09-08T12:00:01Z",
+    )
+    error = store.load_snapshot_preparation_error(snapshot.snapshot_id)
+    assert error is not None
+    assert error.code == "model_error"
+    assert error.message.startswith("Model processing failed")
+
+    store.save_presentation_check_run(
+        pr=snapshot.pr,
+        snapshot_id=snapshot.snapshot_id,
+        head_sha=snapshot.head_sha,
+        external_id=f"pr-{snapshot.pr}-snapshot-{snapshot.snapshot_id}",
+        check_run_id=51,
+        status="in_progress",
+        conclusion=None,
+        now="2026-09-08T12:00:02Z",
+    )
+    active = store.load_presentation_check_run(snapshot.pr)
+    assert active is not None
+    assert active.external_id == f"pr-{snapshot.pr}-snapshot-{snapshot.snapshot_id}"
+    assert active.check_run_id == 51
+
+    store.clear_snapshot_preparation_error(snapshot.snapshot_id, now="2026-09-08T12:00:03Z")
+    assert store.load_snapshot_preparation_error(snapshot.snapshot_id) is None

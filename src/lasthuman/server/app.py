@@ -25,7 +25,7 @@ from .config import Settings
 from .events import ActionsIdentity, EventError, OIDCError, OIDCVerifier, decode_event
 from .github import GitHubClient, GitHubError
 from .service import BotError, BotService
-from .snapshot import SnapshotReader
+from .snapshot import SnapshotError, SnapshotReader
 from .store import Store
 
 _TEMPLATE_DIR = Path(__file__).resolve().parents[1] / "templates"
@@ -110,7 +110,17 @@ class AppRuntime:
 
     @property
     def scheduler_running(self) -> bool:
-        return self._scheduler_started and self._scheduler_thread is not None
+        return (
+            self._scheduler_started
+            and self._scheduler_thread is not None
+            and self._scheduler_thread.is_alive()
+        )
+
+    @property
+    def scheduler_state(self) -> str:
+        if self.scheduler_running:
+            return "running"
+        return "stopped" if self._start_scheduler or self._scheduler_started else "manual"
 
     def start_scheduler(self) -> None:
         if self._scheduler_started:
@@ -145,6 +155,8 @@ class AppRuntime:
         self.service.shutdown()
 
     def background_health(self) -> str:
+        if self.scheduler_state == "stopped":
+            return "scheduler_stopped"
         return self._background_status
 
     def tick_once(self) -> int:
@@ -167,7 +179,7 @@ class AppRuntime:
             self._background_status = "storage_unavailable"
             self.logger.error("Background storage temporarily unavailable")
             return 0
-        except GitHubError:
+        except (GitHubError, SnapshotError):
             self._background_status = "publisher_failed"
             self.logger.error("Background publication failed")
             return 0
@@ -532,8 +544,17 @@ class AppRuntime:
                 """
                 SELECT 1
                 FROM outbox
-                WHERE status = 'pending'
-                  AND last_error_code IS NOT NULL
+                WHERE last_error_code IS NOT NULL
+                  AND (
+                    status = 'pending'
+                    OR kind IN (
+                      'presentation_card',
+                      'presentation_check',
+                      'presentation_check_cancel',
+                      'start_comment',
+                      'success_comment'
+                    )
+                  )
                 LIMIT 1
                 """
             ).fetchone()
@@ -681,7 +702,7 @@ def create_app(
                     "background": background,
                     "service_max_workers": 1,
                     "event_max_workers": 1,
-                    "scheduler": "running" if runtime.scheduler_running else "manual",
+                    "scheduler": runtime.scheduler_state,
                 }
             ),
             status_code,
@@ -986,6 +1007,23 @@ def create_app(
             if identity.event_name != "workflow_dispatch":
                 raise EventError("workflow_dispatch must use the receipt verification route")
             payload = resolved_service.receipt_binding(receipt_id)
+        except OIDCError as error:
+            return _json_error(str(error), error.status_code)
+        except EventError as error:
+            return _json_error(str(error), error.status_code)
+        except BotError as error:
+            return _bot_error_response(error, as_json=True)
+        return jsonify(payload)
+
+    @app.get("/api/actions/receipts/<receipt_id>/publication")
+    def actions_receipt_publication(receipt_id: str) -> Response:
+        try:
+            identity = _actions_identity(resolved_verifier)
+            if identity.event_name != "workflow_dispatch":
+                raise EventError(
+                    "workflow_dispatch must use the receipt verification route"
+                )
+            payload = resolved_service.receipt_publication(receipt_id)
         except OIDCError as error:
             return _json_error(str(error), error.status_code)
         except EventError as error:
