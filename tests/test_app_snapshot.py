@@ -500,6 +500,26 @@ def test_structure_round_trip_keeps_callees_and_reads_old_payloads_without_them(
     assert "callees" not in _structure_to_dict(restored)
     assert _structure_to_dict(restored) == legacy
 
+    # excerpt 도 같은 규칙: 비어 있으면 키를 내지 않고, 있으면 그대로 왕복한다.
+    with_excerpt = StructureContext(
+        changed_files=structure.changed_files,
+        importers=structure.importers,
+        symbols=structure.symbols,
+        sibling_files=structure.sibling_files,
+        callees=(
+            Callee(
+                symbol="post_json",
+                defined_in="app/http_client.py",
+                line=30,
+                constants=("MAX_ATTEMPTS = 3",),
+                excerpt=("for attempt in range(1, MAX_ATTEMPTS + 1):",),
+            ),
+        ),
+    )
+    excerpt_payload = _structure_to_dict(with_excerpt)
+    assert excerpt_payload["callees"][0]["excerpt"] == ["for attempt in range(1, MAX_ATTEMPTS + 1):"]
+    assert _structure_from_object(excerpt_payload) == with_excerpt
+
 
 def test_snapshots_stored_before_callees_still_load_with_their_original_id():
     """운영 DB 에 있던 snapshot 이 새 코드에서 'id does not match' 로 깨지지 않는다."""
