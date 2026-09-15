@@ -882,6 +882,21 @@ class Store:
             ).fetchone()
         return None if row is None else _merge_from_row(row)
 
+    def load_pending_unmerged_prs(self) -> tuple[tuple[int, str], ...]:
+        """현재 snapshot 이 pending 이고 아직 머지 기록이 없는 PR — 대시보드의 "대기"."""
+        with self._read_connection() as connection:
+            rows = connection.execute(
+                """
+                SELECT ps.pr, ps.snapshot_id
+                FROM pr_snapshots ps
+                JOIN snapshots s ON s.snapshot_id = ps.snapshot_id
+                LEFT JOIN merges m ON m.pr = ps.pr
+                WHERE s.state = 'pending' AND m.pr IS NULL
+                ORDER BY ps.pr ASC
+                """
+            ).fetchall()
+        return tuple((int(row["pr"]), str(row["snapshot_id"])) for row in rows)
+
     def load_merges_since(self, *, since: str) -> tuple[StoredMerge, ...]:
         with self._read_connection() as connection:
             rows = connection.execute(
