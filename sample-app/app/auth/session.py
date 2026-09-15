@@ -1,4 +1,4 @@
-"""세션별 토큰 보관."""
+"""Per-session token storage."""
 
 from __future__ import annotations
 
