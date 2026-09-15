@@ -8,6 +8,7 @@ out/
 *.pem
 .DS_Store
 .patches/
+/docs/handoff/
 
 # Python
 __pycache__/
