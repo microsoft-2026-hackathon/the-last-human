@@ -35,6 +35,8 @@ permissions:
 env:
   PYTHONIOENCODING: utf-8
   GH_TOKEN: ${{ github.token }}
+  # GitHub Models 호출에 쓴다. models: read 권한이 있으면 이 토큰으로 그대로 된다.
+  LASTHUMAN_TOKEN: ${{ github.token }}
 
 jobs:
   # ---------------------------------------------------------------- analyze --

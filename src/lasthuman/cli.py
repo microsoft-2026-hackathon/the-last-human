@@ -239,9 +239,12 @@ def cmd_grade(args: argparse.Namespace) -> int:
 def cmd_gate(args: argparse.Namespace) -> int:
     risk_raw = _read_json(args.risk)
     if not risk_raw.get("triggered", False):
-        # 전수 적용하지 않는다. 필수 검사는 중립도 통과시키므로 조용히 지나간다.
-        _emit_output(conclusion="neutral", summary="위험도 미달 — 인증 불필요")
-        print("neutral · 위험도 미달 — 인증 불필요")
+        # 전수 적용하지 않는다. 조용히 지나가되 결과 파일은 반드시 남긴다 —
+        # 다음 단계가 이 파일을 읽으므로 빠뜨리면 통과해야 할 PR이 잡 실패로 막힌다.
+        summary = "위험도 미달 — 인증 불필요"
+        _emit_output(conclusion="neutral", summary=summary)
+        _write(args.out, summary)
+        print(f"neutral · {summary}")
         return 0
 
     comments = _read_json(args.comments) if args.comments else []
