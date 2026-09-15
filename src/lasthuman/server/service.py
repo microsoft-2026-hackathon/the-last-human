@@ -124,6 +124,61 @@ class PresentationCheckCancelTarget:
     check_run_id: int | None = None
 
 
+_EVIDENCE_RADIUS = 5
+_EVIDENCE_MAX_LINES = 28
+
+
+def _evidence_centers(snapshot: Snapshot, path: str, lines: Sequence[str]) -> list[int]:
+    """근거 파일에서 보여줄 중심 줄들 — 피호출자 정의, 그 파일의 상수 선언, 없으면 hunk 시작."""
+    centers: list[int] = []
+    for callee in snapshot.structure.callees:
+        if callee.defined_in != path:
+            continue
+        centers.append(callee.line)
+        for constant in callee.constants:
+            name = constant.split("=", 1)[0].strip()
+            for index, line in enumerate(lines, start=1):
+                if line.startswith(f"{name} ") or line.startswith(f"{name}=") or line.startswith(f"{name}:"):
+                    centers.append(index)
+                    break
+    if not centers:
+        for hunk in snapshot.risk.top_hunks:
+            if hunk.file == path:
+                centers.append(hunk.new_start)
+                break
+    return centers or [1]
+
+
+def excerpt_segments(
+    lines: Sequence[str],
+    centers: Sequence[int],
+    *,
+    radius: int = _EVIDENCE_RADIUS,
+    max_lines: int = _EVIDENCE_MAX_LINES,
+) -> list[dict[str, object]]:
+    """중심 줄들 주변을 잘라 겹치는 구간은 합친다. 파일 순서대로, 총 줄 수 상한 안에서."""
+    total = len(lines)
+    windows: list[tuple[int, int]] = []
+    for center in sorted(set(centers)):
+        start = max(1, center - radius)
+        end = min(total, center + radius)
+        if start > end:
+            continue
+        if windows and start <= windows[-1][1] + 1:
+            windows[-1] = (windows[-1][0], max(windows[-1][1], end))
+        else:
+            windows.append((start, end))
+    segments: list[dict[str, object]] = []
+    budget = max_lines
+    for start, end in windows:
+        if budget <= 0:
+            break
+        end = min(end, start + budget - 1)
+        segments.append({"start": start, "lines": list(lines[start - 1:end])})
+        budget -= end - start + 1
+    return segments
+
+
 class BotService:
     """Single-process GitHub App runtime service."""
 
@@ -791,12 +846,14 @@ class BotService:
             text = str(payload["text"])
             choice = payload.get("choice")
             if not text.strip() or (question.question.choices and choice is None):
-                feedback.append(
-                    {
-                        "id": question.id,
-                        "hint": f"inspect {question.question.anchor}",
-                    }
-                )
+                blank: dict[str, object] = {
+                    "id": question.id,
+                    "hint": f"inspect {question.question.anchor}",
+                }
+                evidence = self._evidence_for(record, question.question)
+                if evidence is not None:
+                    blank["evidence"] = evidence
+                feedback.append(blank)
                 continue
             graded = self.grade(
                 question.question,
@@ -1941,32 +1998,27 @@ class BotService:
         return hashlib.sha256(blob.encode("utf-8")).hexdigest()
 
     def _evidence_for(self, record: StoredSnapshot, question: Question) -> dict[str, object] | None:
-        """보류된 문항의 근거 파일 발췌. 읽기에 실패하면 None — 보류를 막지 않는다."""
+        """보류된 문항의 근거 파일 발췌. 읽기에 실패하면 None — 보류를 막지 않는다.
+
+        피호출자 정의 주변과, 그 파일의 상수 선언 줄 주변을 함께 보여준다.
+        "전송 계층이 이미 3번 재시도한다"는 사실은 정의가 아니라 상수 줄에 있다.
+        """
         path = question.evidence_path
         if not path:
             return None
-        snapshot = record.snapshot
-        center = 1
-        for callee in snapshot.structure.callees:
-            if callee.defined_in == path:
-                center = callee.line
-                break
-        else:
-            for hunk in snapshot.risk.top_hunks:
-                if hunk.file == path:
-                    center = hunk.new_start
-                    break
-        reader = getattr(self.reader, "read_lines", None)
+        reader = getattr(self.reader, "read_file", None)
         if not callable(reader):
             return None
         try:
-            excerpt = reader(snapshot.head_sha, path, center=center)
+            lines = reader(record.snapshot.head_sha, path)
         except Exception:  # pylint: disable=broad-exception-caught
             return None
-        if excerpt is None:
+        if not lines:
             return None
-        start, lines = excerpt
-        return {"path": path, "start": start, "lines": list(lines)}
+        segments = excerpt_segments(lines, _evidence_centers(record.snapshot, path, lines))
+        if not segments:
+            return None
+        return {"path": path, "segments": segments}
 
     def _safe_hint(self, anchor: str, hint: object) -> str:
         text = " ".join(str(hint or "").split())
