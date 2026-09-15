@@ -31,7 +31,14 @@ def _repo(tmp_path: Path) -> Path:
         "_private = 1\n"
         "lower = 2\n"
         "class HttpError(Exception):\n    pass\n"
-        "async def post_json(transport, url, payload):\n    return json.loads('{}')\n",
+        "async def post_json(transport, url, payload):\n"
+        '    """Send JSON. On a transient failure the request is sent again, up to MAX_ATTEMPTS.\n'
+        "\n    Second paragraph must not leak into the excerpt.\n"
+        '    """\n'
+        "    for attempt in range(1, MAX_ATTEMPTS + 1):\n"
+        "        if attempt in TRANSIENT_STATUS:\n"
+        "            continue\n"
+        "    return json.loads('{}')\n",
     )
     _write(
         tmp_path,
@@ -74,6 +81,13 @@ def test_callees_follow_one_same_file_hop_and_carry_module_constants(tmp_path: P
     prompt = ctx.as_prompt()
     assert "호출하는 다른 파일의 심볼 post_json (정의: app/http_client.py:L9)" in prompt
     assert "MAX_ATTEMPTS = 3" in prompt
+    # 발췌: docstring 첫 문장 + 모듈 상수를 쓰는 본문 줄. 상수 이름이 없는 줄은 빠진다.
+    assert callee.excerpt == (
+        "Send JSON. On a transient failure the request is sent again, up to MAX_ATTEMPTS.",
+        "for attempt in range(1, MAX_ATTEMPTS + 1):",
+        "if attempt in TRANSIENT_STATUS:",
+    )
+    assert "  post_json: for attempt in range(1, MAX_ATTEMPTS + 1):" in prompt
     # 근거 파일 후보: 변경 파일 → 피호출자 파일 → 형제 파일, 중복 없음, 테스트 제외.
     assert ctx.evidence_files[:2] == ("app/auth/token.py", "app/http_client.py")
     assert "tests/test_token.py" not in ctx.evidence_files
