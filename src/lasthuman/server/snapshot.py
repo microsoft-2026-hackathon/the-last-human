@@ -1008,12 +1008,16 @@ def _structure_from_object(value: object) -> StructureContext:
 
 
 def _callee_to_dict(callee: Callee) -> dict[str, object]:
-    return {
+    payload: dict[str, object] = {
         "symbol": callee.symbol,
         "defined_in": callee.defined_in,
         "line": callee.line,
         "constants": list(callee.constants),
     }
+    # snapshot_id 해시 호환 — 비어 있으면 키를 내보내지 않는다.
+    if callee.excerpt:
+        payload["excerpt"] = list(callee.excerpt)
+    return payload
 
 
 def _callee_from_object(value: object) -> Callee:
@@ -1023,6 +1027,7 @@ def _callee_from_object(value: object) -> Callee:
         defined_in=_require_nonempty_str(data.get("defined_in"), "callee defined_in"),
         line=_require_positive_int(data.get("line"), "callee line"),
         constants=_require_str_tuple(data.get("constants", []), "callee constants"),
+        excerpt=_require_str_tuple(data.get("excerpt", []), "callee excerpt"),
     )
 
 
