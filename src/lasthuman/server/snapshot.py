@@ -645,7 +645,9 @@ class SnapshotReader:
     def _origin_url(self) -> str:
         return f"https://github.com/{self.client.settings.repository}.git"
 
-    def _git(self, cwd: Path | None, token: str, args: tuple[str, ...], *, failure: str, allow_failure: bool = False) -> _GitResult:
+    def _git(
+        self, cwd: Path | None, token: str, args: tuple[str, ...], *, failure: str, allow_failure: bool = False
+    ) -> _GitResult:
         result = self._run(args, cwd=cwd, env=self._git_env(token), timeout=_GIT_TIMEOUT)
         if not allow_failure and result.returncode != 0:
             raise SnapshotError(failure)

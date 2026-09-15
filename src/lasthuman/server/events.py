@@ -230,7 +230,7 @@ def _require_numeric_string(value: object, field_name: str) -> str:
     return raw
 
 
-def _require_claim_positive_int(value: object, field_name: str) -> int:
+def _require_claim_positive_int(value: object, _field_name: str) -> int:
     if isinstance(value, bool):
         raise OIDCError("GitHub Actions source is untrusted")
     if isinstance(value, int):
@@ -254,7 +254,7 @@ def _require_nonnegative_int(value: object, field_name: str) -> int:
     return value
 
 
-def _require_nonempty_string(value: object, field_name: str) -> str:
+def _require_nonempty_string(value: object, _field_name: str) -> str:
     if not isinstance(value, str) or not value:
         raise OIDCError("GitHub Actions source is untrusted")
     return value

@@ -299,7 +299,7 @@ def generate_questions(
         if isinstance(raw_index, bool) or not isinstance(raw_index, int):
             raise ModelError("질문 정답 위치의 형식이 올바르지 않습니다.")
         idx = raw_index
-        if len(choices) < 2 or not (0 <= idx < len(choices)):
+        if len(choices) < 2 or not 0 <= idx < len(choices):
             # 보기가 성립하지 않으면 서술형으로 떨어뜨린다. 버리는 것보다 낫다.
             choices, idx = (), -1
         out.append(
