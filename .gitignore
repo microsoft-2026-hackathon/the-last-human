@@ -4,6 +4,8 @@ out/
 *.vsix
 *.tsbuildinfo
 .env
+.env.*
+*.pem
 .DS_Store
 .patches/
 
