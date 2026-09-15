@@ -2,6 +2,11 @@
 
 작성 기준: 2026-09-10. 대상 저장소: `hunhoon21/the-last-human`.
 
+**Repository migration note:** 새 `microsoft-2026-hackathon/the-last-human`에서는 먼저
+[새 조직 연결 절차](github-app.md#hackathon-repository-cutover)를 따르세요.
+아래의 PR 번호·App/저장소 ID·터널 주소·환경 파일은 원본 데모의 예시입니다.
+새 저장소의 ID와 별도 DB를 사용하고, 현재 최종 게이트 이름인 `last-human/human-verified`를 적용합니다.
+
 **목표:** 새 PR → App 봇 안내 → 작성자 로그인 → 비공개 면담 → 성공 기록 → Actions 독립 검증 → App 상태 통과 → 실제 머지 → 모듈 대시보드.
 
 이 문서는 운영자가 순서대로 실행할 가이드다. 문서 작성만으로 App 등록, Azure 리소스 생성, 키 교체, 원격 실행이 완료된 것은 아니다. 제품 계약과 전체 설정 설명은 [GitHub App 런북](github-app.md)을 함께 참고한다.

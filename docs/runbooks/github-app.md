@@ -2,6 +2,31 @@
 
 Mac에서 새 App 개인키·Azure OpenAI·Microsoft Dev Tunnels를 준비하고 실제 PR을 머지하는 순서는 [첫 데모 PR 가이드](first-demo-macos.md)를 따른다. 아래 문서는 설정과 런타임 계약을 설명하는 기준 문서다.
 
+## Hackathon repository cutover
+
+코드는 `microsoft-2026-hackathon/the-last-human`으로 이관했지만 App·서버·인증 기록은
+별도로 설정한다. 아래 기존 가이드의 `hunhoon21` 계정·ID·파일 경로·PR 번호는 **원본 데모 예시**다.
+
+1. 새 조직에 설치 가능한 App을 준비하고 대상 저장소의 설치·권한 승인을 마친다.
+   원본의 `Only on this account` 설정을 그대로 적용하면 새 조직에 설치할 수 없을 수 있다.
+2. `TLH_REPOSITORY=microsoft-2026-hackathon/the-last-human`으로 지정한다.
+   저장소가 재생성됐으므로 `TLH_REPOSITORY_ID`, `TLH_OWNER_ID`, `TLH_INSTALLATION_ID`는 새로 조회한다.
+   `gh api repos/microsoft-2026-hackathon/the-last-human --jq '{repository_id: .id, owner_id: .owner.id}'`로
+   저장소와 소유자의 공개 ID를 확인할 수 있다.
+3. 환경 파일과 `TLH_DATABASE`는 원본과 분리한다. 예를 들어
+   `~/.config/the-last-human/hackathon/runtime.env`를 사용하고 새 세션 secret을 준비한다.
+   원본 receipt는 새 저장소나 재작성된 SHA에 대한 인증으로 재사용하지 않는다.
+4. 서버 origin·OAuth callback·저장소 `TLH_BOT_URL`을 일치시키고,
+   `TLH_OIDC_AUDIENCE`도 서버와 Actions 양쪽에서 같은 새 대상 값으로 맞춘다.
+5. 이관 PR은 squash/rebase가 아닌 merge commit으로 반영한다. trusted `main`의 새 서버를
+   준비한 뒤 `LASTHUMAN_RUNTIME=app`을 활성화한다. 봇 연결 전에도 기존 Pylint와 sample-app 검사는 사용할 수 있다.
+6. 새 PR의 질문 준비·receipt 검증·상태 게시를 확인한 뒤 **`last-human/human-verified`**를
+   필수 검사로 설정한다. 이번 원본 최신 변경은 이전 `comprehension-gate` 이름을 사용하지 않는다.
+   보조 Check는 별도의 Checks 권한과 서버 `TLH_CHECK_RUNS=true` 설정으로 활성화한다.
+
+기존 서버·원본 저장소·App 설정은 코드 이관에서 변경하지 않았다.
+원본의 과거 링크는 출처이므로 새 저장소 URL로 일괄 치환하지 않는다.
+
 ## 지금 기준
 
 - GitHub App 서버, 브라우저 로그인, PR 동기화, 제출, receipt, Actions relay 코드는 이미 있다.
