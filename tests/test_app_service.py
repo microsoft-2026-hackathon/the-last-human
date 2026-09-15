@@ -3,12 +3,13 @@ from __future__ import annotations
 from collections.abc import Callable
 import json
 from pathlib import Path
+from unittest.mock import Mock
 
 import pytest
 from flask import Flask, render_template
 
 from lasthuman.config import Config
-from lasthuman.interview import ModelError
+from lasthuman.interview import ModelError, generate_questions
 from lasthuman.models import Answer, DiffResult, FileChange, Hunk, Question, RiskResult
 from lasthuman.server.config import Settings
 from lasthuman.server.github import GitHubError
@@ -405,6 +406,53 @@ def test_sync_and_interview_preserve_same_anchor_questions_with_stable_ids(tmp_p
     assert "answer_index" not in interview["questions"][0]
     assert "expected_evidence" not in interview["questions"][0]
     assert interview["questions"][0]["code"].startswith("@@ -10,1 +10,1 @@")
+
+
+@pytest.mark.parametrize("recovers", [True, False])
+def test_sync_requires_a_complete_regenerated_batch(tmp_path: Path, monkeypatch, recovers: bool):
+    snapshot = make_snapshot()
+    anchor = snapshot.risk.top_hunks[0].anchor
+    complete = [
+        {
+            "type": "consequence",
+            "anchor": anchor,
+            "text": f"Complete question {index}",
+            "choices": ["first", "second"],
+            "answerIndex": 0,
+            "expectedEvidence": "The changed return path.",
+        }
+        for index in range(3)
+    ]
+    partial = [dict(item) for item in complete]
+    partial[0]["anchor"] = "not-in-the-diff.py:L999"
+    response = Mock(side_effect=[
+        json.dumps(partial),
+        json.dumps(complete if recovers else partial),
+    ])
+    monkeypatch.setattr("lasthuman.interview.call_model", response)
+    service, _github = make_service(
+        tmp_path,
+        snapshot=snapshot,
+        pulls=[make_pull(snapshot)],
+        clock=FakeClock(),
+        generate_func=generate_questions,
+    )
+    try:
+        if recovers:
+            result = service.sync(snapshot.pr)
+            assert result["state"] == "pending"
+            assert result["question_count"] == 3
+        else:
+            with pytest.raises(BotError) as failure:
+                service.sync(snapshot.pr)
+            assert failure.value.code == "model_error"
+        stored = service.store.load_current_snapshot(snapshot.pr)
+        assert stored is not None
+        assert stored.state == "pending"
+        assert stored.question_count == (3 if recovers else 0)
+        assert response.call_count == 2
+    finally:
+        service.shutdown()
 
 
 def test_sync_queues_start_comment_with_live_link_and_localhost_copy(tmp_path: Path):

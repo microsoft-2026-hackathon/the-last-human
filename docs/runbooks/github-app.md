@@ -339,14 +339,14 @@ gunicorn --bind 0.0.0.0:8000 --workers 1 --threads 4 'lasthuman.server.app:creat
 | workflow는 초록인데 상태가 안 바뀜 | 서버 작업 완료와 GitHub 발행 완료는 별개다. `/healthz`, 검증 Actions 실행, 현재 SHA의 App status를 함께 확인한다. 현재 receipt 화면은 상세 발행·재시도 상태를 모두 보여주지 않는다. |
 | 로컬에서 comment 만 생기고 상태가 없음 | 정상이다. `localhost` 개발 경로는 상태를 쓰지 않는다 |
 | 질문 생성이 안 됨 | 모델 자격 증명과 endpoint 설정 확인 |
-| `relay job error: generated question type is invalid` | 서버가 생성된 질문 유형을 거부했다. 연결 오류나 작성자의 보류와 구분하며, [미해결 현상 기록](#미해결-현상-질문-유형-오류)을 참고한다. |
+| 질문 준비 중 개수·유형 오류 | 모델 응답의 형식 문제와 연결·인증 오류를 구분한다. [질문 생성 형식 오류](#질문-생성-형식-오류)를 참고한다. |
 | Azure CLI 인증 실패 | 같은 OS 계정의 `az login`, tenant/subscription/scope, 터미널 PATH와 `.[bot]` 의존성 확인 |
 | 토큰 취득은 되는데 Azure 모델이 403 | 해당 리소스의 추론 RBAC와 endpoint를 확인. API 키 인증을 임의로 활성화하지 않음 |
 | snapshot 지원 불가 | merge queue, shared head, 과대 diff, binary, 순수 rename 여부 확인 |
 
-### 미해결 현상: 질문 유형 오류
+### 질문 생성 형식 오류
 
-**상태: 미해결 — 현상 기록만 반영하며, 동작 수정은 후속 작업으로 남긴다.**
+**대응:** 생성 응답을 검증하고, 유효한 전체 질문 묶음을 최대 한 번 다시 생성한다. 코드의 반영과 실제 배포·PR 재실행은 별개다. 두 번 모두 유효하지 않으면 처리 오류로 중단하며, 성공을 보장하거나 질문 수를 줄이지 않는다.
 
 2026-09-10 [Pylint 전용 PR #3](https://github.com/hunhoon21/the-last-human/pull/3)의
 [`TLH App relay` 실행](https://github.com/hunhoon21/the-last-human/actions/runs/34447656851)에서
@@ -358,25 +358,25 @@ PR의 머지 여부는 이 현상의 해결 여부를 뜻하지 않는다.
 relay job error: generated question type is invalid
 ```
 
-**영향과 확인된 처리 경계**
+이후 [데모 PR #5](https://github.com/hunhoon21/the-last-human/pull/5)의
+[relay 실행](https://github.com/hunhoon21/the-last-human/actions/runs/34450685218)에서는
+`generated question count is invalid`가 관측됐다. 같은 PR head의 독립 진단에서는 모델이 JSON 질문 3개를 반환했으나, 허용된 앵커를 사용한 질문이 2개여서 필터 후 부족해지는 경로를 확인했다. 질문 원문·정답·토큰은 이 기록에 포함하지 않는다.
 
-1. 해당 실행에서는 Actions 요청이 서버에 도착했고, snapshot 및 binding 대조 이후 질문 준비 단계에 진입했다. 이 메시지만으로 현재 터널 상태까지 정상이라고 단정하지 않는다.
-2. [`BotService._validated_questions`](../../src/lasthuman/server/service.py)는 질문 `type`을 `claim`, `consequence`, `rationale`, `structure`로 제한한다. 이 목록 밖의 값이면 `question_shape` 오류를 반환한다.
-3. 관측 시점의 [`generate_questions`](../../src/lasthuman/interview.py)는 모델이 제공한 `type`을 그대로 `Question`에 넣는다. JSON 문법 오류에는 재시도하지만, 유효한 JSON 안의 잘못된 유형은 이 경로에서 재생성하지 않는다.
-4. `BotService.sync`는 질문 생성 전에 pending snapshot과 시작 알림 작업을 저장한다. 따라서 질문 준비가 실패해도 대기 상태가 먼저 나타날 수 있다. 이는 사람이 답을 틀려서 보류된 것이 아니라 **면담 시작 전의 시스템 처리 오류**다.
+**현재 처리 경계**
 
-**아직 확인하지 못한 것**
+1. [`generate_questions`](../../src/lasthuman/interview.py)는 JSON 구조, 기존 허용 유형(`claim`, `consequence`, `rationale`, `structure`), 내용·기대 근거, 앵커와 유효한 질문 수를 확인한다.
+2. JSON 문법 오류와 응답 형식 오류가 **하나의 재시도 예산**을 공유한다. 정상 응답은 한 번 호출하며, 형식이 맞지 않을 때만 최대 두 번째 호출을 한다. 인증·네트워크·모델 API 오류는 이 파서에서 재시도하지 않는다.
+3. 형식 오류는 원래 프롬프트로 전체 묶음을 다시 생성한다. JSON 문법 오류에만 기존 JSON 안내 문구를 사용한다. 이전 부분 결과와 새 결과를 합치거나, 질문을 복제하거나, 허용되지 않은 앵커를 임의 치환하지 않는다.
+4. 재생성 후에도 조건을 충족하지 못하면 `ModelError`로 중단한다. App은 이를 모델 처리 오류로 표시한다. `model_error`에는 인증·API 오류도 포함되므로 그 코드만으로 형식 오류라고 단정하지 않는다.
+5. [`BotService._validated_questions`](../../src/lasthuman/server/service.py)의 개수·유형·앵커 검사는 별도의 안전장치로 유지된다. 생성기와 서비스가 같은 허용 유형 목록을 사용하지만 기준을 넓히지는 않는다.
+6. `BotService.sync`는 질문 생성 전에 pending snapshot과 시작 알림 작업을 저장한다. 준비가 실패해도 대기가 보일 수 있으며, 이는 작성자의 보류가 아니라 **변경 확인 시작 전의 시스템 처리 오류**다.
 
-- 로그에 거부된 실제 `type` 값이나 모델 원문이 없으므로, 어떤 값이 반환됐는지와 왜 그렇게 생성됐는지는 확정하지 않았다.
-- 재실행 시 항상 재현되는지, 특정 PR 내용이나 모델 응답에만 나타나는지는 확인하지 않았다. 재실행만으로 해결된다고 보장하지 않는다.
+**배포와 재개**
 
-**후속 해결 시 확인할 범위**
-
-- 허용되지 않은 질문 유형을 반환하는 모델 대역으로 재현하고, JSON 파싱 오류와 의미상 형식 오류를 구분한다.
-- 질문 생성 경계의 유형 검증과 제한된 재생성 처리를 검토한다. 실패 시 사용할 수 없는 질문을 완료로 취급하거나 성공 기록·상태를 만들지 않아야 한다.
-- 원시 모델 응답·답변·토큰을 공개하지 않으면서 원인을 구분할 수 있는 최소 진단 정보를 검토한다.
-- 허용 유형 검사를 끄거나 임의 값으로 치환해 통과시키지 않는다. 질문 프롬프트와 pass/hold 기준 변경은 별도의 사람 검토 대상이다.
-- 해결 후에는 유효한 질문 준비부터 면담, Actions 독립 검증, 현재 SHA의 App 상태 게시까지 확인하고 이 기록의 상태와 수정 PR 링크를 갱신한다.
+- 수정이 trusted `main`에 반영된 뒤 터미널 C 서버를 중지하고 해당 worktree와 의존성을 갱신해 재시작한다. `interview.py` 변경은 policy fingerprint를 바꾸므로 Actions와 서버의 버전을 맞춘다.
+- 필요한 경우 데모 PR도 최신 base에 맞춘 뒤 현재 head에 대한 이벤트를 발생시킨다. 이전 SHA의 인증을 재사용하지 않는다.
+- 기존 실패 실행을 재실행하거나 웹에서 다시 동기화하고, 실제 질문 3개가 준비됐는지 확인한다. 코드 반영만으로 이전 실패가 자동 복구되지는 않는다.
+- 이후 작성자의 변경 확인, 독립 검증, 현재 SHA의 App 상태 게시까지 완료해야 실제 흐름이 복구된 것이다. 원래 관측된 유형의 정확한 원문은 여전히 확인되지 않았으며, 모델이 항상 유효한 응답을 낸다고 보장하지 않는다.
 
 ## 첫 연동 전 최소 점검
 
