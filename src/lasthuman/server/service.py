@@ -215,7 +215,18 @@ class BotService:
     def shutdown(self) -> None:
         self._executor.shutdown(wait=True)
 
-    def sync(self, pr: int, *, expected_binding: Mapping[str, object] | None = None) -> dict[str, object]:
+    def sync(
+        self,
+        pr: int,
+        *,
+        expected_binding: Mapping[str, object] | None = None,
+        regenerate: bool = False,
+    ) -> dict[str, object]:
+        """PR 을 다시 읽어 저장한다.
+
+        regenerate 는 운영자가 결함 있는 질문 세트를 버리고 같은 스냅샷에서 다시 뽑을 때 쓴다.
+        이미 답변 영수증이 있는 스냅샷의 질문은 바꾸지 않는다 — 영수증이 가리키는 질문이 사라진다.
+        """
         with self._lock:
             pull = self._pull_facts(pr)
             if pull.state != "open":
@@ -240,7 +251,10 @@ class BotService:
                     "question_count": record.question_count,
                 }
 
-            if existing is not None and existing.question_count == self.settings.question_count:
+            if regenerate and existing is not None and self.store.load_receipts_for_snapshot(snapshot.snapshot_id):
+                raise BotError("Questions with receipts cannot be regenerated", code="invalid_state", status_code=409)
+            reuse = existing is not None and existing.question_count == self.settings.question_count and not regenerate
+            if reuse:
                 record = self.store.save_snapshot(
                     snapshot,
                     [item.question for item in existing.questions],
