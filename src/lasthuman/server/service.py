@@ -24,6 +24,7 @@ from lasthuman.interview import (
 )
 from lasthuman.models import Answer, Hunk, Question
 from lasthuman.server.config import Settings
+from lasthuman.server.coverage import ZoneCounts, finalize, load_seed
 from lasthuman.server.github import GitHubError
 from lasthuman.server.presentation import (
     PresentationPhase,
@@ -661,20 +662,22 @@ class BotService:
             }
 
     def dashboard(self, *, days: int = 30) -> dict[str, object]:
+        """구역 단위 이해 커버리지. 사람 이름은 CODEOWNERS 담당 외에 내보내지 않는다."""
         with self._lock:
             if days <= 0:
                 raise BotError("days must be positive", code="invalid_request", status_code=400)
             since = self._iso_from_timestamp(self.clock() - days * 86400)
             merges = self.store.load_merges_since(since=since)
-            merged_total = 0
+            totals = {"merged": 0, "gated": 0, "attested": 0, "forced": 0, "waiting": 0}
             measured_total = 0
-            gated_total = 0
-            attested_total = 0
             unmeasured_total = 0
-            zone_stats: dict[str, dict[str, object]] = {}
+            live: dict[str, ZoneCounts] = {}
             zone_answerers: dict[str, set[int]] = {}
+            all_zones: list[str] = []
+            latest_base_sha: str | None = None
+            latest_merged_at = ""
             for merge in merges:
-                merged_total += 1
+                totals["merged"] += 1
                 if not merge.measured or not merge.snapshot_id:
                     unmeasured_total += 1
                     continue
@@ -683,28 +686,25 @@ class BotService:
                     unmeasured_total += 1
                     continue
                 measured_total += 1
+                if (merge.merged_at or "") >= latest_merged_at:
+                    latest_merged_at = merge.merged_at or ""
+                    latest_base_sha = snapshot.snapshot.base_sha
+                    all_zones = list(snapshot.snapshot.zones)
                 touched = {
                     zone
                     for file_change in snapshot.snapshot.diff.files
                     if (zone := zone_of(file_change.file, snapshot.snapshot.zones))
                 }
                 for zone in touched:
-                    zone_stats.setdefault(
-                        zone,
-                        {
-                            "zone": zone,
-                            "merged": 0,
-                            "gated": 0,
-                            "attested": 0,
-                        },
-                    )
-                    zone_answerers.setdefault(zone, set())
-                    zone_stats[zone]["merged"] = int(zone_stats[zone]["merged"]) + 1
+                    row = live.setdefault(zone, ZoneCounts(zone=zone))
+                    row.merged += 1
+                    if merge.pr not in row.prs:
+                        row.prs.append(merge.pr)
                 if not snapshot.snapshot.risk.triggered:
                     continue
-                gated_total += 1
+                totals["gated"] += 1
                 for zone in touched:
-                    zone_stats[zone]["gated"] = int(zone_stats[zone]["gated"]) + 1
+                    live[zone].gated += 1
                 receipts = self.store.load_receipts_for_snapshot(merge.snapshot_id, verified_only=True)
                 eligible = tuple(
                     receipt
@@ -717,7 +717,12 @@ class BotService:
                     )
                 )
                 if eligible:
-                    attested_total += 1
+                    totals["attested"] += 1
+                else:
+                    # 게이트가 걸렸는데 유효한 인증 없이 머지됐다 — 우회. 누가가 아니라 어디에.
+                    totals["forced"] += 1
+                    for zone in touched:
+                        live[zone].forced += 1
                 credited: set[str] = set()
                 for receipt in eligible:
                     for answer in receipt.successful_answers:
@@ -730,38 +735,49 @@ class BotService:
                         credited.add(zone)
                         zone_answerers.setdefault(zone, set()).add(receipt.actor_id)
                 for zone in credited:
-                    zone_stats[zone]["attested"] = int(zone_stats[zone]["attested"]) + 1
-            zones = []
-            for zone in sorted(zone_stats):
-                gated = int(zone_stats[zone]["gated"])
-                attested = int(zone_stats[zone]["attested"])
-                answerers = len(zone_answerers.get(zone, set()))
-                zones.append(
-                    {
-                        "zone": zone,
-                        "merged": int(zone_stats[zone]["merged"]),
-                        "gated": gated,
-                        "attested": attested,
-                        "answerers": answerers,
-                        "rate": None if gated < MIN_SAMPLE else (attested / gated if gated else None),
-                        "low_sample": 0 < gated < MIN_SAMPLE,
-                        "sample_state": (
-                            "no_data" if gated == 0 else ("small_sample" if gated < MIN_SAMPLE else "measured")
-                        ),
-                    }
-                )
-            return {
-                "repo": self.settings.repository,
-                "generated_at": self._now_iso(),
-                "window_days": days,
-                "min_sample": MIN_SAMPLE,
-                "merged_total": merged_total,
-                "measured_total": measured_total,
-                "gated_total": gated_total,
-                "attested_total": attested_total,
-                "unmeasured_total": unmeasured_total,
-                "zones": zones,
-            }
+                    live[zone].attested += 1
+            for zone, actors in zone_answerers.items():
+                live[zone].answerers = len(actors)
+
+            # 대기: 현재 snapshot 이 pending 이고 머지되지 않은 PR. 머지된 것과 섞지 않는다.
+            pending = self.store.load_pending_unmerged_prs()
+            totals["waiting"] = len(pending)
+            if not all_zones:
+                for _pr, snapshot_id in pending[-1:]:
+                    current = self.store.load_snapshot(snapshot_id)
+                    if current is not None:
+                        all_zones = list(current.snapshot.zones)
+                        latest_base_sha = current.snapshot.base_sha
+
+            owners: dict[str, str] = {}
+            zone_owners = getattr(self.reader, "zone_owners", None)
+            if latest_base_sha and callable(zone_owners):
+                try:
+                    owners = dict(zone_owners(latest_base_sha))
+                except Exception:  # pylint: disable=broad-exception-caught
+                    # 담당 열은 보조 정보다. 읽기 실패로 대시보드를 막지 않는다.
+                    owners = {}
+
+            seed = load_seed(self.settings.demo_seed) if self.settings.demo_seed else None
+            payload = finalize(
+                live,
+                all_zones=all_zones,
+                owners=owners,
+                totals=totals,
+                seed=seed,
+                min_sample=MIN_SAMPLE,
+            )
+            payload.update(
+                {
+                    "repo": self.settings.repository,
+                    "generated_at": self._now_iso(),
+                    "window_days": days,
+                    "min_sample": MIN_SAMPLE,
+                    "measured_total": measured_total,
+                    "unmeasured_total": unmeasured_total,
+                }
+            )
+            return payload
 
     def receipt_detail(self, receipt_id: str, actor_id: int) -> dict[str, object]:
         with self._lock:

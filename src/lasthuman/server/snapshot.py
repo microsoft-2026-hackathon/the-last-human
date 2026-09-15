@@ -591,6 +591,26 @@ class SnapshotReader:
             return None
         return tuple(line[:200] for line in raw.decode("utf-8", errors="replace").splitlines())
 
+    def zone_owners(self, base_sha: str) -> dict[str, str]:
+        """CODEOWNERS 의 선언된 담당. 대시보드가 답할 수 있는 사람 수 옆에 놓는다.
+
+        snapshot 에는 구역 경로만 들어가고(snapshot_id 가 내용 해시라 필드를
+        더할 수 없다), 담당은 이미 fetch 된 base 커밋에서 다시 읽는다.
+        """
+        _require_sha(base_sha, "base sha")
+        token = self.client.installation_token()
+        repo_path = self._cache_repo_path()
+        if not repo_path.exists():
+            return {}
+        for candidate in CODEOWNERS_PATHS:
+            raw = self._read_optional_show(repo_path, token, f"{base_sha}:{candidate}")
+            if raw is None:
+                continue
+            rules = parse_codeowners(raw.decode("utf-8", errors="replace"))
+            if rules:
+                return dict(rules)
+        return {}
+
     def _load_base_zones(self, repo_path: Path, token: str, base_sha: str) -> tuple[str, ...]:
         for candidate in CODEOWNERS_PATHS:
             raw = self._read_optional_show(repo_path, token, f"{base_sha}:{candidate}")

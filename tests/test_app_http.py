@@ -5,7 +5,7 @@ import re
 import shutil
 import subprocess
 import sqlite3
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from pathlib import Path
 from threading import Event
 from typing import Any
@@ -1545,3 +1545,43 @@ def test_cli_serve_uses_sanitized_handler_and_shutdowns(
         "request_handler": server_main.SanitizedRequestHandler,
     }
     assert runtime.shutdown_calls == 1
+
+
+def test_dashboard_page_renders_seeded_history_with_demo_chip_and_no_names(tmp_path: Path) -> None:
+    seed_path = tmp_path / "seed.json"
+    seed_path.write_text(
+        json.dumps(
+            {
+                "totals": {"merged": 12, "gated": 6, "attested": 5, "forced": 1, "waiting": 0},
+                "zones": [
+                    {"zone": "app/auth/", "owner": "@owner-a", "merged": 1, "gated": 1, "forced": 1, "prs": [27]},
+                    {
+                        "zone": "app/orders/", "owner": "@owner-b",
+                        "merged": 5, "gated": 5, "attested": 5, "answerers": 2,
+                    },
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+    client, _app, service, _github, settings, _clock = make_app(tmp_path)
+    service.settings = replace(settings, demo_seed=seed_path)
+    login(client, next_path="/dashboard")
+
+    page = client.get("/dashboard")
+    html = page.get_data(as_text=True)
+    assert page.status_code == 200
+    assert "Demo data" in html
+    assert "Where trust is thin" in html
+    assert "Human-verified before merge" in html
+    assert "app/auth/" in html and "@owner-a" in html
+    assert "Verify 1 exception after the fact" in html
+    assert 'href="https://github.com/hunhoon21/the-last-human/pull/27"' in html
+    # 사람 이름은 CODEOWNERS 담당 외에 나오지 않는다 — 로그인한 사용자 표시는 상단 한 곳뿐이다.
+    assert html.count("author") <= 1
+
+    api = client.get("/api/dashboard", headers={"X-CSRF-Token": extract_csrf(html)})
+    payload = api.get_json()
+    assert payload["demo_seeded"] is True
+    assert payload["forced_total"] == 1 and payload["gated_total"] == 6
+    assert [zone["zone"] for zone in payload["zones"]][:2] == ["app/auth/", "app/orders/"]
