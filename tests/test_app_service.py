@@ -1692,7 +1692,11 @@ def test_hold_feedback_opens_the_evidence_file_and_reports_accepted_ids(tmp_path
     file_lines = tuple(
         ["import json", "", "TRANSIENT_STATUS = frozenset({503})", "", "MAX_ATTEMPTS = 3", ""]
         + [f"# filler {index}" for index in range(30)]
-        + ["async def post_json(transport, url, payload):", "    return None"]
+        + [
+            "async def post_json(transport, url, payload):",
+            "    for attempt in range(1, MAX_ATTEMPTS + 1):",
+            "        return None",
+        ]
     )
     seen: list[tuple[str, str]] = []
 
@@ -1724,10 +1728,11 @@ def test_hold_feedback_opens_the_evidence_file_and_reports_accepted_ids(tmp_path
     evidence = item["evidence"]
     assert evidence["path"] == "app/http_client.py"
     starts = [segment["start"] for segment in evidence["segments"]]
-    # 상수 블록(L3, L5 주변)과 정의(L37 주변)가 두 구간으로, 파일 순서대로.
-    assert starts == [1, 32]
+    # 상수 블록(L3, L5 주변)과 정의·발췌 줄(L37–38 주변)이 두 구간으로, 파일 순서대로.
+    assert starts == [1, 33]
     assert "MAX_ATTEMPTS = 3" in evidence["segments"][0]["lines"]
     assert "async def post_json(transport, url, payload):" in evidence["segments"][1]["lines"]
+    assert "    for attempt in range(1, MAX_ATTEMPTS + 1):" in evidence["segments"][1]["lines"]
     # 파일은 현재 head 에서 한 번만 읽는다. 정답·기대 근거는 나가지 않는다.
     assert seen == [(snapshot.head_sha, "app/http_client.py")]
     assert "expected_evidence" not in json.dumps(result) and "answer_index" not in json.dumps(result)
@@ -1779,7 +1784,13 @@ def make_snapshot_with_callee(snapshot: Snapshot) -> Snapshot:
     structure = replace(
         snapshot.structure,
         callees=(
-            Callee(symbol="post_json", defined_in="app/http_client.py", line=37, constants=("MAX_ATTEMPTS = 3",)),
+            Callee(
+                symbol="post_json",
+                defined_in="app/http_client.py",
+                line=37,
+                constants=("MAX_ATTEMPTS = 3",),
+                excerpt=("for attempt in range(1, MAX_ATTEMPTS + 1):",),
+            ),
         ),
     )
     return Snapshot.create(

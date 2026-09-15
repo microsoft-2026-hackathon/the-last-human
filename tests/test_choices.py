@@ -42,6 +42,26 @@ def test_틀린_보기는_근거가_좋아도_보류다():
     assert ans.choice_correct is False
 
 
+def test_틀린_보기의_힌트는_근거가_있는_파일을_가리킨다():
+    # 구조 질문의 답은 hunk 밖 파일에 있다. 힌트가 hunk 앵커를 가리키면 사람이 엉뚱한 곳을 본다.
+    outside = Question(
+        type=CHOICE_Q.type,
+        anchor=CHOICE_Q.anchor,
+        text=CHOICE_Q.text,
+        expected_evidence=CHOICE_Q.expected_evidence,
+        choices=CHOICE_Q.choices,
+        answer_index=CHOICE_Q.answer_index,
+        evidence_path="app/http_client.py",
+    )
+    assert grade(outside, "guess", HUNK, choice=1, dry_run=True).hint == (
+        "Open app/http_client.py and check what the code actually does."
+    )
+    # 근거가 hunk 안이면 줄 번호까지 있는 앵커가 더 정확하다.
+    assert grade(CHOICE_Q, "guess", HUNK, choice=1, dry_run=True).hint == (
+        "Open app/auth/token.py:L32 and check what the code actually does."
+    )
+
+
 def test_맞은_보기라도_근거가_비면_통과하지_못한다():
     # 4지선다는 찍어도 25%가 맞는다. 보기만으로 통과시키면 게이트가 무너진다.
     ans = grade(CHOICE_Q, "잘 모르겠음", HUNK, choice=0, dry_run=True)
