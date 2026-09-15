@@ -10,6 +10,7 @@
 from __future__ import annotations
 
 import hashlib
+import http.client
 import json
 import os
 import random
@@ -18,6 +19,7 @@ import urllib.error
 import urllib.request
 from collections.abc import Sequence
 
+from . import model_auth
 from .models import Answer, Hunk, Question, RiskResult
 from .structure import StructureContext
 
@@ -138,9 +140,17 @@ def resolve_endpoint() -> tuple[str, str]:
 
 def call_model(prompt: str, *, token: str | None = None, timeout: float = 60.0) -> str:
     """OpenAI 호환 chat/completions 호출."""
-    endpoint, provider = resolve_endpoint()
-    api_key = os.environ.get("LASTHUMAN_API_KEY")
-    token = token or api_key or os.environ.get("LASTHUMAN_TOKEN") or os.environ.get("GITHUB_TOKEN")
+    try:
+        azure_cli = model_auth.auth_mode() == "azure-cli"
+        endpoint, provider = resolve_endpoint()
+        if azure_cli:
+            token = model_auth.azure_cli_token(endpoint, provider)
+            api_key = None
+        else:
+            api_key = os.environ.get("LASTHUMAN_API_KEY")
+            token = token or api_key or os.environ.get("LASTHUMAN_TOKEN") or os.environ.get("GITHUB_TOKEN")
+    except model_auth.ModelAuthError as err:
+        raise ModelError(str(err)) from None
     if not token:
         raise ModelError("모델 자격 증명이 없습니다. LASTHUMAN_API_KEY를 넘겨주세요.")
 
@@ -162,12 +172,36 @@ def call_model(prompt: str, *, token: str | None = None, timeout: float = 60.0) 
 
     req = urllib.request.Request(endpoint, data=payload, headers=headers)
     try:
-        with urllib.request.urlopen(req, timeout=timeout) as res:
+        open_request = (
+            urllib.request.build_opener(model_auth.AzureCliNoRedirectHandler()).open
+            if azure_cli else urllib.request.urlopen
+        )
+        with open_request(req, timeout=timeout) as res:
             data = json.loads(res.read().decode("utf-8"))
     except urllib.error.HTTPError as err:
+        if azure_cli:
+            err.close()
+            guidance = {
+                401: "Check Azure CLI login and the deployment's AZURE_OPENAI_SCOPE.",
+                403: "Check Azure resource inference permissions and network access.",
+                429: "Retry later and check Azure model quota.",
+            }.get(err.code, "Check the deployment endpoint and Azure service availability.")
+            if 300 <= err.code < 400:
+                guidance = "Redirects are disabled; configure the direct Azure Chat Completions URL."
+            raise ModelError(f"Azure model request failed (HTTP {err.code}). {guidance}") from None
         raise ModelError(f"모델 응답 {err.code}: {err.read()[:300]!r}") from err
     except OSError as err:
+        if azure_cli:
+            raise ModelError(
+                "Azure model connection failed. Check the endpoint, TLS, and network access."
+            ) from None
         raise ModelError(f"모델 호출 실패: {err}") from err
+    except http.client.HTTPException:
+        if azure_cli:
+            raise ModelError(
+                "Azure model HTTP transport failed. Check the endpoint and network access."
+            ) from None
+        raise
     except (UnicodeError, json.JSONDecodeError):
         raise ModelError("모델 응답을 읽지 못했습니다.") from None
 
