@@ -37,6 +37,7 @@ env:
 
 jobs:
   build:
+    if: vars.LASTHUMAN_RUNTIME != 'app'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4

@@ -10,6 +10,7 @@
 from __future__ import annotations
 
 import hashlib
+import http.client
 import json
 import os
 import random
@@ -18,6 +19,7 @@ import urllib.error
 import urllib.request
 from collections.abc import Sequence
 
+from . import model_auth
 from .models import Answer, Hunk, Question, RiskResult
 from .structure import StructureContext
 
@@ -138,9 +140,17 @@ def resolve_endpoint() -> tuple[str, str]:
 
 def call_model(prompt: str, *, token: str | None = None, timeout: float = 60.0) -> str:
     """OpenAI 호환 chat/completions 호출."""
-    endpoint, provider = resolve_endpoint()
-    api_key = os.environ.get("LASTHUMAN_API_KEY")
-    token = token or api_key or os.environ.get("LASTHUMAN_TOKEN") or os.environ.get("GITHUB_TOKEN")
+    try:
+        azure_cli = model_auth.auth_mode() == "azure-cli"
+        endpoint, provider = resolve_endpoint()
+        if azure_cli:
+            token = model_auth.azure_cli_token(endpoint, provider)
+            api_key = None
+        else:
+            api_key = os.environ.get("LASTHUMAN_API_KEY")
+            token = token or api_key or os.environ.get("LASTHUMAN_TOKEN") or os.environ.get("GITHUB_TOKEN")
+    except model_auth.ModelAuthError as err:
+        raise ModelError(str(err)) from None
     if not token:
         raise ModelError("모델 자격 증명이 없습니다. LASTHUMAN_API_KEY를 넘겨주세요.")
 
@@ -162,17 +172,46 @@ def call_model(prompt: str, *, token: str | None = None, timeout: float = 60.0) 
 
     req = urllib.request.Request(endpoint, data=payload, headers=headers)
     try:
-        with urllib.request.urlopen(req, timeout=timeout) as res:
+        open_request = (
+            urllib.request.build_opener(model_auth.AzureCliNoRedirectHandler()).open
+            if azure_cli else urllib.request.urlopen
+        )
+        with open_request(req, timeout=timeout) as res:
             data = json.loads(res.read().decode("utf-8"))
     except urllib.error.HTTPError as err:
+        if azure_cli:
+            err.close()
+            guidance = {
+                401: "Check Azure CLI login and the deployment's AZURE_OPENAI_SCOPE.",
+                403: "Check Azure resource inference permissions and network access.",
+                429: "Retry later and check Azure model quota.",
+            }.get(err.code, "Check the deployment endpoint and Azure service availability.")
+            if 300 <= err.code < 400:
+                guidance = "Redirects are disabled; configure the direct Azure Chat Completions URL."
+            raise ModelError(f"Azure model request failed (HTTP {err.code}). {guidance}") from None
         raise ModelError(f"모델 응답 {err.code}: {err.read()[:300]!r}") from err
     except OSError as err:
+        if azure_cli:
+            raise ModelError(
+                "Azure model connection failed. Check the endpoint, TLS, and network access."
+            ) from None
         raise ModelError(f"모델 호출 실패: {err}") from err
+    except http.client.HTTPException:
+        if azure_cli:
+            raise ModelError(
+                "Azure model HTTP transport failed. Check the endpoint and network access."
+            ) from None
+        raise
+    except (UnicodeError, json.JSONDecodeError):
+        raise ModelError("모델 응답을 읽지 못했습니다.") from None
 
     try:
-        return data["choices"][0]["message"]["content"]
-    except (KeyError, IndexError) as err:
-        raise ModelError(f"예상과 다른 응답 모양: {str(data)[:300]}") from err
+        content = data["choices"][0]["message"]["content"]
+    except (KeyError, IndexError, TypeError):
+        raise ModelError("예상과 다른 모델 응답 형식입니다.") from None
+    if not isinstance(content, str) or not content.strip():
+        raise ModelError("모델이 비어 있거나 올바르지 않은 내용을 반환했습니다.")
+    return content
 
 
 def shuffle_choices(
@@ -199,6 +238,10 @@ def _extract_json(text: str) -> object:
     if fence:
         text = fence.group(1).strip()
     return json.loads(text)
+
+
+def _format_hunks(hunks: Sequence[Hunk]) -> str:
+    return "\n\n".join(f"{h.anchor}\n{h.body}" for h in hunks)
 
 
 def generate_questions(
@@ -229,17 +272,33 @@ def generate_questions(
     except json.JSONDecodeError:
         # 실패 시 1회 재시도 후 포기.
         raw = call_model(prompt + "\n\nJSON 배열만 출력하십시오.", token=token)
-        parsed = _extract_json(raw)
+        try:
+            parsed = _extract_json(raw)
+        except json.JSONDecodeError:
+            raise ModelError("질문 응답을 읽지 못했습니다.") from None
+
+    if not isinstance(parsed, list):
+        raise ModelError("질문 응답은 배열이어야 합니다.")
 
     valid_anchors = {h.anchor for h in risk.top_hunks}
     out: list[Question] = []
-    for item in parsed if isinstance(parsed, list) else []:
+    for item in parsed:
+        if not isinstance(item, dict):
+            raise ModelError("질문 항목의 형식이 올바르지 않습니다.")
         anchor = str(item.get("anchor", ""))
         if anchor not in valid_anchors:
             # 모델이 앵커를 지어내면 버린다. 대조가 불가능해지기 때문이다.
             continue
-        choices = tuple(str(c).strip() for c in item.get("choices", ()) if str(c).strip())
-        idx = int(item.get("answerIndex", -1) or -1)
+        raw_choices = item.get("choices") or []
+        if not isinstance(raw_choices, list) or any(not isinstance(c, str) for c in raw_choices):
+            raise ModelError("질문 보기의 형식이 올바르지 않습니다.")
+        choices = tuple(c.strip() for c in raw_choices if c.strip())
+        raw_index = item.get("answerIndex", -1)
+        if raw_index is None:
+            raw_index = -1
+        if isinstance(raw_index, bool) or not isinstance(raw_index, int):
+            raise ModelError("질문 정답 위치의 형식이 올바르지 않습니다.")
+        idx = raw_index
         if len(choices) < 2 or not (0 <= idx < len(choices)):
             # 보기가 성립하지 않으면 서술형으로 떨어뜨린다. 버리는 것보다 낫다.
             choices, idx = (), -1
@@ -304,7 +363,9 @@ def grade(
     except json.JSONDecodeError as err:
         raise ModelError("판정 응답을 읽지 못했습니다.") from err
 
-    verdict = "pass" if str(parsed.get("verdict")) == "pass" else "hold"
+    if not isinstance(parsed, dict) or parsed.get("verdict") not in ("pass", "hold"):
+        raise ModelError("판정 응답에 올바른 결과가 없습니다.")
+    verdict = parsed["verdict"]
     return Answer(
         anchor=question.anchor,
         text=answer_text,
