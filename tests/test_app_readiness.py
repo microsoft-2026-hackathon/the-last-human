@@ -128,6 +128,7 @@ def test_real_model_http_transport_generation_and_grading(monkeypatch: pytest.Mo
     monkeypatch.setenv("LASTHUMAN_PROVIDER", "openai")
     monkeypatch.setenv("LASTHUMAN_MODEL", "offline-model")
     monkeypatch.setenv("LASTHUMAN_API_KEY", "offline-model-key")
+    monkeypatch.delenv("LASTHUMAN_AUTH_MODE", raising=False)
     monkeypatch.delenv("LASTHUMAN_TOKEN", raising=False)
     try:
         generated = generate_questions(RiskResult(50, True, ("critical path",), (hunk,)), "PR", "", n=3)
