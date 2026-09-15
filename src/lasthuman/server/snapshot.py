@@ -969,7 +969,7 @@ def _file_change_from_object(value: object) -> FileChange:
 
 
 def _structure_to_dict(structure: StructureContext) -> dict[str, object]:
-    return {
+    payload: dict[str, object] = {
         "changed_files": list(structure.changed_files),
         "importers": {
             key: list(value)
@@ -977,8 +977,12 @@ def _structure_to_dict(structure: StructureContext) -> dict[str, object]:
         },
         "symbols": [_symbol_use_to_dict(symbol) for symbol in structure.symbols],
         "sibling_files": list(structure.sibling_files),
-        "callees": [_callee_to_dict(callee) for callee in structure.callees],
     }
+    # snapshot_id 는 이 dict 의 해시다. callees 는 나중에 생긴 필드라, 비어 있을 때 키를
+    # 내보내면 예전에 저장된 모든 snapshot 의 id 가 어긋나 읽히지 않는다. 있을 때만 쓴다.
+    if structure.callees:
+        payload["callees"] = [_callee_to_dict(callee) for callee in structure.callees]
+    return payload
 
 
 def _structure_from_object(value: object) -> StructureContext:
