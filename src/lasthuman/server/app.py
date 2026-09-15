@@ -14,7 +14,7 @@ from concurrent.futures import Future, ThreadPoolExecutor
 from dataclasses import dataclass, field
 from pathlib import Path
 from threading import Event, Lock, RLock, Thread
-from urllib.parse import quote, urlsplit
+from urllib.parse import urlsplit
 
 from flask import Flask, Response, g, jsonify, redirect, render_template, request, url_for
 from jinja2 import select_autoescape

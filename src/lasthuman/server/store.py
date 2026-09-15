@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import json
 import os
 import sqlite3
@@ -1058,6 +1059,4 @@ def _json_dumps(payload: object) -> str:
 
 
 def _sha256_json(payload: object) -> str:
-    import hashlib
-
     return hashlib.sha256(_json_dumps(payload).encode("utf-8")).hexdigest()

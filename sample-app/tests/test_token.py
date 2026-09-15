@@ -1,10 +1,6 @@
 import asyncio
-import json
-
-import pytest
 
 from app.auth.token import CLOCK_SKEW_SEC, TokenSet, ensure_fresh, is_expired
-from app.http_client import HttpError
 
 BASE = TokenSet(access_token="a", refresh_token="r", expires_at=1_000_000.0)
 

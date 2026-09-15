@@ -142,6 +142,8 @@ def _verify_cli_account(config: _AzureCliConfig) -> None:
 
 @lru_cache(maxsize=8)
 def _token_provider(config: _AzureCliConfig) -> Callable[[], str]:
+    # Keep the optional Azure SDK lazy for installations without the bot extra.
+    # pylint: disable=import-outside-toplevel
     try:
         from azure.core.exceptions import ClientAuthenticationError
         from azure.identity import AzureCliCredential, get_bearer_token_provider

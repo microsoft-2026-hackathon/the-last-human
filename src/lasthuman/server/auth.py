@@ -496,8 +496,6 @@ class AuthManager:
             raise AuthError("GitHub login failed", code="oauth_failed", status_code=401)
         try:
             token = fetcher(code=code, code_verifier=code_verifier)
-        except AuthError:
-            raise
         except (
             GitHubError,
             LookupError,

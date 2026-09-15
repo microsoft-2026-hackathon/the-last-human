@@ -34,7 +34,9 @@ _WORKFLOW_RE = re.compile(r"^[A-Za-z0-9._-]+\.ya?ml$")
 _SHA_RE = re.compile(r"^[0-9a-f]{40}$")
 _HEX64_RE = re.compile(r"^[0-9a-f]{64}$")
 _PR_ACTIONS = frozenset({"opened", "synchronize", "reopened", "edited", "labeled", "unlabeled", "closed"})
-_BINDING_KEYS = frozenset({"repository_id", "pr", "head_sha", "base_sha", "policy_version", "snapshot_id", "score", "triggered"})
+_BINDING_KEYS = frozenset(
+    {"repository_id", "pr", "head_sha", "base_sha", "policy_version", "snapshot_id", "score", "triggered"}
+)
 
 
 class RelayError(RuntimeError):
@@ -155,7 +157,9 @@ def _load_context(environ: Mapping[str, str]) -> ActionContext:
         settings=ActionSettings(
             repository=repository,
             repository_id=_require_positive_int(_require_env(environ, "GITHUB_REPOSITORY_ID"), "GITHUB_REPOSITORY_ID"),
-            owner_id=_require_positive_int(_require_env(environ, "GITHUB_REPOSITORY_OWNER_ID"), "GITHUB_REPOSITORY_OWNER_ID"),
+            owner_id=_require_positive_int(
+                _require_env(environ, "GITHUB_REPOSITORY_OWNER_ID"), "GITHUB_REPOSITORY_OWNER_ID"
+            ),
             workflow=workflow,
             workflow_ref=workflow_ref,
             bot_url=_require_https_origin(_require_env(environ, "TLH_BOT_URL")),
@@ -184,9 +188,19 @@ def _relay_pull_request_event(
     action = _pull_request_action(payload)
     body: JsonObject
     if action == "closed":
-        body = {"repository_id": settings.repository_id, "pr": pr, "action": action, "head_sha": _pull_request_head_sha(payload)}
+        body = {
+            "repository_id": settings.repository_id,
+            "pr": pr,
+            "action": action,
+            "head_sha": _pull_request_head_sha(payload),
+        }
     else:
-        body = {"repository_id": settings.repository_id, "pr": pr, "action": action, "binding": SnapshotReader(github, cache_dir).read(pr).binding()}
+        body = {
+            "repository_id": settings.repository_id,
+            "pr": pr,
+            "action": action,
+            "binding": SnapshotReader(github, cache_dir).read(pr).binding(),
+        }
     oidc_token = _fetch_oidc_token(
         session,
         token_request_url,
@@ -490,7 +504,10 @@ def _validate_event_repository(payload: JsonObject, settings: ActionSettings, *,
         raise RelayError("GitHub Actions event payload is invalid")
     if _require_positive_int(repository.get("id"), "repository.id") != settings.repository_id:
         raise RelayError("event repository mismatch")
-    if _require_nonempty_string(repository.get("full_name"), "repository.full_name").casefold() != settings.repository.casefold():
+    if (
+        _require_nonempty_string(repository.get("full_name"), "repository.full_name").casefold()
+        != settings.repository.casefold()
+    ):
         raise RelayError("event repository mismatch")
     owner = repository.get("owner")
     if not isinstance(owner, dict):

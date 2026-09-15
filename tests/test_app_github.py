@@ -785,7 +785,12 @@ def test_ensure_comment_reconciles_after_timeout_without_duplicate_post(
     session = FakeSession()
     bootstrap_app_auth(session, settings)
     comments_url = api_url(f"repos/{settings.repository}/issues/7/comments?per_page=100&page=1")
-    session.enqueue("GET", comments_url, FakeResponse(200, []), FakeResponse(200, [comment_payload(settings, "receipt-3", comment_id=13)]))
+    session.enqueue(
+        "GET",
+        comments_url,
+        FakeResponse(200, []),
+        FakeResponse(200, [comment_payload(settings, "receipt-3", comment_id=13)]),
+    )
     session.enqueue(
         "POST",
         api_url(f"repos/{settings.repository}/issues/7/comments"),
