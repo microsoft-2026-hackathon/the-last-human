@@ -4,21 +4,22 @@
 # 나란히 놓습니다. 둘 사이의 격차가 이 프로젝트가 드러내려는 것입니다.
 # 담당자가 적혀 있다는 사실이 그 코드를 이해한 사람이 있다는 뜻은 아닙니다.
 
-# 게이트 자신의 판단이 들어가는 곳
-/src/lasthuman/risk.py          @daeungo1
-/src/lasthuman/interview.py     @daeungo1
-/src/lasthuman/attest.py        @daeungo1
-/src/lasthuman/structure.py     @daeungo1
+# 넓은 경로를 먼저 두고, 파일별 담당을 아래에서 지정합니다.
+/src/lasthuman/                 @hunhoon21
+/.github/workflows/             @hunhoon21
 
-# 게이트의 나머지
-/src/lasthuman/                 @daeungo1
-/.github/workflows/             @daeungo1
+# 게이트 정책과 질문·구조 분석
+/src/lasthuman/risk.py          @daeungo1
+/src/lasthuman/interview.py     @daeungo1 @hunhoon21
+/src/lasthuman/attest.py        @daeungo1
+/src/lasthuman/structure.py     @hunhoon21
 
 # 시연 워크로드
-/sample-app/app/auth/           @daeungo1
+/sample-app/app/auth/           @hunhoon21
 /sample-app/app/db/             @daeungo1
-/sample-app/app/orders/         @daeungo1
+/sample-app/app/orders/         @yoojung2
 /sample-app/migrations/         @daeungo1
-/sample-app/tests/              @daeungo1
+/sample-app/tests/              @hunhoon21
 
-/docs/                          @daeungo1
+# 문서와 스토리보드
+/docs/                          @yoojung2
