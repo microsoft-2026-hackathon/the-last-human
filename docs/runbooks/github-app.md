@@ -339,9 +339,44 @@ gunicorn --bind 0.0.0.0:8000 --workers 1 --threads 4 'lasthuman.server.app:creat
 | workflow는 초록인데 상태가 안 바뀜 | 서버 작업 완료와 GitHub 발행 완료는 별개다. `/healthz`, 검증 Actions 실행, 현재 SHA의 App status를 함께 확인한다. 현재 receipt 화면은 상세 발행·재시도 상태를 모두 보여주지 않는다. |
 | 로컬에서 comment 만 생기고 상태가 없음 | 정상이다. `localhost` 개발 경로는 상태를 쓰지 않는다 |
 | 질문 생성이 안 됨 | 모델 자격 증명과 endpoint 설정 확인 |
+| `relay job error: generated question type is invalid` | 서버가 생성된 질문 유형을 거부했다. 연결 오류나 작성자의 보류와 구분하며, [미해결 현상 기록](#미해결-현상-질문-유형-오류)을 참고한다. |
 | Azure CLI 인증 실패 | 같은 OS 계정의 `az login`, tenant/subscription/scope, 터미널 PATH와 `.[bot]` 의존성 확인 |
 | 토큰 취득은 되는데 Azure 모델이 403 | 해당 리소스의 추론 RBAC와 endpoint를 확인. API 키 인증을 임의로 활성화하지 않음 |
 | snapshot 지원 불가 | merge queue, shared head, 과대 diff, binary, 순수 rename 여부 확인 |
+
+### 미해결 현상: 질문 유형 오류
+
+**상태: 미해결 — 현상 기록만 반영하며, 동작 수정은 후속 작업으로 남긴다.**
+
+2026-09-10 [Pylint 전용 PR #3](https://github.com/hunhoon21/the-last-human/pull/3)의
+[`TLH App relay` 실행](https://github.com/hunhoon21/the-last-human/actions/runs/34447656851)에서
+`Relay metadata-only event` 단계가 다음 메시지와 종료 코드 1로 실패했다.
+해당 PR의 Pylint 검사는 통과했지만, 별도 App relay는 실패하고 `comprehension-gate`는 대기 상태였다.
+PR의 머지 여부는 이 현상의 해결 여부를 뜻하지 않는다.
+
+```text
+relay job error: generated question type is invalid
+```
+
+**영향과 확인된 처리 경계**
+
+1. 해당 실행에서는 Actions 요청이 서버에 도착했고, snapshot 및 binding 대조 이후 질문 준비 단계에 진입했다. 이 메시지만으로 현재 터널 상태까지 정상이라고 단정하지 않는다.
+2. [`BotService._validated_questions`](../../src/lasthuman/server/service.py)는 질문 `type`을 `claim`, `consequence`, `rationale`, `structure`로 제한한다. 이 목록 밖의 값이면 `question_shape` 오류를 반환한다.
+3. 관측 시점의 [`generate_questions`](../../src/lasthuman/interview.py)는 모델이 제공한 `type`을 그대로 `Question`에 넣는다. JSON 문법 오류에는 재시도하지만, 유효한 JSON 안의 잘못된 유형은 이 경로에서 재생성하지 않는다.
+4. `BotService.sync`는 질문 생성 전에 pending snapshot과 시작 알림 작업을 저장한다. 따라서 질문 준비가 실패해도 대기 상태가 먼저 나타날 수 있다. 이는 사람이 답을 틀려서 보류된 것이 아니라 **면담 시작 전의 시스템 처리 오류**다.
+
+**아직 확인하지 못한 것**
+
+- 로그에 거부된 실제 `type` 값이나 모델 원문이 없으므로, 어떤 값이 반환됐는지와 왜 그렇게 생성됐는지는 확정하지 않았다.
+- 재실행 시 항상 재현되는지, 특정 PR 내용이나 모델 응답에만 나타나는지는 확인하지 않았다. 재실행만으로 해결된다고 보장하지 않는다.
+
+**후속 해결 시 확인할 범위**
+
+- 허용되지 않은 질문 유형을 반환하는 모델 대역으로 재현하고, JSON 파싱 오류와 의미상 형식 오류를 구분한다.
+- 질문 생성 경계의 유형 검증과 제한된 재생성 처리를 검토한다. 실패 시 사용할 수 없는 질문을 완료로 취급하거나 성공 기록·상태를 만들지 않아야 한다.
+- 원시 모델 응답·답변·토큰을 공개하지 않으면서 원인을 구분할 수 있는 최소 진단 정보를 검토한다.
+- 허용 유형 검사를 끄거나 임의 값으로 치환해 통과시키지 않는다. 질문 프롬프트와 pass/hold 기준 변경은 별도의 사람 검토 대상이다.
+- 해결 후에는 유효한 질문 준비부터 면담, Actions 독립 검증, 현재 SHA의 App 상태 게시까지 확인하고 이 기록의 상태와 수정 PR 링크를 갱신한다.
 
 ## 첫 연동 전 최소 점검
 
@@ -370,4 +405,4 @@ python -m lasthuman.server --help
 - [Azure CLI 로그인](https://learn.microsoft.com/en-us/cli/azure/authenticate-azure-cli-interactively)
 - [MSAL 기반 Azure CLI와 캐시](https://learn.microsoft.com/en-us/cli/azure/msal-based-azure-cli)
 
-현재 구현의 자동화 시험은 GitHub/모델 대역을 사용한다. 실제 App·모델·공개 HTTPS는 아직 연결하지 않았으므로, 위 9단계의 실제 PR·댓글·현재 커밋 상태·머지·대시보드 결과를 확보하기 전에는 원격 자동화 완주로 간주하지 않는다. 개인키·토큰·보류 원문은 그 증거에 포함하지 않는다.
+현재 구현의 자동화 시험은 GitHub/모델 대역을 사용한다. 실제 App·모델·공개 HTTPS의 일부 연결이 관측되어도, 위 9단계의 실제 PR·댓글·현재 커밋 상태·머지·대시보드 결과를 확보하기 전에는 원격 자동화 완주로 간주하지 않는다. 개인키·토큰·보류 원문은 그 증거에 포함하지 않는다.
