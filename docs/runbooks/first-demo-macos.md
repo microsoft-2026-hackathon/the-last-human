@@ -894,6 +894,7 @@ gh pr create --repo "$TLH_REPO" --base main \
 | Azure 404/400 | resource endpoint와 배포 이름, API version, Chat Completions/temperature 지원 확인 |
 | Azure 429/5xx | 할당량·장애 확인 후 제한적으로 재시도. 사람의 보류 기록으로 남기지 않음 |
 | workflow가 실행되지 않음 | trusted main의 workflow, Actions 설정, `LASTHUMAN_RUNTIME`, 새 PR 이벤트 확인 |
+| 질문 개수·유형 오류로 relay가 실패 | [응답 검증과 제한 재생성](github-app.md#질문-생성-형식-오류) 및 서버 배포 버전을 확인. 질문 수·앵커·유형 기준을 낮추지 않음 |
 | OIDC 거부 | repo/owner ID, workflow 파일/ref, audience, Actions event 확인 |
 | 제출 stale/409 | 새 head/base/PR 메타 변경 여부 확인 후 웹에서 재동기화. 이전 receipt 재사용 금지 |
 | 보완 화면이 사라짐 | 30분 TTL 또는 재시작이면 다시 로그인·미완료 답변 재작성. 보류를 복구용 DB에 저장하지 않음 |

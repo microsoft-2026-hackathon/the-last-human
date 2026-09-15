@@ -15,7 +15,12 @@ from threading import RLock
 from urllib.parse import urlsplit
 
 from lasthuman.diff import parse_anchor
-from lasthuman.interview import ModelError, generate_questions, grade as grade_answer
+from lasthuman.interview import (
+    QUESTION_TYPES as _QUESTION_TYPES,
+    ModelError,
+    generate_questions,
+    grade as grade_answer,
+)
 from lasthuman.models import Answer, Hunk, Question
 from lasthuman.server.config import Settings
 from lasthuman.server.github import GitHubError
@@ -40,7 +45,6 @@ _BINDING_KEYS = (
     "score",
     "triggered",
 )
-_QUESTION_TYPES = {"claim", "consequence", "rationale", "structure"}
 _MAX_ACTIVE_JOBS = 16
 _MAX_HINT_LENGTH = 200
 _VERIFIER_RETRY_AFTER_SECONDS = 300

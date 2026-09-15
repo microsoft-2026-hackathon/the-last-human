@@ -8,6 +8,7 @@
 from __future__ import annotations
 
 import json
+from unittest.mock import Mock
 
 import pytest
 
@@ -107,3 +108,116 @@ def test_invalid_grade_response_is_not_a_human_hold(monkeypatch, raw):
     monkeypatch.setattr("lasthuman.interview.call_model", lambda *args, **kwargs: raw)
     with pytest.raises(ModelError):
         grade(CHOICE_Q, "code evidence", HUNK, choice=0)
+
+
+def question_batch(prefix="question"):
+    return [
+        {
+            "type": kind,
+            "anchor": HUNK.anchor,
+            "text": f"{prefix} {index}",
+            "choices": list(CHOICE_Q.choices),
+            "answerIndex": 0,
+            "expectedEvidence": CHOICE_Q.expected_evidence,
+        }
+        for index, kind in enumerate(("claim", "consequence", "rationale"))
+    ]
+
+
+def test_complete_question_batch_needs_one_model_call(monkeypatch):
+    call = Mock(return_value=json.dumps(question_batch()))
+    monkeypatch.setattr("lasthuman.interview.call_model", call)
+    questions = generate_questions(RiskResult(50, True, (), (HUNK,)), "PR", "", n=3)
+    assert len(questions) == 3
+    call.assert_called_once()
+
+
+@pytest.mark.parametrize("problem", [
+    "short", "anchor", "type", "null-type", "text", "evidence", "index", "object", "item",
+    "extra-valid", "extra-invalid",
+])
+def test_invalid_question_batch_is_replaced_in_full(monkeypatch, problem):
+    first = question_batch("discarded")
+    if problem == "short":
+        first.pop()
+    elif problem == "anchor":
+        first[0]["anchor"] = "outside.py:L999"
+    elif problem == "type":
+        first[0]["type"] = "code"
+    elif problem == "null-type":
+        first[0]["type"] = None
+    elif problem == "text":
+        first[0]["text"] = " "
+    elif problem == "evidence":
+        first[0]["expectedEvidence"] = None
+    elif problem == "index":
+        first[0]["answerIndex"] = True
+    elif problem == "object":
+        first = {"questions": first}
+    elif problem in {"extra-valid", "extra-invalid"}:
+        first.append(dict(first[0]))
+        if problem == "extra-invalid":
+            first[-1]["anchor"] = "outside.py:L999"
+    else:
+        first[0] = None
+    call = Mock(side_effect=[json.dumps(first), json.dumps(question_batch("accepted"))])
+    monkeypatch.setattr("lasthuman.interview.call_model", call)
+    questions = generate_questions(RiskResult(50, True, (), (HUNK,)), "PR", "", n=3, token="unit-token")
+    assert [question.text for question in questions] == ["accepted 0", "accepted 1", "accepted 2"]
+    assert all(question.anchor == HUNK.anchor for question in questions)
+    assert call.call_count == 2
+    assert call.call_args_list[0].args[0] == call.call_args_list[1].args[0]
+    assert all(item.kwargs["token"] == "unit-token" for item in call.call_args_list)
+
+
+def test_json_repair_uses_the_existing_hint_and_one_retry(monkeypatch):
+    call = Mock(side_effect=["not-json", json.dumps(question_batch())])
+    monkeypatch.setattr("lasthuman.interview.call_model", call)
+    assert len(generate_questions(RiskResult(50, True, (), (HUNK,)), "PR", "", n=3)) == 3
+    assert call.call_count == 2
+    assert call.call_args_list[1].args[0] == (
+        call.call_args_list[0].args[0] + "\n\nJSON 배열만 출력하십시오."
+    )
+
+
+@pytest.mark.parametrize(("first", "second"), [
+    ("not-json", "[]"),
+    ("[]", "not-json"),
+    ("[]", "[]"),
+    ("not-json", "not-json"),
+])
+def test_json_and_batch_errors_share_one_retry_budget(monkeypatch, first, second):
+    call = Mock(side_effect=[first, second, json.dumps(question_batch())])
+    monkeypatch.setattr("lasthuman.interview.call_model", call)
+    with pytest.raises(ModelError):
+        generate_questions(RiskResult(50, True, (), (HUNK,)), "PR", "", n=3)
+    assert call.call_count == 2
+
+
+def test_partial_batches_are_never_combined(monkeypatch):
+    batch = question_batch()
+    call = Mock(side_effect=[json.dumps(batch[:2]), json.dumps(batch[2:])])
+    monkeypatch.setattr("lasthuman.interview.call_model", call)
+    with pytest.raises(ModelError):
+        generate_questions(RiskResult(50, True, (), (HUNK,)), "PR", "", n=3)
+    assert call.call_count == 2
+
+
+@pytest.mark.parametrize("after_invalid_batch", [False, True])
+def test_model_request_errors_are_not_retried(monkeypatch, after_invalid_batch):
+    failure = ModelError("Model request unavailable")
+    replies = ["[]", failure] if after_invalid_batch else [failure]
+    call = Mock(side_effect=replies)
+    monkeypatch.setattr("lasthuman.interview.call_model", call)
+    with pytest.raises(ModelError) as result:
+        generate_questions(RiskResult(50, True, (), (HUNK,)), "PR", "", n=3)
+    assert result.value is failure
+    assert call.call_count == len(replies)
+
+
+def test_dry_run_keeps_its_existing_behavior_without_model_calls(monkeypatch):
+    call = Mock(side_effect=AssertionError("Unexpected model request"))
+    monkeypatch.setattr("lasthuman.interview.call_model", call)
+    questions = generate_questions(RiskResult(50, True, (), (HUNK,)), "PR", "", n=3, dry_run=True)
+    assert len(questions) == 1
+    call.assert_not_called()
