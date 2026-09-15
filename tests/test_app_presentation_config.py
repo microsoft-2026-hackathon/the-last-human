@@ -37,8 +37,10 @@ def test_presentation_settings_accept_explicit_values(
         TLH_PRESENTATION_REASON_LIMIT="5",
         TLH_PRESENTATION_DETAIL_LIMIT="20",
         TLH_PRESENTATION_PATHS_PER_GROUP="4",
+        TLH_QUESTION_COUNT="2",
     )
 
+    assert settings.question_count == 2
     assert settings.checks_enabled is True
     assert settings.check_name == "The Last Human Checks"
     assert settings.presentation_name == "TLH Presentation"
@@ -64,6 +66,8 @@ def test_presentation_settings_accept_explicit_values(
         ({"TLH_PRESENTATION_REASON_LIMIT": "0"}, "between 1 and 1000"),
         ({"TLH_PRESENTATION_DETAIL_LIMIT": "1001"}, "between 1 and 1000"),
         ({"TLH_PRESENTATION_PATHS_PER_GROUP": "many"}, "integer"),
+        ({"TLH_QUESTION_COUNT": "0"}, "between 1 and 5"),
+        ({"TLH_QUESTION_COUNT": "6"}, "between 1 and 5"),
     ],
 )
 def test_presentation_settings_fail_fast_without_silent_clamping(

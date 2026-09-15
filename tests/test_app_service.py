@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from collections.abc import Callable
+from dataclasses import replace
 import json
 from pathlib import Path
 from unittest.mock import Mock
@@ -16,7 +17,7 @@ from lasthuman.server.github import GitHubError
 from lasthuman.server.service import BotError, BotService
 from lasthuman.server.snapshot import Snapshot
 from lasthuman.server.store import PublicationRequest, ReceiptAnswer, Store
-from lasthuman.structure import StructureContext, SymbolUse
+from lasthuman.structure import Callee, StructureContext, SymbolUse
 
 BASE_SHA = "a" * 40
 HEAD_SHA = "b" * 40
@@ -521,6 +522,7 @@ def test_sync_requires_a_complete_regenerated_batch(tmp_path: Path, monkeypatch,
             "choices": ["first", "second"],
             "answerIndex": 0,
             "expectedEvidence": "The changed return path.",
+            "evidencePath": anchor.rsplit(":L", 1)[0],
         }
         for index in range(3)
     ]
@@ -1659,3 +1661,130 @@ def test_publication_status_caps_dispatch_failures_without_flooding(tmp_path: Pa
     clock.advance(20)
     assert service.flush_publications() == 0
     assert github.dispatch_calls == [receipt_id, receipt_id, receipt_id]
+
+
+def test_hold_feedback_opens_the_evidence_file_and_reports_accepted_ids(tmp_path: Path):
+    """보류된 문항만 근거 파일 발췌를 받고, 통과한 문항은 accepted 로 잠긴다.
+
+    발췌는 피호출자 정의 주변과 상수 선언 주변을 합친 구간이다.
+    """
+    clock = FakeClock()
+    snapshot = make_snapshot()
+    snapshot = make_snapshot_with_callee(snapshot)
+    questions = make_questions()
+    questions[0] = Question(
+        type=questions[0].type,
+        anchor=questions[0].anchor,
+        text=questions[0].text,
+        expected_evidence=questions[0].expected_evidence,
+        choices=questions[0].choices,
+        answer_index=questions[0].answer_index,
+        evidence_path="app/http_client.py",
+    )
+    service, _github = make_service(
+        tmp_path,
+        snapshot=snapshot,
+        pulls=[make_pull(snapshot), make_pull(snapshot)],
+        clock=clock,
+        questions=questions,
+        verdicts={f"{questions[0].anchor}|{questions[0].text}": "hold"},
+    )
+    file_lines = tuple(
+        ["import json", "", "TRANSIENT_STATUS = frozenset({503})", "", "MAX_ATTEMPTS = 3", ""]
+        + [f"# filler {index}" for index in range(30)]
+        + ["async def post_json(transport, url, payload):", "    return None"]
+    )
+    seen: list[tuple[str, str]] = []
+
+    def read_file(head_sha: str, path: str):
+        seen.append((head_sha, path))
+        return file_lines
+
+    setattr(service.reader, "read_file", read_file)
+    service.sync(snapshot.pr)
+
+    job_id = service.submit(
+        snapshot.pr,
+        snapshot.author_id,
+        snapshot.snapshot_id,
+        "req-evidence",
+        [
+            {"id": "0", "text": "guessing", "choice": 1},
+            {"id": "1", "text": "called from app/main.py", "choice": 0},
+            {"id": "2", "text": "Updated guide"},
+        ],
+    )
+    service.drain()
+    result = service.result(job_id, snapshot.author_id)
+
+    assert result["state"] == "needs_followup"
+    assert result["accepted"] == ["1", "2"]
+    [item] = result["feedback"]
+    assert item["id"] == "0" and item["hint"] == "inspect app/auth/token.py:L10"
+    evidence = item["evidence"]
+    assert evidence["path"] == "app/http_client.py"
+    starts = [segment["start"] for segment in evidence["segments"]]
+    # 상수 블록(L3, L5 주변)과 정의(L37 주변)가 두 구간으로, 파일 순서대로.
+    assert starts == [1, 32]
+    assert "MAX_ATTEMPTS = 3" in evidence["segments"][0]["lines"]
+    assert "async def post_json(transport, url, payload):" in evidence["segments"][1]["lines"]
+    # 파일은 현재 head 에서 한 번만 읽는다. 정답·기대 근거는 나가지 않는다.
+    assert seen == [(snapshot.head_sha, "app/http_client.py")]
+    assert "expected_evidence" not in json.dumps(result) and "answer_index" not in json.dumps(result)
+
+
+def test_blank_answer_hold_also_points_at_the_evidence_file(tmp_path: Path):
+    clock = FakeClock()
+    snapshot = make_snapshot_with_callee(make_snapshot())
+    questions = make_questions()
+    questions[0] = Question(
+        type="consequence",
+        anchor=questions[0].anchor,
+        text=questions[0].text,
+        expected_evidence=questions[0].expected_evidence,
+        choices=questions[0].choices,
+        answer_index=questions[0].answer_index,
+        evidence_path="app/http_client.py",
+    )
+    service, _github = make_service(
+        tmp_path,
+        snapshot=snapshot,
+        pulls=[make_pull(snapshot), make_pull(snapshot)],
+        clock=clock,
+        questions=questions,
+    )
+    setattr(service.reader, "read_file", lambda head_sha, path: ("MAX_ATTEMPTS = 3", "def post_json():", "    pass"))
+    service.sync(snapshot.pr)
+    job_id = service.submit(
+        snapshot.pr,
+        snapshot.author_id,
+        snapshot.snapshot_id,
+        "req-blank",
+        [
+            {"id": "0", "text": "", "choice": None},
+            {"id": "1", "text": "called from app/main.py", "choice": 0},
+            {"id": "2", "text": "Updated guide"},
+        ],
+    )
+    service.drain()
+    result = service.result(job_id, snapshot.author_id)
+    [item] = result["feedback"]
+    assert item["hint"] == "inspect app/auth/token.py:L10"
+    assert item["evidence"]["path"] == "app/http_client.py"
+    assert item["evidence"]["segments"][0]["lines"][0] == "MAX_ATTEMPTS = 3"
+
+
+def make_snapshot_with_callee(snapshot: Snapshot) -> Snapshot:
+    """구조 사실에 피호출자 하나를 얹은 스냅샷 — 근거 파일 발췌의 중심 줄 재료."""
+    structure = replace(
+        snapshot.structure,
+        callees=(
+            Callee(symbol="post_json", defined_in="app/http_client.py", line=37, constants=("MAX_ATTEMPTS = 3",)),
+        ),
+    )
+    return Snapshot.create(
+        repo=snapshot.repo, repo_id=snapshot.repo_id, pr=snapshot.pr, head_sha=snapshot.head_sha,
+        base_sha=snapshot.base_sha, author_id=snapshot.author_id, author_login=snapshot.author_login,
+        title=snapshot.title, body=snapshot.body, risk=snapshot.risk, config=snapshot.config,
+        diff=snapshot.diff, structure=structure, zones=snapshot.zones, policy_version=snapshot.policy_version,
+    )

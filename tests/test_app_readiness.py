@@ -93,7 +93,8 @@ def test_real_model_http_transport_generation_and_grading(monkeypatch: pytest.Mo
     hunk = Hunk("app/token.py", 10, 9, "app/token.py:L10", ("+return token",), (), " return token", "modified")
     questions = [
         {"type": "claim", "anchor": hunk.anchor, "text": f"Question {index}",
-         "choices": ["first", "second"], "answerIndex": 0, "expectedEvidence": "return token"}
+         "choices": ["first", "second"], "answerIndex": 0, "expectedEvidence": "return token",
+         "evidencePath": "app/token.py"}
         for index in range(3)
     ]
     replies = [
