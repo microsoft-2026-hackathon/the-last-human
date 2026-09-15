@@ -1660,3 +1660,62 @@ def test_publication_status_caps_dispatch_failures_without_flooding(tmp_path: Pa
     clock.advance(20)
     assert service.flush_publications() == 0
     assert github.dispatch_calls == [receipt_id, receipt_id, receipt_id]
+
+
+def test_hold_feedback_opens_the_evidence_file_and_reports_accepted_ids(tmp_path: Path):
+    """보류된 문항만 근거 파일 발췌를 받고, 통과한 문항은 accepted 로 잠긴다."""
+    clock = FakeClock()
+    snapshot = make_snapshot()
+    questions = make_questions()
+    questions[0] = Question(
+        type=questions[0].type,
+        anchor=questions[0].anchor,
+        text=questions[0].text,
+        expected_evidence=questions[0].expected_evidence,
+        choices=questions[0].choices,
+        answer_index=questions[0].answer_index,
+        evidence_path="app/http_client.py",
+    )
+    service, _github = make_service(
+        tmp_path,
+        snapshot=snapshot,
+        pulls=[make_pull(snapshot), make_pull(snapshot)],
+        clock=clock,
+        questions=questions,
+        verdicts={f"{questions[0].anchor}|{questions[0].text}": "hold"},
+    )
+    seen: list[tuple[str, str, int]] = []
+
+    def read_lines(head_sha: str, path: str, *, center: int, radius: int = 6):
+        seen.append((head_sha, path, center))
+        return 10, ("MAX_ATTEMPTS = 3", "", "async def post_json(...):")
+
+    setattr(service.reader, "read_lines", read_lines)
+    service.sync(snapshot.pr)
+
+    job_id = service.submit(
+        snapshot.pr,
+        snapshot.author_id,
+        snapshot.snapshot_id,
+        "req-evidence",
+        [
+            {"id": "0", "text": "guessing", "choice": 1},
+            {"id": "1", "text": "called from app/main.py", "choice": 0},
+            {"id": "2", "text": "Updated guide"},
+        ],
+    )
+    service.drain()
+    result = service.result(job_id, snapshot.author_id)
+
+    assert result["state"] == "needs_followup"
+    assert result["accepted"] == ["1", "2"]
+    assert result["feedback"] == [
+        {
+            "id": "0",
+            "hint": "inspect app/auth/token.py:L10",
+            "evidence": {"path": "app/http_client.py", "start": 10, "lines": ["MAX_ATTEMPTS = 3", "", "async def post_json(...):"]},
+        }
+    ]
+    # 파일 발췌는 현재 head 에서, 근거 파일 하나만 읽는다. 정답·기대 근거는 나가지 않는다.
+    assert seen == [(snapshot.head_sha, "app/http_client.py", 1)]
+    assert "expected_evidence" not in json.dumps(result) and "answer_index" not in json.dumps(result)
