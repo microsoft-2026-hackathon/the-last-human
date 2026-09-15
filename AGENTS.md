@@ -27,7 +27,7 @@ packages/core       확장과 Action이 공유하는 규칙 — 여기가 하나
 packages/extension  VS Code 확장 — 면담 진행, 인증 생성
 packages/action     GitHub Action — 게이트. core로 재계산 후 검증
 packages/ledger     커버리지 집계 (정적 산출)
-demo-repo           시연용. 별도 git 저장소이며 루트에서 무시된다
+demo-repo           시연용 주문 서비스. 게이트가 판정할 대상 코드
 ```
 
 구현 순서는 **core → extension → action**입니다. 바꾸면 위험 점수 로직이 두 벌로 갈라집니다.

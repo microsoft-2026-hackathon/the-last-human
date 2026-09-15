@@ -17,7 +17,7 @@ The Last Human은 사람에게 설명을 **요구**합니다.
 | `packages/extension` | VS Code 확장 — 면담 진행, 인증 생성 | 예정 9/3 |
 | `packages/action` | GitHub Action — 게이트. 재계산 후 검증 | 예정 9/10 |
 | `packages/ledger` | 모듈별 이해 커버리지 집계 | 예정 9/12 |
-| `demo-repo` | 시연용 저장소. 별도 git 저장소 | PR 4개 완료 |
+| `demo-repo` | 시연용 주문 서비스. 게이트가 판정할 대상 코드 | PR 4개 완료 |
 
 구현 순서는 **core → extension → action**입니다. 순서를 바꾸면 위험 점수 로직이 두 벌로 갈라집니다.
 
@@ -31,23 +31,24 @@ npm run build
 ### diff 파싱 확인
 
 ```bash
-node packages/core/dist/cli/diff-cli.js --repo ./demo-repo --base main --head pr-1-auth-retry
+node packages/core/dist/cli/diff-cli.js --repo . --base main --head pr-1-auth-retry
 ```
 
 ```
 files 1  hunks 3  +31 -13
-  modified src/auth/token.js  +31 -13  hunks=3
+  modified demo-repo/src/auth/token.js  +31 -13  hunks=3
 
-  src/auth/token.js:L1   +7 -1
-  src/auth/token.js:L22  +23 -11
-  src/auth/token.js:L67  +1 -1
+  demo-repo/src/auth/token.js:L1   +7 -1
+  demo-repo/src/auth/token.js:L22  +23 -11
+  demo-repo/src/auth/token.js:L67  +1 -1
 ```
 
 `--json`을 붙이면 hunk 전문이 나옵니다.
 
-## 시연 저장소
+## 시연
 
-`demo-repo/`는 루트 저장소에서 무시되는 **별도 git 저장소**입니다. 네 개의 PR이 각각 다른 것을 증명합니다.
+`demo-repo/`는 게이트가 판정할 대상인 가짜 주문 서비스입니다.
+시연 PR 네 개가 이 저장소의 브랜치로 올라가 있고, 각각 다른 것을 증명합니다.
 
 | 브랜치 | 무엇을 증명하는가 |
 | --- | --- |
@@ -56,7 +57,10 @@ files 1  hunks 3  +31 -13
 | `pr-3-readme-typo` | **반증. 전수 적용하지 않는다.** 임계값 아래라 중립 통과 |
 | `pr-4-external-rate-limit` | OSS 모드. 외부 기여는 기본 발동 |
 
-PR 본문과 심어둘 AI 리뷰 코멘트는 [docs/demo-pr/](docs/demo-pr/)에 있습니다.
+PR 본문과 심어둘 AI 리뷰 코멘트 원문은 [docs/demo-pr/](docs/demo-pr/)에 있습니다.
+
+게이트 설정은 루트의 [`.lasthuman.yml`](.lasthuman.yml) 하나이고, 시연 서비스와 게이트 자신의 코드를 함께 다룹니다.
+개발 기간 동안 이 게이트를 이 저장소 자신의 PR에도 겁니다.
 
 ## 지켜야 할 선
 
