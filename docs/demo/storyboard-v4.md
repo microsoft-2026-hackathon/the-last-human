@@ -61,7 +61,7 @@
 | 7 | 00:51–00:57 | **T3** | 둘 다 답하고 제출 → 첫째 Accepted [TARGET] | Q1 정답 선택 + 근거 한 줄 → Q2 보기 "ensure_fresh() retries up to 3 times, but post_json() does not retry, so total attempts equal 3." 선택 + 근거 → **Submit answers** → 첫 카드 **Accepted**. 채점 대기는 Time compressed | The author answers both from the code and submits. The first holds up — accepted. |
 | 8 | 00:57–01:04 | **T4** | 둘째 Hold [TARGET] | 둘째 카드 **Hold** · "Not yet — one more place to look." 보기 넷 순차 하이라이트 | The second doesn't. The answer isn't in the change — it's in a file the change calls. Hold. |
 | 9 | 01:04–01:16 | **T4** | 본인이 발견함 [TARGET] | "Look here — Open sample-app/app/http_client.py and check what the code actually does." → 발췌 `sample-app/app/http_client.py` L14–29(`MAX_ATTEMPTS = 3`) + L38–57(`for attempt in range(1, MAX_ATTEMPTS + 1):`). L49 줌 · 자막 "3 × 3 = 9" · 2초 침묵 | The hold shows the neighboring file. There it is — a second retry loop, already in place. Three times three. *(2s)* The author sees it for the first time. |
-| 10 | 01:16–01:24 | **T4** | 이 결함은 실재함 · 우리는 한 단계 앞 [근거] | 좌측 보류 화면 유지, 우측 GitHub 2026-08-17 사후 분석 원문 "client-side retry loop…" + "retry budgets" 하이라이트 · 7h 47m | This kind of loop made GitHub's August outage worse. The gate didn't find the bug — it asked the person who had to. |
+| 10 | 01:16–01:24 | **T4** | 이 결함은 실재함 · 우리는 한 단계 앞 [근거] | 좌측 보류 화면 유지, 우측 패널에 GitHub 사후 분석 원문 — "Errors in those services triggered a **client-side retry loop** that increased traffic during recovery." · 대응 "consistent retry limits, **retry budgets**, and variable timeouts" · 캡션 "GitHub Blog · The August 17 outage, and the work ahead · Vlad Fedorov · 2026-08-20 · 7h 47m" | This kind of loop made GitHub's August outage worse. The gate didn't find the bug — it asked the person who had to. |
 | 11 | 01:24–01:34 | **T5** | 고침 → 게이트가 다시 물음 → 사람이 머지 [TARGET] | 수정 커밋 `fix(auth): stop retrying in ensure_fresh — post_json already retries` → 카드가 "Awaiting author explanation"으로 복귀 → 새 질문(Q2 "How many times in total can a single token refresh request reach the identity provider…?" → "Up to 3 times") → 둘 다 **Accepted** → 카드 **Human Verified** + SHA · 여섯째 줄 채워짐 → **Merge pull request** | They fix it. A new commit, so the gate asks again. This time it holds up — human-verified, on record. A person merges. |
 | 12 | 01:34–01:39 | **T6** | 금지가 아님 [TARGET] | 저위험 문서 PR #27: `The Last Human — Check not required` · `comprehension-gate — Comprehension check not required` · Merge 활성 | Nothing is banned. Low-risk changes go straight through. |
 | 13 | 01:39–01:53 | **T7** | 조직은 이제 누가 답할 수 있는지 앎 [TARGET · Demo data] | 대시보드: KPI "Human-verified before merge" → Coverage by zone의 `sample-app/app/auth/` 행, Can answer **0 → 1** (머지 전 정지 화면과 분할) → "counts, never names". Demo data 칩 | Per module: how many people can answer for it. Authentication had no one on record — now one. Counts, never names. *(0.5s)* If that loop ever fires here, someone already understood this change. |
@@ -77,7 +77,7 @@
 | T1 | 4·5 | ✓ | ✓ | 대기 | 16.5s / 16s | 여운 1초 |
 | T2 | 6 | ✓ | ✓ | 대기 | 10.5s / 10s | Q1 문장이 끝난 뒤 스크롤 |
 | T3 | 7 | ✓ | ✓ | 대기 | 6.5s / 6s | 채점 대기 Time compressed · T2에서 0.3s 크로스페이드 |
-| T4 | 8·9·10 | ✓ | — | — | — / 27s | GitHub 인용 원문 확정 필요 |
+| T4 | 8·9·10 | ✓ | — | — | — / 27s | 인용 원문 확정(안 A) |
 | T5 | 11 | 일부 | — | — | — / 10s | Merge 클릭 장면은 #22 머지 시 촬영 |
 | T6 | 12 | ✓ | — | — | — / 5s | |
 | T7 | 13 | — | — | — | — / 14s | #22 머지 후 대시보드 |
@@ -162,7 +162,8 @@ PR -> Actions (events only) ---------+
 
 ---
 
-출처: [Godot contribution policy 2026][godot-policy] · [Anthropic, AI assistance and coding skills (2026)][skill-study] · GitHub 2026-08-17 incident post-mortem · New Relic 2026 survey.
+출처: [Godot contribution policy 2026][godot-policy] · [Anthropic, AI assistance and coding skills (2026)][skill-study] · [GitHub, The August 17 outage, and the work ahead (2026-08-20)][gh-aug17] · New Relic 2026 survey.
 
 [godot-policy]: https://godotengine.org/article/contribution-policy-2026/
 [skill-study]: https://www.anthropic.com/research/AI-assistance-coding-skills
+[gh-aug17]: https://github.blog/news-insights/company-news/the-august-17-outage-and-the-work-ahead/
