@@ -89,6 +89,7 @@ def test_generated_first_choice_remains_the_answer(monkeypatch):
             "type": "structure", "anchor": HUNK.anchor,
             "text": CHOICE_Q.text, "choices": list(CHOICE_Q.choices),
             "answerIndex": 0, "expectedEvidence": CHOICE_Q.expected_evidence,
+            "evidencePath": HUNK.file,
         }]})
 
     monkeypatch.setattr("lasthuman.interview.call_model", response)
@@ -125,6 +126,7 @@ def question_batch(prefix="question"):
             "choices": list(CHOICE_Q.choices),
             "answerIndex": 0,
             "expectedEvidence": CHOICE_Q.expected_evidence,
+            "evidencePath": HUNK.file,
         }
         for index, kind in enumerate(("claim", "consequence", "rationale"))
     ]

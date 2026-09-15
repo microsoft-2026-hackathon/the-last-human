@@ -613,6 +613,7 @@ def test_full_http_runtime_flow_from_sync_to_verify_publish_merge_and_dashboard(
             "choices": list(question.choices),
             "answerIndex": question.answer_index,
             "expectedEvidence": question.expected_evidence,
+            "evidencePath": question.anchor.rsplit(":L", 1)[0],
         }
         for question in make_questions()
     ]
@@ -633,6 +634,7 @@ def test_full_http_runtime_flow_from_sync_to_verify_publish_merge_and_dashboard(
             "choices",
             "answerIndex",
             "expectedEvidence",
+            "evidencePath",
         ]
         assert item_schema["properties"]["type"]["enum"] == [
             "claim",

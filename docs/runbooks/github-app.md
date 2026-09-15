@@ -92,6 +92,7 @@ set +a
 | `TLH_OIDC_AUDIENCE` | 서버와 Actions가 똑같이 쓰는 audience 문자열 |
 | `TLH_PRESENTATION_NAME` | 공개 카드/보조 Check의 표시 이름. 기본값 `The Last Human` |
 | `TLH_PRESENTATION_LOCALE` | 기본값 `ko`, 선택값 `en` |
+| `TLH_QUESTION_COUNT` | 면담 질문 수. 기본값 `3`, 범위 1–5. 바꾸면 기존 pending snapshot 은 새 개수로 재생성된다 |
 | `TLH_PRESENTATION_MAX_CHARS` | 공개 카드 전체 예산. 기본값 `6000` |
 | `TLH_PRESENTATION_REASON_LIMIT` | 대표 reason group 수. 기본값 `3` |
 | `TLH_PRESENTATION_DETAIL_LIMIT` | detail row 수. 기본값 `10` |

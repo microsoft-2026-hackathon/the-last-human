@@ -1135,6 +1135,7 @@ def _normalize_question(question: Question) -> Question:
         expected_evidence=question.expected_evidence,
         choices=tuple(question.choices),
         answer_index=question.answer_index,
+        evidence_path=question.evidence_path,
     )
 
 
@@ -1157,6 +1158,7 @@ def _questions_payload(questions: Sequence[StoredQuestion]) -> list[dict[str, ob
             "expected_evidence": item.question.expected_evidence,
             "choices": list(item.question.choices),
             "answer_index": item.question.answer_index,
+            "evidence_path": item.question.evidence_path,
         }
         for item in questions
     ]
@@ -1172,6 +1174,8 @@ def _question_from_payload(data: Mapping[str, object]) -> StoredQuestion:
         expected_evidence=str(data["expected_evidence"]),
         choices=tuple(str(item) for item in data.get("choices", [])),
         answer_index=int(data["answer_index"]),
+        # 나중에 추가된 필드. 옛 레코드에는 없다.
+        evidence_path=str(data.get("evidence_path", "") or ""),
     )
     return StoredQuestion(id=identifier, ordinal=ordinal, question=question)
 

@@ -100,6 +100,9 @@ class Question:
     choices: tuple[str, ...] = ()
     #: choices에서 정답의 위치. 서술형이면 -1.
     answer_index: int = -1
+    #: 답의 근거가 실제로 있는 파일. hunk 안이면 hunk의 파일, 밖이면 구조 사실의 그 파일.
+    #: 보류됐을 때 "어디를 보면 되는지"를 사람에게 열어 주는 데 쓴다. 정답은 아니다.
+    evidence_path: str = ""
 
     @property
     def axis(self) -> Axis:
