@@ -1,5 +1,7 @@
 # GitHub App 로컬 실행과 전환 가이드
 
+Mac에서 새 App 개인키·Azure OpenAI·Microsoft Dev Tunnels를 준비하고 실제 PR을 머지하는 순서는 [첫 데모 PR 가이드](first-demo-macos.md)를 따른다. 아래 문서는 설정과 런타임 계약을 설명하는 기준 문서다.
+
 ## 지금 기준
 
 - GitHub App 서버, 브라우저 로그인, PR 동기화, 제출, receipt, Actions relay 코드는 이미 있다.
@@ -20,7 +22,7 @@
 
 ## GitHub App 설정
 
-1. GitHub `Settings -> Developer settings -> GitHub Apps -> New GitHub App` 에서 새 App을 만든다.
+1. GitHub `Settings -> Developer settings -> GitHub Apps`에서 기존 제품 App이 있는지 먼저 확인한다. 있으면 재사용하고 필요한 개인키·client secret만 교체한다. 없을 때만 `New GitHub App`에서 새 App을 만든다.
 2. owner는 `hunhoon21` 개인 계정으로 둔다.
 3. `Homepage URL` 은 `https://github.com/hunhoon21/the-last-human` 으로 둔다.
 4. `Callback URL` 은 `http://localhost:8000/auth/github/callback` 으로 둔다.
@@ -81,10 +83,16 @@ set +a
 | `TLH_WORKFLOW_REF` | `refs/heads/main` |
 | `TLH_OIDC_AUDIENCE` | 서버와 Actions가 똑같이 쓰는 audience 문자열 |
 | `LASTHUMAN_PROVIDER` | 모델 공급자 선택 |
+| `LASTHUMAN_AUTH_MODE` | 생략/빈 값/`default`는 기존 자격 증명 경로, `azure-cli`는 명시적 Entra CLI 경로 |
 | `LASTHUMAN_MODEL` | 배포명 또는 모델명 |
-| `LASTHUMAN_API_KEY` | 질문 생성과 채점에 쓰는 모델 자격 증명 |
-| `AZURE_OPENAI_ENDPOINT` | Azure OpenAI를 쓸 때 필요 |
-| `AZURE_OPENAI_API_VERSION` | Azure OpenAI를 쓸 때 필요 |
+| `LASTHUMAN_API_KEY` | 기존 `default` 모드의 모델 API 키. `azure-cli` 모드에서는 사용하지 않음 |
+| `LASTHUMAN_TOKEN` | 기존 `default` 모드의 수동 Bearer 토큰. 자동 갱신하지 않음 |
+| `LASTHUMAN_ENDPOINT` | 전체 Chat Completions URL. 지정하면 기본 endpoint 조합보다 우선 |
+| `AZURE_OPENAI_ENDPOINT` | 전체 URL을 지정하지 않을 때 사용하는 Azure OpenAI resource origin |
+| `AZURE_OPENAI_API_VERSION` | 기본 deployment-scoped URL의 API 버전 |
+| `AZURE_TENANT_ID` | `azure-cli` 모드에서 필요한 tenant GUID |
+| `AZURE_SUBSCRIPTION_ID` | `azure-cli` 모드에서 필요한 subscription GUID |
+| `AZURE_OPENAI_SCOPE` | `azure-cli` 모드에서 필요한 실제 추론 scope |
 
 추가 제약은 아래와 같다.
 
@@ -97,14 +105,90 @@ set +a
 - Actions 쪽에는 App private key, client secret, 모델 자격 증명을 넘기지 않는다.
 - 이 문서는 Azure 자원을 자동으로 만들지 않는다. 기존 모델 자격 증명만 연결한다.
 
+## Azure CLI / Entra 모델 인증
+
+API 키 인증이 비활성화된 리소스는 `LASTHUMAN_AUTH_MODE=azure-cli`를 사용한다. `disableLocalAuth=true`를 바꾸지 않으며, 모델 인증을 위해 App 서버를 Actions로 옮기지 않는다.
+
+```text
+Mac의 Azure CLI 로그인
+  -> CLI가 관리하는 사용자 로그인 캐시
+  -> App의 AzureCliCredential + 재사용하는 SDK 토큰 제공자
+  -> 프로세스 메모리의 단기 Bearer 토큰
+  -> Azure 모델
+
+Actions -> 기존 OIDC relay / 독립 검증 (개인 Azure 자격 증명 전달 없음)
+```
+
+`azure-identity`는 `.[bot]` 선택 의존성이다. 기본 패키지와 기존 API 키/수동 토큰 경로는 Azure SDK 없이도 유지된다. 새 모드는 `LASTHUMAN_PROVIDER=azure`에서만 동작하고, 이전 환경에 API 키나 수동 토큰이 남아 있어도 그것으로 fallback하지 않는다. CLI·의존성·로그인·갱신이 실패하면 모델 처리 오류로 안내한다.
+
+### 로컬 준비와 로그인
+
+이미 `az --version`이 동작하면 설치를 반복하지 않는다. Intel Mac의 Homebrew 소스 빌드가 막힌 환경에서는 승인된 Python 패키지 index를 통해 다음과 같이 CLI를 독립된 uv tool 환경에 설치할 수 있다. 공식 macOS 설치 안내의 권장 경로와 다른 격리 설치 방식이며, 조직에서 허용하는 배포 경로를 사용한다.
+
+```bash
+uv tool install --python 3.12 azure-cli &&
+export PATH="$HOME/.local/bin:$PATH" &&
+az --version
+```
+
+리소스의 실제 tenant/subscription GUID와 View Code의 scope를 먼저 `runtime.env`에 설정한다. 정상적으로 로드한 뒤 서버를 실행할 **같은 OS 계정**에서 로그인한다.
+
+```bash
+az login --tenant "$AZURE_TENANT_ID" &&
+az account set --subscription "$AZURE_SUBSCRIPTION_ID" &&
+az account show --subscription "$AZURE_SUBSCRIPTION_ID" \
+  --query '{subscriptionId:id,tenantId:tenantId,name:name}' --output json
+```
+
+포털의 브라우저 로그인은 CLI 로그인을 대신하지 않는다. 필요한 모델 추론 권한도 별도로 있어야 한다. 회사 정책으로 MFA나 재로그인이 요구되면 로그인 단계로 돌아간다. 무기한 자동 인증을 보장하지 않는다.
+
+다음 요청은 모델을 호출하지 않고 토큰 취득 경로와 만료 메타데이터만 확인한다. `accessToken` 자체를 출력하지 않는다.
+
+```bash
+az account get-access-token \
+  --subscription "$AZURE_SUBSCRIPTION_ID" \
+  --scope "$AZURE_OPENAI_SCOPE" \
+  --query '{expires_on:expires_on,tokenType:tokenType}' --output json
+```
+
+토큰 명령에 `--tenant`와 `--subscription`을 동시에 사용하지 않는다. 앱도 subscription으로 요청하며, 선택한 구독의 tenant가 `AZURE_TENANT_ID`와 일치하는지 SDK 토큰 사용 전에 별도 확인한다.
+
+### 모드 설정과 경계
+
+```bash
+LASTHUMAN_PROVIDER='azure'
+LASTHUMAN_AUTH_MODE='azure-cli'
+LASTHUMAN_MODEL='REPLACE_WITH_DEPLOYMENT_NAME'
+LASTHUMAN_ENDPOINT='https://REPLACE_WITH_RESOURCE_HOST/openai/v1/chat/completions'
+AZURE_TENANT_ID='REPLACE_WITH_TENANT_GUID'
+AZURE_SUBSCRIPTION_ID='REPLACE_WITH_SUBSCRIPTION_GUID'
+AZURE_OPENAI_SCOPE='REPLACE_WITH_PORTAL_SCOPE'
+```
+
+지원 scope는 `https://ai.azure.com/.default`와 `https://cognitiveservices.azure.com/.default`다. 실제 서비스의 View Code와 맞는 값을 사용한다. 기본 ARM 토큰, Graph 토큰, 프로젝트 endpoint, Responses endpoint를 대신 넣지 않는다.
+
+OpenAI SDK의 `base_url`이 `.../openai/v1/`라면, 이 앱의 `LASTHUMAN_ENDPOINT`에는 `.../openai/v1/chat/completions`까지 포함한다. 기본 주소만 넣으면 Azure 호출 전에 형식 오류로 중단한다.
+
+자동 취득한 사용자 토큰은 HTTPS Public Azure 추론 호스트(`*.openai.azure.com`, `*.services.ai.azure.com`, `*.cognitiveservices.azure.com`)의 Chat Completions로만 보낸다. 다른 호스트로의 redirect, 사용자 지정 API 프록시·APIM, sovereign cloud는 현재 CLI 모드에서 지원하지 않는다. 기존 `default` 모드의 OpenAI 호환 endpoint 지원은 유지된다.
+
+토큰 제공자는 프로세스에서 재사용하며 갱신 판단은 SDK/CLI에 맡긴다. 토큰을 `runtime.env`, SQLite, Actions Secrets에 저장하거나 CLI 캐시를 다른 컴퓨터·사용자에게 복사하지 않는다. macOS의 Azure CLI 캐시를 Keychain 암호화 저장소라고 가정하지 말고 민감한 사용자 파일로 관리한다.
+
+이 Azure 로그인은 서버 운영자의 모델 호출 권한이다. 웹에서 변경 확인을 수행하는 PR 작성자의 GitHub OAuth와는 별개이며, 참여자에게 서버 운영자의 Azure 자격 증명을 나눠 주지 않는다.
+
+인증 코드 수정도 `interview.py`의 policy fingerprint를 바꾸므로 새 코드·의존성을 trusted `main`에 반영하고 App 실행 소스와 맞춘다. 질문 프롬프트·위험 점수·pass/hold·receipt schema는 바꾸지 않는다.
+
 ## 로컬 실행
 
-가상환경은 두 경로를 쓸 수 있다.
+기본은 `uv`와 프로젝트별 `.venv`, Python 3.12다. 프로젝트에 별도 버전이 지정되어 있으면 그 환경을 우선한다. 기존 가상환경이 있으면 용도와 버전을 확인하고 재사용하며 임의로 덮어쓰지 않는다.
 
-| 경로 | 언제 쓰나 | 명령 |
-| --- | --- | --- |
-| 기본 경로 | `python3 -m venv` 가 바로 되는 환경 | `python3 -m venv .venv && . .venv/bin/activate && python -m pip install -e '.[dev,bot]'` |
-| 기존 `uv`를 사용하는 대안 | 시스템 Python에 `ensurepip`가 없고 사용 가능한 Python 3.13과 `uv`가 이미 있을 때 | `uv venv --python python3.13 .work/venv && uv pip install --python .work/venv/bin/python -e '.[dev,bot]' && . .work/venv/bin/activate` |
+```bash
+uv python install 3.12
+uv venv --python 3.12 .venv
+uv pip install --python .venv/bin/python -e '.[dev,bot]'
+. .venv/bin/activate
+```
+
+현재 의존성 선언을 그대로 사용한다. 이 절차를 위해 `uv init`이나 lockfile 전환은 하지 않는다.
 
 서버 실행은 아래로 고정한다.
 
@@ -150,6 +234,8 @@ python -m lasthuman.server flush
 | `/api/actions/*` | GitHub Actions OIDC 토큰 필요 |
 | 브라우저 cookie | opaque SID 만 저장한다. GitHub token 은 들어가지 않는다 |
 | user OAuth token | 서버 메모리에만 최대 30분 둔다 |
+| Azure 사용자 로그인 상태 | App 실행 OS 계정의 Azure CLI 관리 캐시. 앱 DB·Actions에 복사하지 않음 |
+| Azure 모델 access token | `azure-cli` 모드의 SDK 제공자가 프로세스 메모리에서 관리 |
 | raw answer, 보류 피드백, request_id | 서버 메모리에만 두고 재시작 또는 TTL 이후 사라진다 |
 | snapshot, 질문, receipt, outbox, merge 기록 | `.work/lasthuman.sqlite3` 에 저장된다 |
 | successful answers | receipt 에만 저장되며 작성자 본인 경로로만 다시 본다 |
@@ -250,9 +336,11 @@ gunicorn --bind 0.0.0.0:8000 --workers 1 --threads 4 'lasthuman.server.app:creat
 | 제출 403 | PR 작성자 본인인지, `X-CSRF-Token` 또는 form `csrf_token` 이 있는지 |
 | 제출 409 stale | PR이 바뀌었거나 닫혔다. 다시 sync 후 다시 제출 |
 | `/healthz` 가 503 | outbox 재시도 중이거나 SQLite 접근 실패 |
-| workflow는 초록인데 상태가 안 바뀜 | 서버 작업 완료와 GitHub 발행 완료는 별개다. `/healthz`와 성공 기록 화면의 발행 상태를 확인한다. |
+| workflow는 초록인데 상태가 안 바뀜 | 서버 작업 완료와 GitHub 발행 완료는 별개다. `/healthz`, 검증 Actions 실행, 현재 SHA의 App status를 함께 확인한다. 현재 receipt 화면은 상세 발행·재시도 상태를 모두 보여주지 않는다. |
 | 로컬에서 comment 만 생기고 상태가 없음 | 정상이다. `localhost` 개발 경로는 상태를 쓰지 않는다 |
 | 질문 생성이 안 됨 | 모델 자격 증명과 endpoint 설정 확인 |
+| Azure CLI 인증 실패 | 같은 OS 계정의 `az login`, tenant/subscription/scope, 터미널 PATH와 `.[bot]` 의존성 확인 |
+| 토큰 취득은 되는데 Azure 모델이 403 | 해당 리소스의 추론 RBAC와 endpoint를 확인. API 키 인증을 임의로 활성화하지 않음 |
 | snapshot 지원 불가 | merge queue, shared head, 과대 diff, binary, 순수 rename 여부 확인 |
 
 ## 첫 연동 전 최소 점검
@@ -278,5 +366,8 @@ python -m lasthuman.server --help
 - [같은 App의 사용자 로그인](https://docs.github.com/en/apps/creating-github-apps/authenticating-with-a-github-app/generating-a-user-access-token-for-a-github-app)
 - [Actions OIDC](https://docs.github.com/en/actions/reference/security/oidc)
 - [필수 상태 검사와 발급 App](https://docs.github.com/en/repositories/configuring-branches-and-merges-in-your-repository/managing-protected-branches/about-protected-branches#require-status-checks-before-merging)
+- [AzureCliCredential](https://learn.microsoft.com/en-us/python/api/azure-identity/azure.identity.azureclicredential)
+- [Azure CLI 로그인](https://learn.microsoft.com/en-us/cli/azure/authenticate-azure-cli-interactively)
+- [MSAL 기반 Azure CLI와 캐시](https://learn.microsoft.com/en-us/cli/azure/msal-based-azure-cli)
 
 현재 구현의 자동화 시험은 GitHub/모델 대역을 사용한다. 실제 App·모델·공개 HTTPS는 아직 연결하지 않았으므로, 위 9단계의 실제 PR·댓글·현재 커밋 상태·머지·대시보드 결과를 확보하기 전에는 원격 자동화 완주로 간주하지 않는다. 개인키·토큰·보류 원문은 그 증거에 포함하지 않는다.
