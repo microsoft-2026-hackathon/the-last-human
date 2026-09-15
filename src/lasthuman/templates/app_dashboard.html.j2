@@ -1,0 +1,176 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="csrf-token" content="{{ csrf_token }}">
+<title>Comprehension dashboard · {{ repo }}</title>
+<style>
+  :root {
+    color-scheme: light dark;
+    --bg: #ffffff; --fg: #1f2328; --muted: #59636e; --line: #d1d9e0;
+    --card: #f6f8fa; --accent: #0969da; --ok: #1a7f37; --warn: #9a6700;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #0d1117; --fg: #e6edf3; --muted: #9198a1; --line: #3d444d;
+      --card: #151b23; --accent: #4493f8; --ok: #3fb950; --warn: #d29922;
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    padding: 2rem 1rem 4rem;
+    background: var(--bg);
+    color: var(--fg);
+    font: 15px/1.6 -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  }
+  main { max-width: 980px; margin: 0 auto; }
+  .panel {
+    background: var(--card);
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    padding: 1rem 1.1rem;
+    margin-bottom: 1rem;
+  }
+  .head {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 1rem;
+    flex-wrap: wrap;
+  }
+  h1, h2 { margin: 0; }
+  h1 { font-size: 1.15rem; }
+  h2 { font-size: 0.95rem; }
+  .meta, .note { color: var(--muted); font-size: 0.88rem; }
+  .mode {
+    display: inline-block;
+    padding: 0.15rem 0.55rem;
+    border: 1px solid var(--line);
+    border-radius: 999px;
+    font-size: 0.78rem;
+  }
+  .stats {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+    gap: 0.8rem;
+    margin-top: 1rem;
+  }
+  .stat {
+    background: var(--bg);
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    padding: 0.9rem 1rem;
+  }
+  .stat strong {
+    display: block;
+    font-size: 1.8rem;
+    line-height: 1.2;
+  }
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.9rem;
+  }
+  th, td {
+    text-align: left;
+    padding: 0.65rem 0.55rem;
+    border-bottom: 1px solid var(--line);
+  }
+  th { color: var(--muted); font-size: 0.8rem; }
+  tbody tr:last-child td { border-bottom: 0; }
+  .num { text-align: right; }
+  form { margin-top: 1rem; }
+  button {
+    font: inherit;
+    border: 1px solid transparent;
+    background: var(--accent);
+    color: #fff;
+    border-radius: 6px;
+    padding: 0.55rem 0.9rem;
+    cursor: pointer;
+  }
+  footer {
+    margin-top: 2rem;
+    color: var(--muted);
+    font-size: 0.82rem;
+  }
+</style>
+</head>
+<body>
+<main>
+  <div class="panel">
+    <div class="head">
+      <div>
+        <h1>{{ repo }}</h1>
+        <div class="meta">Signed in as {{ actor_login }}</div>
+      </div>
+      <span class="mode">{{ mode_label }}</span>
+    </div>
+    <div class="stats">
+      <div class="stat">
+        <span class="meta">Merged PRs</span>
+        <strong>{{ dashboard.merged_total }}</strong>
+      </div>
+      <div class="stat">
+        <span class="meta">Gated PRs</span>
+        <strong>{{ dashboard.gated_total }}</strong>
+      </div>
+      <div class="stat">
+        <span class="meta">Verified PRs</span>
+        <strong>{{ dashboard.attested_total }}</strong>
+      </div>
+      <div class="stat">
+        <span class="meta">Unmeasured PRs</span>
+        <strong>{{ dashboard.unmeasured_total }}</strong>
+      </div>
+    </div>
+    <form method="post" action="{{ url_for('logout') }}">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+      <button type="submit">Sign out</button>
+    </form>
+  </div>
+
+  <div class="panel">
+    <div class="head">
+      <h2>Module coverage</h2>
+      <span class="note">Last {{ dashboard.window_days }} days · module counts only</span>
+    </div>
+    <table>
+      <thead>
+        <tr>
+          <th>Zone</th>
+          <th class="num">Merged</th>
+          <th class="num">Gated</th>
+          <th class="num">Verified</th>
+          <th class="num">Answerers</th>
+          <th class="num">Sample</th>
+        </tr>
+      </thead>
+      <tbody>
+      {% for zone in dashboard.zones %}
+        <tr>
+          <td>{{ zone.zone }}</td>
+          <td class="num">{{ zone.merged }}</td>
+          <td class="num">{{ zone.gated }}</td>
+          <td class="num">{{ zone.attested }}</td>
+          <td class="num">{{ zone.answerers }}</td>
+          <td class="num">{{ zone.sample_state }}</td>
+        </tr>
+      {% else %}
+        <tr>
+          <td colspan="6" class="note">No merged data yet.</td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+
+  <footer>
+    No personal ranking, no hold history, and no public raw answers are shown here.
+    Generated {{ dashboard.generated_at }}.
+  </footer>
+</main>
+</body>
+</html>
