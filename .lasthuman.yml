@@ -1,27 +1,35 @@
 # The Last Human — 게이트 설정
 #
-# 이 파일은 저장소 루트에서 읽습니다.
-# demo-repo/는 시연용 주문 서비스이고, packages/는 게이트 자신의 코드입니다.
-# 개발 기간 동안 이 게이트를 이 저장소 자신의 PR에도 겁니다(도그푸딩).
+# 저장소 루트 한 곳에서만 읽습니다.
+# sample-app/ 은 게이트가 판정할 대상인 샘플 워크로드이고,
+# src/lasthuman/ 은 게이트 자신의 코드입니다. 개발 기간 동안 이 게이트를
+# 이 저장소 자신의 PR에도 겁니다(도그푸딩).
+#
+# 정규식은 반드시 작은따옴표로 씁니다. 큰따옴표를 쓰면 YAML이 \s를
+# 이스케이프로 해석해 설정 로딩이 통째로 실패합니다.
 
 mode: internal          # internal | oss
 threshold: 40
+maxHunks: 5             # 질문 생성에 넘길 hunk 상한
 
 signals:
   criticalPaths:
-    # 시연 서비스
-    - "demo-repo/src/auth/**": 30
-    - "demo-repo/src/db/**": 20
-    - "**/migrations/**": 30
+    # 샘플 워크로드
+    - 'sample-app/app/auth/**': 30
+    - 'sample-app/app/db/**': 20
+    - '**/migrations/**': 30
     # 게이트 자신의 판단이 들어가는 곳
-    - "packages/core/src/risk.ts": 30
-    - "packages/core/src/attest.ts": 30
-    - "packages/extension/src/interview.ts": 30
+    - 'src/lasthuman/risk.py': 30
+    - 'src/lasthuman/interview.py': 30
+    - 'src/lasthuman/attest.py': 30
+
   linesChanged: { per100: 10, max: 30 }
+
   patterns:
-    - "catch\s*\(": 10        # 예외 처리
-    - "async|await|lock": 15    # 동시성
-    - "DELETE|DROP|raw\(": 20  # 위험 쿼리
+    - 'except\s': 10                       # 예외 처리
+    - '\basync\b|\bawait\b|Lock\(': 15     # 동시성
+    - 'DELETE|DROP|\.raw\(': 20            # 위험 쿼리
+
   testsRemoved: 25
   agentHint: 10                 # 트레일러 등, 있으면 가점
   externalContributor: 40       # OSS 모드

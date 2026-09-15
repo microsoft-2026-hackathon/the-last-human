@@ -23,32 +23,37 @@
 ## 구조
 
 ```
-packages/core       확장과 Action이 공유하는 규칙 — 여기가 하나가 아니면 사고가 난다
-packages/extension  VS Code 확장 — 면담 진행, 인증 생성
-packages/action     GitHub Action — 게이트. core로 재계산 후 검증
-packages/ledger     커버리지 집계 (정적 산출)
-demo-repo           시연용 주문 서비스. 게이트가 판정할 대상 코드
+src/lasthuman/      게이트 본체. Python 패키지
+  diff.py           diff 파싱과 고정 앵커 — 앵커 규칙을 바꾸면 기존 인증이 전부 깨진다
+  config.py         .lasthuman.yml 로더
+  risk.py           위험 점수. 순수 함수, 모델을 부르지 않는다
+  interview.py      질문 생성과 판정
+  webui.py          면담 웹 UI 생성
+  attest.py         인증 형식, 커밋 SHA 결속
+.github/workflows/  게이트 워크플로. 면담은 별도 단계다
+sample-app/         게이트가 판정할 샘플 워크로드
 ```
 
-구현 순서는 **core → extension → action**입니다. 바꾸면 위험 점수 로직이 두 벌로 갈라집니다.
+구현 순서는 **diff → risk → interview → webui → attest**입니다.
+위험 점수가 확정되기 전에 질문 생성을 붙이면 무엇에 대해 물을지가 흔들립니다.
 
 ## 손으로 쓰는 영역 — 에이전트에게 위임하지 않음
 
 제품의 판단이 들어가는 곳입니다.
 
-- `core/risk.ts`의 위험 점수 규칙과 가중치
+- `risk.py`의 위험 점수 규칙과 가중치
 - 질문 생성 프롬프트
 - 판정 기준(pass/hold)
 - 인증 형식(attestation schema)
 
 ## 위임해도 되는 영역
 
-Webview HTML/CSS, Action 뼈대, Octokit 호출부, 테스트 케이스, 시연 저장소의 더미 코드.
+웹 UI의 HTML/CSS, 워크플로 YAML 뼈대, GitHub API 호출부, 테스트 케이스, 샘플 앱의 더미 코드.
 
 ## 코드 컨벤션
 
-- TypeScript, `strict`. `any` 금지.
-- `core`는 순수하게. `risk.ts`는 모델을 부르지 않고 같은 입력이면 항상 같은 출력을 낸다.
+- Python 3.11+. 타입 힌트를 붙이고 `Any`를 남발하지 않는다.
+- `risk.py`는 순수하게. 모델을 부르지 않고 같은 입력이면 항상 같은 출력을 낸다.
 - 게이트가 막을 때는 반드시 `reasons`를 함께 반환한다. 점수만 던지면 개발자가 반발한다.
 - 보류 사유를 부정적으로 서술하지 않는다. "모르겠다"는 정직한 답변이다.
 

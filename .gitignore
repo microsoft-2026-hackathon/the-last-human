@@ -6,3 +6,9 @@ out/
 .env
 .DS_Store
 .patches/
+
+# Python
+__pycache__/
+*.egg-info/
+.pytest_cache/
+.venv/
