@@ -2,20 +2,14 @@
 
 from __future__ import annotations
 
-import asyncio
 import os
 import time
 from dataclasses import dataclass
 
-from ..http_client import HttpError, Transport, post_json
+from ..http_client import Transport, post_json
 
 #: Margin applied when deciding expiry. Absorbs clock skew and round-trip time.
 CLOCK_SKEW_SEC = 60.0
-
-#: Retry budget for transient IdP failures during refresh (issue #18).
-MAX_REFRESH_ATTEMPTS = 3
-#: First backoff delay in seconds; doubles on every attempt (0.5s -> 1s -> 2s).
-INITIAL_BACKOFF_SEC = 0.5
 
 TOKEN_ENDPOINT = os.environ.get("ORDERLY_TOKEN_ENDPOINT", "https://auth.internal/oauth/token")
 
@@ -51,23 +45,7 @@ async def refresh(transport: Transport, token: TokenSet) -> TokenSet:
 
 
 async def ensure_fresh(transport: Transport, token: TokenSet) -> TokenSet:
-    """Refresh a near-expiry token, otherwise return it unchanged.
-
-    Transient IdP failures (429/5xx) are retried with exponential backoff.
-    If the IdP is still unavailable after the last attempt, the existing
-    session is kept rather than logging the user out.
-    """
+    """Refresh a near-expiry token, otherwise return it unchanged."""
     if not is_expired(token):
         return token
-    delay = INITIAL_BACKOFF_SEC
-    for attempt in range(MAX_REFRESH_ATTEMPTS):
-        try:
-            return await refresh(transport, token)
-        except HttpError as err:
-            if not err.transient:
-                raise
-            if attempt == MAX_REFRESH_ATTEMPTS - 1:
-                return token  # keep the current session alive
-            await asyncio.sleep(delay)
-            delay *= 2
-    raise AssertionError("unreachable")
+    return await refresh(transport, token)
