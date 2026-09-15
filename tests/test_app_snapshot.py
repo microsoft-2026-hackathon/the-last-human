@@ -495,3 +495,48 @@ def test_structure_round_trip_keeps_callees_and_reads_old_payloads_without_them(
     restored = _structure_from_object(legacy)
     assert restored.callees == ()
     assert restored.symbols == structure.symbols
+    # snapshot_id 는 이 payload 의 해시다. callees 가 없는 구조는 예전과 byte 단위로
+    # 같은 payload 를 내야 저장된 snapshot 이 계속 읽힌다.
+    assert "callees" not in _structure_to_dict(restored)
+    assert _structure_to_dict(restored) == legacy
+
+
+def test_snapshots_stored_before_callees_still_load_with_their_original_id():
+    """운영 DB 에 있던 snapshot 이 새 코드에서 'id does not match' 로 깨지지 않는다."""
+    structure = StructureContext(
+        changed_files=("app/auth/token.py",),
+        importers={"app/auth/token.py": ()},
+        symbols=(),
+        sibling_files=("app/db/client.py",),
+    )
+    snapshot = make_snapshot_for_digest(structure)
+    stored = snapshot.to_dict()
+    assert "callees" not in stored["structure"]
+    # 예전 코드가 저장했을 모양 그대로(키 없음) 다시 읽어도 id 검증을 통과한다.
+    assert Snapshot.from_dict(stored).snapshot_id == snapshot.snapshot_id
+
+
+def make_snapshot_for_digest(structure: StructureContext) -> Snapshot:
+    raw = (
+        "diff --git app/auth/token.py app/auth/token.py\n--- app/auth/token.py\n+++ app/auth/token.py\n"
+        "@@ -1,1 +1,2 @@\n line\n+added\n"
+    )
+    diff = parse_hunks(raw)
+    config = parse_config("threshold: 40\n")
+    return Snapshot.create(
+        repo="hunhoon21/the-last-human",
+        repo_id=1,
+        pr=1,
+        head_sha="a" * 40,
+        base_sha="b" * 40,
+        author_id=1,
+        author_login="author",
+        title="t",
+        body="",
+        risk=score(diff, config, PrMeta()),
+        config=config,
+        diff=diff,
+        structure=structure,
+        zones=(),
+        policy_version="c" * 64,
+    )
