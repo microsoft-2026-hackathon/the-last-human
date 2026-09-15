@@ -37,6 +37,7 @@ from .structure import StructureContext
 DEFAULT_MODEL = "gpt-4o-mini"
 DEFAULT_AZURE_API_VERSION = "2024-10-21"
 OPENAI_ENDPOINT = "https://api.openai.com/v1/chat/completions"
+QUESTION_TYPES = frozenset({"claim", "consequence", "rationale", "structure"})
 
 QUESTION_PROMPT = """당신은 코드 리뷰 게이트입니다. 아래 변경을 머지하려는 개발자가
 이 코드를 실제로 이해했는지 확인하는 질문 {n}개를 만드십시오.
@@ -266,29 +267,45 @@ def generate_questions(
         hunks=_format_hunks(risk.top_hunks),
         structure=structure.as_prompt() if structure and not structure.is_empty() else "없음",
     )
+    valid_anchors = {h.anchor for h in risk.top_hunks}
     raw = call_model(prompt, token=token)
     try:
-        parsed = _extract_json(raw)
+        return _parse_questions(_extract_json(raw), valid_anchors, n)
     except json.JSONDecodeError:
-        # 실패 시 1회 재시도 후 포기.
-        raw = call_model(prompt + "\n\nJSON 배열만 출력하십시오.", token=token)
-        try:
-            parsed = _extract_json(raw)
-        except json.JSONDecodeError:
-            raise ModelError("질문 응답을 읽지 못했습니다.") from None
+        retry_prompt = prompt + "\n\nJSON 배열만 출력하십시오."
+    except ModelError:
+        retry_prompt = prompt
 
+    # JSON repair and invalid batches share one retry; never combine partial results.
+    raw = call_model(retry_prompt, token=token)
+    try:
+        return _parse_questions(_extract_json(raw), valid_anchors, n)
+    except json.JSONDecodeError:
+        raise ModelError("질문 응답을 읽지 못했습니다.") from None
+
+
+def _parse_questions(parsed: object, valid_anchors: set[str], n: int) -> list[Question]:
     if not isinstance(parsed, list):
         raise ModelError("질문 응답은 배열이어야 합니다.")
+    if len(parsed) != n:
+        raise ModelError(f"질문 응답 수가 요청과 일치하지 않습니다 (요청 {n}, 응답 {len(parsed)}).")
 
-    valid_anchors = {h.anchor for h in risk.top_hunks}
     out: list[Question] = []
     for item in parsed:
         if not isinstance(item, dict):
             raise ModelError("질문 항목의 형식이 올바르지 않습니다.")
         anchor = str(item.get("anchor", ""))
         if anchor not in valid_anchors:
-            # 모델이 앵커를 지어내면 버린다. 대조가 불가능해지기 때문이다.
-            continue
+            raise ModelError("질문 앵커가 제공된 변경 목록에 없습니다.")
+        question_type = item.get("type", "consequence")
+        if not isinstance(question_type, str) or question_type not in QUESTION_TYPES:
+            raise ModelError("질문 유형이 올바르지 않습니다.")
+        text = item.get("text", "")
+        evidence = item.get("expectedEvidence", "")
+        if not isinstance(text, str) or not text.strip():
+            raise ModelError("질문 내용은 비어 있지 않은 문자열이어야 합니다.")
+        if not isinstance(evidence, str) or not evidence.strip():
+            raise ModelError("질문 기대 근거는 비어 있지 않은 문자열이어야 합니다.")
         raw_choices = item.get("choices") or []
         if not isinstance(raw_choices, list) or any(not isinstance(c, str) for c in raw_choices):
             raise ModelError("질문 보기의 형식이 올바르지 않습니다.")
@@ -304,17 +321,15 @@ def generate_questions(
             choices, idx = (), -1
         out.append(
             Question(
-                type=item.get("type", "consequence"),
+                type=question_type,
                 anchor=anchor,
-                text=str(item.get("text", "")).strip(),
-                expected_evidence=str(item.get("expectedEvidence", "")).strip(),
+                text=text.strip(),
+                expected_evidence=evidence.strip(),
                 choices=choices,
                 answer_index=idx,
             )
         )
-    if not out:
-        raise ModelError("쓸 수 있는 질문이 생성되지 않았습니다.")
-    return out[:n]
+    return out
 
 
 def grade(
