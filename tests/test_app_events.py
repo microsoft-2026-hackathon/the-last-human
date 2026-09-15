@@ -1044,13 +1044,14 @@ def test_lasthuman_app_workflow_is_metadata_only_and_trusted() -> None:
     checkout = next(step for step in steps if step.get("uses") == "actions/checkout@v4")
     install = next(step for step in steps if "pip install -e '.[bot]'" in str(step.get("run", "")))
     run_step = next(
-        step for step in steps if "python -m lasthuman.server.relay" in str(step.get("run", ""))
+        step for step in steps if step.get("name") == "Relay metadata-only event"
     )
 
     assert workflow["name"] == "TLH App relay"
     assert permissions == {
         "contents": "read",
         "pull-requests": "read",
+        "statuses": "read",
         "id-token": "write",
     }
     assert set(cast(dict[str, object], triggers["pull_request_target"])["types"]) == {
@@ -1078,7 +1079,8 @@ def test_lasthuman_app_workflow_is_metadata_only_and_trusted() -> None:
         step for step in steps if step.get("uses") == "actions/setup-python@v5"
     ))["with"]
     assert ".[bot]" in str(install["run"])
-    assert "lasthuman.server.relay" in str(run_step["run"])
+    assert run_step["run"] == "python -m lasthuman.server.relay"
+    assert run_step["if"] == "github.event_name == 'pull_request_target'"
     raw = workflow_path.read_text(encoding="utf-8").lower()
     assert "statuses: write" not in raw
     assert "app_id" not in raw

@@ -1015,6 +1015,23 @@ def create_app(
             return _bot_error_response(error, as_json=True)
         return jsonify(payload)
 
+    @app.get("/api/actions/receipts/<receipt_id>/publication")
+    def actions_receipt_publication(receipt_id: str) -> Response:
+        try:
+            identity = _actions_identity(resolved_verifier)
+            if identity.event_name != "workflow_dispatch":
+                raise EventError(
+                    "workflow_dispatch must use the receipt verification route"
+                )
+            payload = resolved_service.receipt_publication(receipt_id)
+        except OIDCError as error:
+            return _json_error(str(error), error.status_code)
+        except EventError as error:
+            return _json_error(str(error), error.status_code)
+        except BotError as error:
+            return _bot_error_response(error, as_json=True)
+        return jsonify(payload)
+
     @app.post("/api/actions/receipts/<receipt_id>/verify")
     def actions_verify_receipt(receipt_id: str) -> Response:
         try:
