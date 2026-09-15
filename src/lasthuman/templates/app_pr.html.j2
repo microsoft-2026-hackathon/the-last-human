@@ -1,0 +1,548 @@
+{#-
+  Interview page. User-facing wording lives in `copy` so the script can change
+  without touching markup. Verdict labels must match what the narration says.
+-#}
+{% set copy = {
+  "product": "The Last Human",
+  "panel_title": "Explain the change — from the code",
+  "panel_note": "Pick the option the code supports, then write one line saying where you saw it. Answers stay private in memory for up to 30 minutes and are never stored in cookies.",
+  "reason_placeholder": "Where in the code did you see this? One line.",
+  "submit": "Submit answers",
+  "checking": "Checking answers...",
+  "hold_status": "Not yet — one more place to look.",
+  "hold_label": "Hold",
+  "accepted_label": "Accepted",
+  "evidence_title": "Look here",
+  "stored": "Answers stored privately. Waiting for workflow verification.",
+  "verified": "Verified and published to GitHub.",
+  "verified_pending": "Verified, awaiting GitHub publication.",
+  "verified_check_warn": "Verified and published. Supplemental Check delivery needs operator attention.",
+  "why_gated": "Why this change is gated"
+} %}
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="csrf-token" content="{{ csrf_token }}">
+<title>Last Human · {{ repo }} #{{ pr }}</title>
+<style>
+  :root {
+    color-scheme: light;
+    --bg: #F5F7F6; --surface: #FFFFFF; --ink: #152C3B; --ink-2: #3B4E5C; --muted: #64737D;
+    --line: #D9E0E3; --line-soft: #E9EEF0; --tint: #EEF3F1;
+    --human: #D77864; --human-soft: #FBEAE4; --human-ink: #A7503F;
+    --good: #1F7A3F; --good-soft: #E3F2E7;
+    --hold: #9A6700; --hold-soft: #FFF3D6;
+    --crit: #C0392B; --crit-soft: #FBE6E3;
+    --focus: #2F6FED; --radius: 6px;
+    --font: -apple-system, BlinkMacSystemFont, "Segoe UI", "Helvetica Neue", Arial, sans-serif;
+    --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; padding: 0 20px 64px; background: var(--bg); color: var(--ink);
+    font: 14px/1.55 var(--font); -webkit-font-smoothing: antialiased;
+  }
+  main { max-width: 860px; margin: 0 auto; }
+  a { color: var(--ink); }
+  :focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; border-radius: 3px; }
+  .top { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; padding: 18px 0 14px; border-bottom: 1px solid var(--line); margin-bottom: 22px; }
+  .brand { display: flex; align-items: center; gap: 10px; }
+  .brand .mark { width: 34px; height: 34px; border-radius: 50%; border: 1.5px solid var(--ink); background: var(--human-soft); display: grid; place-items: center; color: var(--human-ink); font-weight: 700; font-size: .8rem; }
+  .brand .name { font-weight: 700; line-height: 1.15; }
+  .brand .name small { display: block; font-weight: 400; color: var(--muted); font-size: .8rem; }
+  .sep { width: 1px; height: 26px; background: var(--line); }
+  .repo { font-weight: 600; }
+  .repo .sub { display: block; font-weight: 400; color: var(--muted); font-size: .85rem; }
+  .mode { margin-left: auto; font-size: .74rem; border: 1px solid var(--line); border-radius: 999px; padding: 1px 8px; color: var(--muted); }
+  .mono { font-family: var(--mono); font-size: .86em; }
+  .panel { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 14px 16px; margin-bottom: 14px; }
+  h1, h2, h3 { margin: 0; }
+  h1 { font-size: 1.1rem; }
+  h2 { font-size: .95rem; font-weight: 700; margin-bottom: 6px; }
+  h3 { font-size: 1rem; font-weight: 600; margin: 8px 0 10px; line-height: 1.4; }
+  .meta, .note, .status { color: var(--muted); }
+  .note { font-size: .86rem; }
+  ul { margin: 0; padding-left: 1.2rem; }
+  .question { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 14px 16px; margin-bottom: 12px; }
+  .question.is-hold { border-color: var(--hold); }
+  .question.is-accepted { border-color: var(--good); }
+  .question-head { display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap; }
+  .anchor { font-family: var(--mono); font-size: .8rem; color: var(--ink-2); }
+  .verdict { display: none; font-size: .76rem; font-weight: 600; padding: 1px 9px; border-radius: 999px; }
+  .verdict.hold { display: inline-block; background: var(--hold-soft); color: var(--hold); }
+  .verdict.accepted { display: inline-block; background: var(--good-soft); color: var(--good); }
+  .choices { display: grid; gap: 6px; margin: 8px 0 10px; }
+  .choice { display: flex; gap: 10px; align-items: flex-start; border: 1px solid var(--line); border-radius: var(--radius); padding: 8px 10px; background: var(--surface); cursor: pointer; }
+  .choice:hover { background: var(--tint); }
+  .choice input { margin-top: 3px; }
+  textarea { width: 100%; min-height: 4.5rem; resize: vertical; font: inherit; color: inherit; background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 8px 10px; }
+  .question.is-accepted textarea, .question.is-accepted .choice { opacity: .7; pointer-events: none; }
+  pre { margin: 10px 0 0; padding: 10px 12px; overflow-x: auto; border-radius: var(--radius); background: var(--tint); border: 1px solid var(--line-soft); font-family: var(--mono); font-size: .8rem; line-height: 1.45; }
+  .hint { display: none; margin-top: 10px; padding: 10px 12px; border-radius: var(--radius); background: var(--hold-soft); color: var(--ink-2); font-size: .88rem; }
+  .hint.show { display: block; }
+  .hint b { display: block; color: var(--hold); font-weight: 700; margin-bottom: 2px; }
+  .evidence { display: none; margin-top: 8px; border: 1px solid var(--hold); border-radius: var(--radius); overflow: hidden; }
+  .evidence.show { display: block; }
+  .evidence .path { padding: 6px 12px; background: var(--hold-soft); font-family: var(--mono); font-size: .8rem; color: var(--ink); }
+  .evidence pre { margin: 0; border: 0; border-radius: 0; background: var(--surface); }
+  .evidence .ln { display: inline-block; width: 3.2em; color: var(--muted); text-align: right; margin-right: 12px; user-select: none; }
+  .evidence .gap { display: block; color: var(--muted); padding-left: 1.2em; }
+  form.inline { margin: 0; }
+  button { font: inherit; border: 1px solid transparent; background: var(--ink); color: #fff; border-radius: var(--radius); padding: 8px 14px; cursor: pointer; }
+  button[disabled] { opacity: .6; cursor: wait; }
+  .status { margin: 10px 0 0; font-size: .9rem; }
+  .status.ok { color: var(--good); }
+  .status.warn { color: var(--hold); }
+  .status.bad { color: var(--crit); }
+  .hint-list { display: none; }
+</style>
+</head>
+<body>
+<main>
+  <div class="top">
+    <div class="brand"><span class="mark" aria-hidden="true">TLH</span><div class="name">{{ copy.product }}<small>{{ repo }} · #{{ pr }}</small></div></div>
+    <div class="sep" aria-hidden="true"></div>
+    <div class="repo"><h1>{{ title }}</h1><span class="sub mono">head {{ head_sha or "unknown" }} · {{ pull_state }}</span></div>
+    <span class="mode">{{ mode_label }}</span>
+  </div>
+
+  {% if interview.reasons %}
+  <div class="panel">
+    <h2>{{ copy.why_gated }}</h2>
+    <ul>
+    {% for reason in interview.reasons %}
+      <li>{{ reason|safe }}</li>
+    {% endfor %}
+    </ul>
+  </div>
+  {% endif %}
+
+  {% if interview.state == "not_prepared" %}
+  <div class="panel">
+    <h2>Snapshot not prepared</h2>
+    <p class="note">The current pull request has not been prepared yet. GET did not trigger any write.</p>
+    {% if pull_state == "open" %}
+    <form class="inline" id="sync-form" method="post" action="{{ url_for('pr_sync', pr=pr) }}">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+      <button type="submit">Prepare questions</button>
+    </form>
+    <p id="sync-status" class="status"></p>
+    {% endif %}
+  </div>
+  {% elif interview.state == "stale" or pull_state != "open" %}
+  <div class="panel">
+    <h2>Stored snapshot is stale</h2>
+    <p class="note">The pull request changed or closed. Re-sync before answering.</p>
+    {% if pull_state == "open" %}
+    <form class="inline" id="sync-form" method="post" action="{{ url_for('pr_sync', pr=pr) }}">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+      <button type="submit">Re-sync</button>
+    </form>
+    <p id="sync-status" class="status"></p>
+    {% endif %}
+  </div>
+  {% elif interview.state == "preparation_error" or interview.state == "preparing" %}
+  <div class="panel">
+    {% if interview.state == "preparation_error" %}
+    <h2>Questions are not ready</h2>
+    {% else %}
+    <h2>Preparing questions</h2>
+    {% endif %}
+    <p class="note">{{ interview.message or "Questions are not ready yet. Re-sync this pull request." }}</p>
+    {% if pull_state == "open" %}
+    <form class="inline" id="sync-form" method="post" action="{{ url_for('pr_sync', pr=pr) }}">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+      <button type="submit">Re-sync</button>
+    </form>
+    <p id="sync-status" class="status"></p>
+    {% endif %}
+  </div>
+  {% elif interview.state == "confirmed" and interview.question_count == 0 %}
+  <div class="panel">
+    <h2>Not required</h2>
+    <p class="note">The current snapshot is below the interview threshold.</p>
+  </div>
+  {% elif interview.state == "confirmed" and receipt %}
+  <div class="panel">
+    <h2>Verification recorded</h2>
+    {% if receipt.published %}
+    <p class="status ok">Completed and published to GitHub.</p>
+    {% else %}
+    <p class="status warn">Verified, awaiting GitHub publication.</p>
+    {% endif %}
+    {% if receipt.presentation is defined and receipt.presentation.check is defined and receipt.presentation.check.failed %}
+    <p class="status warn">Supplemental Check delivery needs operator attention; the private receipt remains authoritative.</p>
+    {% endif %}
+    <p><a href="{{ url_for('receipt_page', receipt_id=receipt.receipt_id) }}">Open your private receipt</a></p>
+  </div>
+  {% endif %}
+
+  {% if pull_state == "open" and (interview.state == "not_prepared" or interview.state == "stale" or interview.state == "preparation_error" or interview.state == "preparing") %}
+  <script nonce="{{ csp_nonce }}">
+  (function () {
+    var form = document.getElementById("sync-form");
+    if (!form) {
+      return;
+    }
+    var csrfToken = document.querySelector('meta[name="csrf-token"]').content;
+    var statusNode = document.getElementById("sync-status");
+    var button = form.querySelector("button");
+
+    form.addEventListener("submit", async function (event) {
+      event.preventDefault();
+      button.disabled = true;
+      setStatus("Preparing questions...", "warn");
+      try {
+        var created = await fetch(form.action, {
+          method: "POST",
+          headers: {
+            "Accept": "application/json",
+            "X-CSRF-Token": csrfToken
+          },
+          credentials: "same-origin"
+        });
+        var createdBody = await created.json();
+        if (!created.ok) {
+          button.disabled = false;
+          setStatus(createdBody.error || "Sync failed.", "bad");
+          return;
+        }
+        await pollSync(createdBody.url);
+      } catch (_error) {
+        button.disabled = false;
+        setStatus("Network error. Retry sync.", "bad");
+      }
+    });
+
+    async function pollSync(url) {
+      while (true) {
+        var response = await fetch(url, {
+          method: "GET",
+          headers: {
+            "Accept": "application/json",
+            "X-CSRF-Token": csrfToken
+          },
+          credentials: "same-origin"
+        });
+        var body = await response.json();
+        if (!response.ok) {
+          button.disabled = false;
+          setStatus(body.error || "Sync failed.", "bad");
+          return;
+        }
+        if (body.state === "queued" || body.state === "running") {
+          setStatus("Preparing questions...", "warn");
+          await wait(1000);
+          continue;
+        }
+        if (body.state === "completed") {
+          setStatus("Questions are ready. Reloading...", "ok");
+          window.location.assign(window.location.pathname);
+          return;
+        }
+        button.disabled = false;
+        setStatus(body.error || "Sync failed.", "bad");
+        return;
+      }
+    }
+
+    function setStatus(text, kind) {
+      statusNode.className = "status " + kind;
+      statusNode.textContent = text;
+    }
+
+    function wait(milliseconds) {
+      return new Promise(function (resolve) {
+        window.setTimeout(resolve, milliseconds);
+      });
+    }
+  }());
+  </script>
+  {% endif %}
+
+  {% if interview.state == "pending" and interview.question_count > 0 %}
+  <div class="panel">
+    <h2>{{ copy.panel_title }}</h2>
+    <p class="note">{{ copy.panel_note }}</p>
+    <form id="submission-form" data-request-id="{{ initial_request_id }}">
+      <input type="hidden" id="snapshot-id" value="{{ interview.id }}">
+      {% for question in interview.questions %}
+      <section class="question" data-question-id="{{ question.id }}">
+        <div class="question-head">
+          <span class="anchor">{{ question.anchor }}</span>
+          <span class="verdict" data-verdict-for="{{ question.id }}"></span>
+        </div>
+        <h3>{{ question.text }}</h3>
+        {% if question.choices %}
+        <div class="choices">
+          {% for choice in question.choices %}
+          <label class="choice">
+            <input type="radio" name="choice-{{ question.id }}" value="{{ loop.index0 }}">
+            <span>{{ choice }}</span>
+          </label>
+          {% endfor %}
+        </div>
+        {% endif %}
+        <textarea data-question-id="{{ question.id }}" placeholder="{{ copy.reason_placeholder }}"></textarea>
+        <div class="hint" data-hint-for="{{ question.id }}"><b>{{ copy.evidence_title }}</b><span class="hint-text"></span></div>
+        <div class="evidence" data-evidence-for="{{ question.id }}"><div class="path"></div><pre></pre></div>
+        <pre>{{ question.code }}</pre>
+      </section>
+      {% endfor %}
+      <button id="submit-button" type="submit">{{ copy.submit }}</button>
+      <p id="submission-status" class="status"></p>
+      <ul id="submission-hints" class="hint-list"></ul>
+      <p id="receipt-link"></p>
+    </form>
+  </div>
+
+  <script nonce="{{ csp_nonce }}">
+  (function () {
+    var form = document.getElementById("submission-form");
+    if (!form) {
+      return;
+    }
+    var csrfToken = document.querySelector('meta[name="csrf-token"]').content;
+    var snapshotId = document.getElementById("snapshot-id").value;
+    var statusNode = document.getElementById("submission-status");
+    var hintsNode = document.getElementById("submission-hints");
+    var receiptNode = document.getElementById("receipt-link");
+    var submitButton = document.getElementById("submit-button");
+    var requestCounter = 0;
+    var requestId = nextRequestId(form.dataset.requestId || "");
+    var needsNewRequest = false;
+    var previousAnswers = null;
+
+    form.addEventListener("submit", async function (event) {
+      event.preventDefault();
+      var answers = collectAnswers();
+      var serializedAnswers = JSON.stringify(answers);
+      if (needsNewRequest || (previousAnswers !== null && previousAnswers !== serializedAnswers)) {
+        requestId = nextRequestId(form.dataset.requestId || "");
+      }
+      previousAnswers = serializedAnswers;
+      needsNewRequest = false;
+      submitButton.disabled = true;
+      clearList(hintsNode);
+      receiptNode.textContent = "";
+      setStatus({{ copy.checking | tojson }}, "warn");
+      var payload = {
+        snapshot_id: snapshotId,
+        request_id: requestId,
+        answers: answers
+      };
+      try {
+        var created = await fetch({{ url_for("submit_answers", pr=pr) | tojson }}, {
+          method: "POST",
+          headers: {
+            "Accept": "application/json",
+            "Content-Type": "application/json",
+            "X-CSRF-Token": csrfToken
+          },
+          credentials: "same-origin",
+          body: JSON.stringify(payload)
+        });
+        var createdBody = await created.json();
+        if (!created.ok) {
+          submitButton.disabled = false;
+          needsNewRequest = created.status < 500;
+          setStatus(createdBody.error || "Submission failed.", "bad");
+          return;
+        }
+        await pollResult(createdBody.url);
+      } catch (_error) {
+        submitButton.disabled = false;
+        setStatus("Network error. Retry with the same answers.", "bad");
+      }
+    });
+
+    function questionNode(id) {
+      return document.querySelector('.question[data-question-id="' + id + '"]');
+    }
+
+    function resetVerdicts() {
+      document.querySelectorAll(".question").forEach(function (node) {
+        node.classList.remove("is-hold", "is-accepted");
+        var verdict = node.querySelector(".verdict");
+        verdict.className = "verdict";
+        verdict.textContent = "";
+        node.querySelector(".hint").classList.remove("show");
+        node.querySelector(".evidence").classList.remove("show");
+      });
+    }
+
+    function markAccepted(id) {
+      var node = questionNode(id);
+      if (!node) { return; }
+      node.classList.add("is-accepted");
+      var verdict = node.querySelector(".verdict");
+      verdict.className = "verdict accepted";
+      verdict.textContent = {{ copy.accepted_label | tojson }};
+      node.querySelectorAll("input, textarea").forEach(function (field) { field.disabled = true; });
+    }
+
+    function markHold(item) {
+      var node = questionNode(item.id);
+      if (!node) { return; }
+      node.classList.add("is-hold");
+      var verdict = node.querySelector(".verdict");
+      verdict.className = "verdict hold";
+      verdict.textContent = {{ copy.hold_label | tojson }};
+      var hint = node.querySelector(".hint");
+      hint.querySelector(".hint-text").textContent = item.hint || "";
+      hint.classList.add("show");
+      var evidence = node.querySelector(".evidence");
+      var segments = (item.evidence && item.evidence.segments) || [];
+      if (segments.length) {
+        evidence.querySelector(".path").textContent = item.evidence.path;
+        var pre = evidence.querySelector("pre");
+        pre.textContent = "";
+        segments.forEach(function (segment, segmentIndex) {
+          if (segmentIndex > 0) {
+            var gap = document.createElement("span");
+            gap.className = "gap";
+            gap.textContent = "\u22ee\n";
+            pre.appendChild(gap);
+          }
+          (segment.lines || []).forEach(function (line, index) {
+            var ln = document.createElement("span");
+            ln.className = "ln";
+            ln.textContent = String(segment.start + index);
+            pre.appendChild(ln);
+            pre.appendChild(document.createTextNode(line + "\n"));
+          });
+        });
+        evidence.classList.add("show");
+      }
+    }
+
+    function collectAnswers() {
+      var answers = [];
+      document.querySelectorAll(".question").forEach(function (questionNode) {
+        var questionId = questionNode.dataset.questionId;
+        var radio = form.querySelector('input[name="choice-' + questionId + '"]:checked');
+        var text = form.querySelector('textarea[data-question-id="' + questionId + '"]').value;
+        var item = { id: questionId, text: text };
+        if (radio) {
+          item.choice = parseInt(radio.value, 10);
+        }
+        answers.push(item);
+      });
+      return answers;
+    }
+
+    async function pollResult(url) {
+      while (true) {
+        var response = await fetch(url, {
+          method: "GET",
+          headers: {
+            "Accept": "application/json",
+            "X-CSRF-Token": csrfToken
+          },
+          credentials: "same-origin"
+        });
+        var body = await response.json();
+        if (!response.ok) {
+          submitButton.disabled = false;
+          setStatus(body.error || "Result failed.", "bad");
+          needsNewRequest = response.status < 500;
+          return;
+        }
+        if (!renderResult(body)) {
+          return;
+        }
+        await wait(1000);
+      }
+    }
+
+    function renderResult(body) {
+      clearList(hintsNode);
+      receiptNode.textContent = "";
+      if (body.state === "queued" || body.state === "running") {
+        setStatus({{ copy.checking | tojson }}, "warn");
+        return true;
+      }
+      if (body.state === "needs_followup") {
+        setStatus({{ copy.hold_status | tojson }}, "warn");
+        resetVerdicts();
+        (body.accepted || []).forEach(function (id) { markAccepted(id); });
+        (body.feedback || []).forEach(function (item) { markHold(item); });
+        submitButton.disabled = false;
+        needsNewRequest = true;
+        return false;
+      }
+      if (body.state === "awaiting_verification") {
+        resetVerdicts();
+        document.querySelectorAll(".question").forEach(function (node) { markAccepted(node.dataset.questionId); });
+        setStatus({{ copy.stored | tojson }}, "warn");
+        return true;
+      }
+      if (body.state === "verified") {
+        var supplementalCheckFailed = body.publication && body.publication.presentation &&
+          body.publication.presentation.check && body.publication.presentation.check.failed;
+        if (body.publication && body.publication.published) {
+          setStatus(supplementalCheckFailed ?
+            {{ copy.verified_check_warn | tojson }} :
+            {{ copy.verified | tojson }}, supplementalCheckFailed ? "warn" : "ok");
+        } else {
+          setStatus({{ copy.verified_pending | tojson }}, "warn");
+        }
+        if (body.receipt_id) {
+          var link = document.createElement("a");
+          link.href = {{ url_for("receipt_page", receipt_id="RECEIPT_ID") | tojson }}.replace("RECEIPT_ID", body.receipt_id);
+          link.textContent = "Open your private receipt";
+          receiptNode.appendChild(link);
+        }
+        submitButton.disabled = true;
+        return !(body.publication && body.publication.published);
+      }
+      if (body.state === "stale") {
+        setStatus(body.message || "The pull request changed. Re-sync and answer again.", "bad");
+        submitButton.disabled = false;
+        needsNewRequest = true;
+        return false;
+      }
+      if (body.state === "error") {
+        setStatus(body.message || "The check failed. Try again later.", "bad");
+        submitButton.disabled = false;
+        needsNewRequest = true;
+        return false;
+      }
+      setStatus("Unexpected result state.", "bad");
+      submitButton.disabled = false;
+      needsNewRequest = true;
+      return false;
+    }
+
+    function clearList(node) {
+      while (node.firstChild) {
+        node.removeChild(node.firstChild);
+      }
+    }
+
+    function setStatus(text, kind) {
+      statusNode.className = "status " + kind;
+      statusNode.textContent = text;
+    }
+
+    function nextRequestId(fallback) {
+      if (window.crypto && typeof window.crypto.randomUUID === "function") {
+        return window.crypto.randomUUID();
+      }
+      requestCounter += 1;
+      return (fallback || String(Date.now())) + "-" + requestCounter;
+    }
+
+    function wait(milliseconds) {
+      return new Promise(function (resolve) {
+        window.setTimeout(resolve, milliseconds);
+      });
+    }
+  }());
+  </script>
+  {% endif %}
+</main>
+</body>
+</html>

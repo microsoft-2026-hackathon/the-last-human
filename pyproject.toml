@@ -1,0 +1,69 @@
+[project]
+name = "lasthuman"
+version = "0.1.0"
+description = "Comprehension Gate for Agentic Merges — 머지 직전 이해 검증 게이트"
+requires-python = ">=3.11"
+dependencies = [
+    "PyYAML>=6.0",
+    "Jinja2>=3.1",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=8.0"]
+lint = ["pylint==4.0.8"]
+bot = [
+    "azure-identity>=1.23,<2",
+    "Flask>=3.0,<4",
+    "Authlib>=1.3,<2",
+    "PyJWT[crypto]>=2.8,<3",
+    "requests>=2.32,<3",
+    "gunicorn>=23,<24",
+]
+
+[project.scripts]
+lasthuman = "lasthuman.cli:main"
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+lasthuman = ["templates/*.j2"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+
+[tool.pylint.main]
+py-version = "3.11"
+source-roots = ["src", "sample-app"]
+
+[tool.pylint.basic]
+function-rgx = "(?:test_\\w+|[a-z_][a-z0-9_]*)$"
+good-names = ["i", "j", "k", "ex", "Run", "_", "do_POST"]
+
+[tool.pylint.format]
+max-line-length = 120
+
+[tool.pylint.messages_control]
+# Korean test names, explicit data contracts, and existing service boundaries
+# are intentional; adopting Pylint must not rewrite product policy to fit metrics.
+disable = [
+    "duplicate-code",
+    "missing-class-docstring",
+    "missing-function-docstring",
+    "missing-module-docstring",
+    "non-ascii-name",
+    "too-few-public-methods",
+    "too-many-arguments",
+    "too-many-branches",
+    "too-many-instance-attributes",
+    "too-many-lines",
+    "too-many-locals",
+    "too-many-positional-arguments",
+    "too-many-public-methods",
+    "too-many-return-statements",
+    "too-many-statements",
+]

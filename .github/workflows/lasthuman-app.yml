@@ -1,0 +1,72 @@
+name: Last Human · relay
+run-name: "${{ github.event_name == 'pull_request_target' && format('Relay PR #{0}', github.event.pull_request.number) || format('Verify receipt {0}', inputs.receipt_id) }}"
+
+on:
+  pull_request_target:
+    types: [opened, synchronize, reopened, edited, labeled, unlabeled, closed]
+  workflow_dispatch:
+    inputs:
+      receipt_id:
+        description: Receipt to verify after the bot stores a success record
+        required: true
+        type: string
+
+concurrency:
+  group: tlh-app-${{ github.event.pull_request.number || format('receipt-{0}', inputs.receipt_id) }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+  pull-requests: read
+  statuses: read
+  id-token: write
+
+jobs:
+  relay:
+    name: "${{ github.event_name == 'pull_request_target' && format('Relay PR #{0}', github.event.pull_request.number) || format('Verify receipt {0}', inputs.receipt_id) }}"
+    if: vars.LASTHUMAN_RUNTIME == 'app'
+    runs-on: ubuntu-latest
+    env:
+      PYTHONIOENCODING: utf-8
+      GH_TOKEN: ${{ github.token }}
+      TLH_BOT_URL: ${{ vars.TLH_BOT_URL }}
+      TLH_OIDC_AUDIENCE: ${{ vars.TLH_OIDC_AUDIENCE || github.repository }}
+      TLH_WORKFLOW: lasthuman-app.yml
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: ${{ github.event.repository.default_branch }}
+          persist-credentials: false
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install trusted relay dependencies
+        run: pip install -e '.[bot]'
+
+      - name: 1. Load verification receipt
+        if: github.event_name == 'workflow_dispatch'
+        run: python -m lasthuman.server.relay --verification-step receipt --state-file "$RUNNER_TEMP/tlh-verification/state.json"
+
+      - name: 2. Read current PR snapshot
+        if: github.event_name == 'workflow_dispatch'
+        run: python -m lasthuman.server.relay --verification-step snapshot --state-file "$RUNNER_TEMP/tlh-verification/state.json"
+
+      - name: 3. Compare receipt and current change
+        if: github.event_name == 'workflow_dispatch'
+        run: python -m lasthuman.server.relay --verification-step compare --state-file "$RUNNER_TEMP/tlh-verification/state.json"
+
+      - name: 4. Wait for server verification
+        if: github.event_name == 'workflow_dispatch'
+        run: python -m lasthuman.server.relay --verification-step verify --state-file "$RUNNER_TEMP/tlh-verification/state.json"
+
+      - name: 5. Confirm GitHub gate success
+        if: github.event_name == 'workflow_dispatch'
+        timeout-minutes: 5
+        run: python -m lasthuman.server.relay --verification-step publication --state-file "$RUNNER_TEMP/tlh-verification/state.json"
+
+      - name: Relay metadata-only event
+        if: github.event_name == 'pull_request_target'
+        run: python -m lasthuman.server.relay
