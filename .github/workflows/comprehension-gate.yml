@@ -1,0 +1,318 @@
+# 이해 인증 게이트
+#
+# 사람이 이해도를 확인하는 단계가 별도 잡으로 분리되어 있습니다.
+#
+#   analyze     위험 점수를 계산한다. 임계값 미달이면 여기서 끝난다
+#   interview   질문을 만들고 면담 웹 UI를 생성해 Pages에 올린다  <- 사람이 답하는 단계
+#   grade       사람이 붙여넣은 답변을 채점하고 인증을 남긴다
+#   gate        인증을 현재 커밋과 대조해 통과 여부를 결정한다  <- 필수 검사로 지정할 잡
+#
+# 브랜치 보호에서 필수로 지정할 검사 이름은 `gate` 잡입니다.
+# 위험도 미달 PR에서도 이 잡은 초록으로 끝납니다 — 전수 적용하지 않기 때문입니다.
+#
+# 보안 — 코멘트 본문은 절대 셸 스크립트에 직접 보간하지 않습니다.
+# 공개 저장소라 누구나 코멘트를 달 수 있고, 보간하면 그 자리가 그대로
+# 스크립트 인젝션 지점이 됩니다. 반드시 env로 넘겨 받습니다.
+
+name: 이해 인증 게이트
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+  issue_comment:
+    types: [created]
+
+concurrency:
+  group: comprehension-${{ github.event.pull_request.number || github.event.issue.number }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+  pull-requests: write
+  issues: write
+  models: read
+
+env:
+  PYTHONIOENCODING: utf-8
+  GH_TOKEN: ${{ github.token }}
+
+jobs:
+  # ---------------------------------------------------------------- analyze --
+  analyze:
+    # PR 이벤트이거나, PR에 달린 코멘트일 때만 돈다.
+    if: github.event_name == 'pull_request' || github.event.issue.pull_request
+    runs-on: ubuntu-latest
+    outputs:
+      pr: ${{ steps.ctx.outputs.pr }}
+      head_sha: ${{ steps.ctx.outputs.head_sha }}
+      base_ref: ${{ steps.ctx.outputs.base_ref }}
+      author: ${{ steps.ctx.outputs.author }}
+      triggered: ${{ steps.score.outputs.triggered }}
+      score: ${{ steps.score.outputs.score }}
+    steps:
+      - id: ctx
+        name: PR 사실 수집
+        env:
+          PR_NUMBER: ${{ github.event.pull_request.number || github.event.issue.number }}
+        run: |
+          echo "pr=$PR_NUMBER" >> "$GITHUB_OUTPUT"
+          gh pr view "$PR_NUMBER" --repo "$GITHUB_REPOSITORY" \
+            --json headRefOid,baseRefName,author > ctx.json
+          python3 - <<'PY' >> "$GITHUB_OUTPUT"
+          import json
+          d = json.load(open("ctx.json", encoding="utf-8"))
+          print("head_sha=" + d["headRefOid"])
+          print("base_ref=" + d["baseRefName"])
+          print("author=" + d["author"]["login"])
+          PY
+
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: ${{ steps.ctx.outputs.head_sha }}
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - run: pip install -e .
+
+      - name: PR 메타 정리
+        env:
+          PR_NUMBER: ${{ steps.ctx.outputs.pr }}
+          BASE_REF: ${{ steps.ctx.outputs.base_ref }}
+        run: |
+          git fetch origin "$BASE_REF" --depth=0
+          gh pr view "$PR_NUMBER" --repo "$GITHUB_REPOSITORY" \
+            --json title,body,author,authorAssociation,labels > raw.json
+          python3 - <<'PY'
+          import json, os, subprocess
+          raw = json.load(open("raw.json", encoding="utf-8"))
+          log = subprocess.run(
+              ["git", "log", "--format=%B", f"origin/{os.environ['BASE_REF']}..HEAD"],
+              capture_output=True, text=True,
+          ).stdout.lower()
+          # 트레일러는 가점 신호일 뿐이다. 트리거의 근거가 아니다.
+          hints = ("co-authored-by: claude", "co-authored-by: copilot", "generated with")
+          json.dump(
+              {
+                  "title": raw["title"],
+                  "body": raw.get("body") or "",
+                  "author": raw["author"]["login"],
+                  "authorAssociation": raw.get("authorAssociation") or "OWNER",
+                  "agentHint": any(k in log for k in hints),
+                  "labels": [l["name"] for l in raw.get("labels") or []],
+              },
+              open("meta.json", "w", encoding="utf-8"),
+              ensure_ascii=False,
+          )
+          PY
+
+      - id: score
+        name: 위험 점수 계산
+        env:
+          BASE_REF: ${{ steps.ctx.outputs.base_ref }}
+          HEAD_SHA: ${{ steps.ctx.outputs.head_sha }}
+        run: |
+          lasthuman score --base "origin/$BASE_REF" --head "$HEAD_SHA" \
+            --meta meta.json --out risk.json
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: risk-${{ steps.ctx.outputs.head_sha }}
+          path: |
+            risk.json
+            meta.json
+          overwrite: true
+
+  # -------------------------------------------------------------- interview --
+  # 사람이 이해도를 확인하는 단계. 여기서 웹 UI가 생성된다.
+  interview:
+    needs: analyze
+    if: github.event_name == 'pull_request' && needs.analyze.outputs.triggered == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write        # gh-pages 브랜치에 면담 페이지를 올린다
+      pull-requests: write
+      models: read
+    env:
+      PR_NUMBER: ${{ needs.analyze.outputs.pr }}
+      HEAD_SHA: ${{ needs.analyze.outputs.head_sha }}
+      BASE_REF: ${{ needs.analyze.outputs.base_ref }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: ${{ needs.analyze.outputs.head_sha }}
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - run: pip install -e .
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: risk-${{ needs.analyze.outputs.head_sha }}
+
+      - name: 질문 생성과 면담 페이지 만들기
+        run: |
+          git fetch origin "$BASE_REF" --depth=0
+          gh pr view "$PR_NUMBER" --repo "$GITHUB_REPOSITORY" --json body --jq .body > pr-body.md
+          TITLE=$(gh pr view "$PR_NUMBER" --repo "$GITHUB_REPOSITORY" --json title --jq .title)
+          lasthuman page \
+            --base "origin/$BASE_REF" --head "$HEAD_SHA" \
+            --risk risk.json \
+            --repo "$GITHUB_REPOSITORY" --pr "$PR_NUMBER" --head-sha "$HEAD_SHA" \
+            --title "$TITLE" --body-file pr-body.md \
+            --out-dir "site/pr-$PR_NUMBER/$HEAD_SHA" \
+            --questions-out questions.json
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: questions-${{ needs.analyze.outputs.head_sha }}
+          path: questions.json
+          overwrite: true
+
+      - name: 면담 페이지 배포
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git fetch origin gh-pages || true
+          if git rev-parse --verify origin/gh-pages >/dev/null 2>&1; then
+            git worktree add pages origin/gh-pages
+          else
+            git worktree add --detach pages
+            git -C pages checkout --orphan gh-pages
+            git -C pages rm -rf . || true
+          fi
+          mkdir -p "pages/pr-$PR_NUMBER/$HEAD_SHA"
+          cp "site/pr-$PR_NUMBER/$HEAD_SHA/index.html" "pages/pr-$PR_NUMBER/$HEAD_SHA/index.html"
+          git -C pages add -A
+          git -C pages commit -m "면담 페이지 · PR #$PR_NUMBER @ $HEAD_SHA" || exit 0
+          git -C pages push origin HEAD:gh-pages
+
+      - name: PR에 면담 링크 남기기
+        env:
+          SCORE: ${{ needs.analyze.outputs.score }}
+        run: |
+          OWNER=${GITHUB_REPOSITORY%%/*}
+          NAME=${GITHUB_REPOSITORY##*/}
+          URL="https://${OWNER}.github.io/${NAME}/pr-${PR_NUMBER}/${HEAD_SHA}/"
+          {
+            echo "### 이해 인증이 필요합니다 · 위험 점수 ${SCORE}"
+            echo
+            echo "이 변경은 위험 지점을 포함합니다. **생성자와 리뷰어 각자** 아래 면담을 통과해야 머지할 수 있습니다."
+            echo
+            echo "👉 **[면담 열기](${URL})**"
+            echo
+            echo "답변을 마치면 블록이 복사됩니다. 이 PR에 코멘트로 붙여넣으면 채점이 시작됩니다."
+            echo "모르겠다고 답하셔도 됩니다 — 보류는 기록에 남지 않습니다."
+            echo
+            echo "<sub>인증은 커밋 \`${HEAD_SHA}\`에만 유효합니다. 새 커밋이 올라오면 다시 면담해야 합니다.</sub>"
+          } > comment.md
+          gh pr comment "$PR_NUMBER" --repo "$GITHUB_REPOSITORY" --body-file comment.md
+
+  # ------------------------------------------------------------------ grade --
+  grade:
+    needs: analyze
+    if: >
+      github.event_name == 'issue_comment' &&
+      github.event.issue.pull_request &&
+      contains(github.event.comment.body, 'lasthuman:answers:v1')
+    runs-on: ubuntu-latest
+    env:
+      PR_NUMBER: ${{ needs.analyze.outputs.pr }}
+      HEAD_SHA: ${{ needs.analyze.outputs.head_sha }}
+      BASE_REF: ${{ needs.analyze.outputs.base_ref }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: ${{ needs.analyze.outputs.head_sha }}
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - run: pip install -e .
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: risk-${{ needs.analyze.outputs.head_sha }}
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: questions-${{ needs.analyze.outputs.head_sha }}
+
+      - name: 코멘트 본문 저장
+        # 보간하지 않고 env로 받는다. 여기가 인젝션 지점이 되면 게이트 전체가 무의미해진다.
+        env:
+          COMMENT_BODY: ${{ github.event.comment.body }}
+        run: printf '%s' "$COMMENT_BODY" > comment.md
+
+      - name: 답변 채점
+        env:
+          ACTOR: ${{ github.event.comment.user.login }}
+        run: |
+          git fetch origin "$BASE_REF" --depth=0
+          lasthuman grade \
+            --base "origin/$BASE_REF" --head "$HEAD_SHA" \
+            --comment-file comment.md \
+            --questions questions.json --risk risk.json \
+            --repo "$GITHUB_REPOSITORY" --pr "$PR_NUMBER" --head-sha "$HEAD_SHA" \
+            --actor "$ACTOR" --out result.md
+
+      - name: 결과 남기기
+        run: gh pr comment "$PR_NUMBER" --repo "$GITHUB_REPOSITORY" --body-file result.md
+
+  # ------------------------------------------------------------------- gate --
+  # 브랜치 보호에서 필수로 지정할 검사. 면담 결과를 그대로 믿지 않고
+  # 위험 점수를 스스로 다시 계산한 뒤 인증이 현재 커밋에 묶여 있는지 확인한다.
+  gate:
+    needs: [analyze, grade]
+    if: always() && needs.analyze.result == 'success'
+    runs-on: ubuntu-latest
+    env:
+      PR_NUMBER: ${{ needs.analyze.outputs.pr }}
+      HEAD_SHA: ${{ needs.analyze.outputs.head_sha }}
+      BASE_REF: ${{ needs.analyze.outputs.base_ref }}
+      PR_AUTHOR: ${{ needs.analyze.outputs.author }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: ${{ needs.analyze.outputs.head_sha }}
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - run: pip install -e .
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: risk-${{ needs.analyze.outputs.head_sha }}
+
+      - name: 위험 점수 재계산
+        run: |
+          git fetch origin "$BASE_REF" --depth=0
+          lasthuman score --base "origin/$BASE_REF" --head "$HEAD_SHA" \
+            --meta meta.json --out recomputed.json
+          python3 - <<'PY'
+          import json, sys
+          a = json.load(open("risk.json", encoding="utf-8"))
+          b = json.load(open("recomputed.json", encoding="utf-8"))
+          if (a["score"], a["triggered"]) != (b["score"], b["triggered"]):
+              sys.exit("재계산 결과가 다릅니다. 위험 점수가 결정적이지 않습니다.")
+          PY
+
+      - name: 인증 대조
+        run: |
+          gh api "repos/$GITHUB_REPOSITORY/issues/$PR_NUMBER/comments" --paginate \
+            --slurp > comments.json
+          lasthuman gate \
+            --risk recomputed.json --comments comments.json \
+            --head-sha "$HEAD_SHA" --pr-author "$PR_AUTHOR" \
+            --out decision.md
+          cat decision.md >> "$GITHUB_STEP_SUMMARY"

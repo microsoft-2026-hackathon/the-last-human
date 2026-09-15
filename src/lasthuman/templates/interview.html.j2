@@ -1,0 +1,185 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>이해 인증 · {{ repo }} #{{ pr }}</title>
+<style>
+  :root {
+    color-scheme: light dark;
+    --bg: #ffffff; --fg: #1f2328; --muted: #59636e; --line: #d1d9e0;
+    --card: #f6f8fa; --accent: #0969da; --warn: #9a6700; --warn-bg: #fff8c5;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #0d1117; --fg: #e6edf3; --muted: #9198a1; --line: #3d444d;
+      --card: #151b23; --accent: #4493f8; --warn: #d29922; --warn-bg: #282215;
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; padding: 2rem 1rem 4rem; background: var(--bg); color: var(--fg);
+    font: 15px/1.6 -apple-system, BlinkMacSystemFont, "Segoe UI", "Apple SD Gothic Neo",
+          "Malgun Gothic", sans-serif;
+  }
+  main { max-width: 760px; margin: 0 auto; }
+  h1 { font-size: 1.4rem; margin: 0 0 .25rem; }
+  .sub { color: var(--muted); margin: 0 0 1.5rem; font-size: .9rem; }
+  .sub a { color: var(--accent); }
+  code, .mono { font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, monospace; font-size: .85em; }
+  .risk { border: 1px solid var(--line); border-radius: 8px; padding: 1rem; background: var(--card); margin-bottom: 1.5rem; }
+  .risk h2 { font-size: .95rem; margin: 0 0 .5rem; font-weight: 600; }
+  .score { font-size: 1.8rem; font-weight: 700; }
+  .risk ul { margin: .5rem 0 0; padding-left: 1.2rem; color: var(--muted); font-size: .88rem; }
+  .roles { display: flex; gap: .5rem; margin-bottom: 1.5rem; }
+  .roles label {
+    flex: 1; border: 1px solid var(--line); border-radius: 8px; padding: .7rem 1rem;
+    cursor: pointer; text-align: center;
+  }
+  .roles input { margin-right: .4rem; }
+  .roles label:has(input:checked) { border-color: var(--accent); background: var(--card); }
+  .q { border: 1px solid var(--line); border-radius: 8px; padding: 1rem; margin-bottom: 1rem; }
+  .q header { display: flex; align-items: baseline; gap: .5rem; flex-wrap: wrap; margin-bottom: .5rem; }
+  .tag {
+    font-size: .72rem; text-transform: uppercase; letter-spacing: .04em;
+    border: 1px solid var(--line); border-radius: 999px; padding: .1rem .5rem; color: var(--muted);
+  }
+  .anchor { margin-left: auto; }
+  .anchor a { color: var(--accent); text-decoration: none; }
+  .anchor a:hover { text-decoration: underline; }
+  .q p { margin: 0 0 .75rem; }
+  textarea {
+    width: 100%; min-height: 6.5rem; padding: .6rem; border-radius: 6px;
+    border: 1px solid var(--line); background: var(--bg); color: var(--fg);
+    font: inherit; resize: vertical;
+  }
+  textarea:focus { outline: 2px solid var(--accent); outline-offset: -1px; }
+  details { margin-top: .75rem; }
+  details summary { cursor: pointer; color: var(--muted); font-size: .85rem; }
+  details pre {
+    margin: .5rem 0 0; padding: .75rem; background: var(--card); border-radius: 6px;
+    overflow-x: auto; font-size: .8rem; line-height: 1.5;
+  }
+  .note {
+    background: var(--warn-bg); border-left: 3px solid var(--warn); padding: .75rem 1rem;
+    border-radius: 0 6px 6px 0; font-size: .88rem; margin-bottom: 1.5rem;
+  }
+  .actions { display: flex; gap: .75rem; align-items: center; flex-wrap: wrap; margin-top: 1.5rem; }
+  button {
+    font: inherit; font-weight: 600; padding: .6rem 1.2rem; border-radius: 6px;
+    border: 1px solid transparent; background: var(--accent); color: #fff; cursor: pointer;
+  }
+  .status { color: var(--muted); font-size: .88rem; }
+  footer { margin-top: 3rem; color: var(--muted); font-size: .8rem; border-top: 1px solid var(--line); padding-top: 1rem; }
+</style>
+</head>
+<body>
+<main>
+  <h1>이 변경을 이해했는지 확인합니다</h1>
+  <p class="sub">
+    <a href="https://github.com/{{ repo }}/pull/{{ pr }}">{{ repo }} #{{ pr }}</a>
+    · 커밋 <code>{{ short_sha }}</code>
+  </p>
+
+  <div class="risk">
+    <h2>위험 점수 <span class="score">{{ score }}</span> <span class="mono" style="color:var(--muted)">/ 임계값 {{ threshold }}</span></h2>
+    <ul>
+    {% for r in reasons %}
+      <li>{{ r }}</li>
+    {% endfor %}
+    </ul>
+  </div>
+
+  <p class="note">
+    질문은 코드를 열어야만 답할 수 있게 만들어졌습니다. 그래서 해당 코드를 미리 보여주지 않습니다.
+    앵커를 눌러 실제 파일을 여십시오. 모르겠으면 모르겠다고 쓰셔도 됩니다 —
+    <strong>보류는 기록에 남지 않습니다.</strong>
+  </p>
+
+  <div class="roles">
+    <label><input type="radio" name="role" value="author" checked> 생성자로 인증</label>
+    <label><input type="radio" name="role" value="reviewer"> 리뷰어로 인증</label>
+  </div>
+
+  <form id="f">
+    {% for q in questions %}
+    <div class="q">
+      <header>
+        <span class="tag">{{ q.type }}</span>
+        <span class="anchor mono"><a href="https://github.com/{{ repo }}/blob/{{ head_sha }}/{{ q.file }}#L{{ q.line }}" target="_blank" rel="noopener">{{ q.anchor }}</a></span>
+      </header>
+      <p>{{ q.text }}</p>
+      <textarea data-anchor="{{ q.anchor }}" placeholder="코드를 보고 답해 주세요"></textarea>
+      {% if q.body %}
+      <details>
+        <summary>막혔을 때 — 해당 코드 펼치기</summary>
+        <pre>{{ q.body }}</pre>
+      </details>
+      {% endif %}
+    </div>
+    {% endfor %}
+
+    <div class="actions">
+      <button type="submit">답변 복사하고 PR 열기</button>
+      <span class="status" id="status"></span>
+    </div>
+  </form>
+
+  <footer>
+    복사된 블록을 PR 코멘트에 그대로 붙여넣으면 채점이 시작됩니다.
+    누가 답했는지는 GitHub이 코멘트 작성자로 인증합니다. 블록 자체는 서명되지 않습니다.
+  </footer>
+</main>
+
+<script>
+var PR_URL = "https://github.com/{{ repo }}/pull/{{ pr }}";
+var PAYLOAD = {
+  v: 1,
+  repo: {{ repo | tojson }},
+  pr: {{ pr }},
+  head_sha: {{ head_sha | tojson }}
+};
+var MARKER = "lasthuman:answers:v1";
+
+document.getElementById("f").addEventListener("submit", function (e) {
+  e.preventDefault();
+  var status = document.getElementById("status");
+  var answers = Array.prototype.map.call(
+    document.querySelectorAll("textarea[data-anchor]"),
+    function (t) { return { anchor: t.dataset.anchor, text: t.value.trim() }; }
+  );
+
+  if (answers.some(function (a) { return !a.text; })) {
+    status.textContent = "모든 질문에 답해 주세요. 모르겠다고 쓰셔도 됩니다.";
+    return;
+  }
+
+  var role = document.querySelector("input[name=role]:checked").value;
+  var payload = Object.assign({}, PAYLOAD, { role: role, answers: answers });
+  var block =
+    "<!-- " + MARKER + " " + JSON.stringify(payload) + " -->\n\n이해 인증 답변을 제출합니다.";
+
+  function fallback() {
+    status.textContent = "복사에 실패했습니다. 아래 상자에서 직접 복사하세요.";
+    var ta = document.createElement("textarea");
+    ta.value = block;
+    ta.style.width = "100%";
+    ta.style.minHeight = "8rem";
+    ta.style.marginTop = "1rem";
+    document.querySelector(".actions").after(ta);
+    ta.select();
+  }
+
+  if (!navigator.clipboard) { fallback(); return; }
+
+  navigator.clipboard.writeText(block).then(
+    function () {
+      status.textContent = "복사했습니다. PR 코멘트에 붙여넣으세요.";
+      window.open(PR_URL, "_blank", "noopener");
+    },
+    fallback
+  );
+});
+</script>
+</body>
+</html>
