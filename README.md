@@ -35,6 +35,27 @@ python -m pytest
 python -m lasthuman.cli score --base main --head pr-1-auth-retry
 ```
 
+## GitHub App 로컬 런타임
+
+실제 GitHub App 서버 실행, 권한, 환경 변수, Actions relay, 실사용 전환 순서는 [docs/runbooks/github-app.md](docs/runbooks/github-app.md)에 정리해 두었습니다.
+
+```bash
+set -a
+. "$HOME/.config/the-last-human/github-app/runtime.env"
+set +a
+python -m lasthuman.server serve --host 127.0.0.1 --port 8000
+```
+
+특정 PR을 수동으로 다시 읽을 때는 아래를 씁니다.
+
+```bash
+PR_NUMBER=1
+python -m lasthuman.server sync --pr "$PR_NUMBER"
+python -m lasthuman.server flush
+```
+
+`localhost` 개발 경로는 GitHub commit status 를 쓰지 않고, 필요하면 로컬 전용 안내 comment 만 남깁니다.
+
 ## 시연
 
 `sample-app/`은 게이트가 판정할 대상인 가짜 주문 서비스입니다.
