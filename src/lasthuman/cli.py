@@ -22,6 +22,7 @@ from .attest import decode_all, decode_answers, encode, band_for, gate_decision,
 from .config import load_config
 from .diff import collect_hunks
 from .interview import ModelError, generate_questions, grade as grade_answer
+from .structure import build_context
 from .models import Answer, Attestation, PrMeta, Question, RiskResult
 from .risk import score as score_risk
 from .webui import render_page
@@ -118,9 +119,12 @@ def cmd_page(args: argparse.Namespace) -> int:
     )
 
     body = Path(args.body_file).read_text(encoding="utf-8") if args.body_file else ""
+    # 구조 축 질문이 딛고 설 사실. hunk만으로는 "이 변경이 누구에게 전파되는가"를
+    # 물을 수 없고, 객관식 오답 보기도 실재하는 경로로 채울 수 없다.
+    structure = build_context(args.repo_path, diff.hunks)
     try:
         questions = generate_questions(
-            risk, args.title, body, n=args.count, dry_run=args.dry_run
+            risk, args.title, body, n=args.count, structure=structure, dry_run=args.dry_run
         )
     except ModelError as err:
         # 모델이 죽어도 게이트가 사람을 막지 않는다. 안내만 하고 중립으로 넘긴다.
@@ -152,6 +156,18 @@ def cmd_page(args: argparse.Namespace) -> int:
 # --- grade -------------------------------------------------------------------
 
 
+def _question_from(raw: dict) -> Question:
+    """JSON으로 오갈 때 choices가 list가 된다. 튜플로 되돌려 dataclass 계약을 지킨다."""
+    return Question(
+        type=raw.get("type", "consequence"),
+        anchor=raw.get("anchor", ""),
+        text=raw.get("text", ""),
+        expected_evidence=raw.get("expected_evidence", ""),
+        choices=tuple(raw.get("choices") or ()),
+        answer_index=int(raw.get("answer_index", -1)),
+    )
+
+
 def cmd_grade(args: argparse.Namespace) -> int:
     comment = Path(args.comment_file).read_text(encoding="utf-8")
     submitted = decode_answers(comment)
@@ -167,21 +183,28 @@ def cmd_grade(args: argparse.Namespace) -> int:
         _emit_output(graded="stale")
         return 0
 
-    questions = [Question(**q) for q in _read_json(args.questions) or []] if args.questions else []
+    questions = (
+        [_question_from(q) for q in _read_json(args.questions) or []] if args.questions else []
+    )
     by_anchor = {q.anchor: q for q in questions}
     diff = collect_hunks(args.repo_path, args.base, args.head)
     hunks = {h.anchor: h for h in diff.hunks}
 
-    by_submitted = {a.get("anchor", ""): a.get("text", "") for a in submitted.get("answers", [])}
+    by_submitted = {a.get("anchor", ""): a for a in submitted.get("answers", [])}
     graded = []
     for question in questions:
         # 답이 없는 질문은 보류다. 빠뜨린 것을 통과로 읽으면 게이트가 열린 채로 고장난다.
-        text = by_submitted.get(question.anchor, "").strip()
-        if not text:
+        sub = by_submitted.get(question.anchor) or {}
+        text = str(sub.get("text", "")).strip()
+        raw_choice = sub.get("choice")
+        choice = int(raw_choice) if isinstance(raw_choice, int) else None
+        # 객관식인데 보기를 안 골랐거나, 서술형인데 근거가 비면 보류다.
+        if not text or (question.is_choice and choice is None):
             graded.append(
                 Answer(
                     anchor=question.anchor,
-                    text="",
+                    text=text,
+                    choice=choice,
                     verdict="hold",
                     hint="이 질문에 대한 답변이 제출되지 않았습니다.",
                 )
@@ -189,7 +212,13 @@ def cmd_grade(args: argparse.Namespace) -> int:
             continue
         try:
             graded.append(
-                grade_answer(question, text, hunks.get(question.anchor), dry_run=args.dry_run)
+                grade_answer(
+                    question,
+                    text,
+                    hunks.get(question.anchor),
+                    choice=choice,
+                    dry_run=args.dry_run,
+                )
             )
         except ModelError as err:
             print(f"판정 실패: {err}", file=sys.stderr)

@@ -54,6 +54,16 @@
     font: inherit; resize: vertical;
   }
   textarea:focus { outline: 2px solid var(--accent); outline-offset: -1px; }
+  .choices { list-style: none; margin: 0 0 .9rem; padding: 0; display: grid; gap: .4rem; }
+  .choices label {
+    display: flex; gap: .55rem; align-items: flex-start; cursor: pointer;
+    border: 1px solid var(--line); border-radius: 6px; padding: .55rem .7rem;
+  }
+  .choices label:has(input:checked) { border-color: var(--accent); background: var(--card); }
+  .choices input { margin-top: .25rem; flex: none; }
+  .choices span { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .85rem; }
+  .why { margin: 0 0 .4rem; font-size: .85rem; color: var(--muted); }
+  .tag.axis-structure { border-color: var(--accent); }
   details { margin-top: .75rem; }
   details summary { cursor: pointer; color: var(--muted); font-size: .85rem; }
   details pre {
@@ -105,11 +115,19 @@
     {% for q in questions %}
     <div class="q">
       <header>
-        <span class="tag">{{ q.type }}</span>
+        <span class="tag axis-{{ q.axis }}">{{ q.type }}</span>
         <span class="anchor mono"><a href="https://github.com/{{ repo }}/blob/{{ head_sha }}/{{ q.file }}#L{{ q.line }}" target="_blank" rel="noopener">{{ q.anchor }}</a></span>
       </header>
       <p>{{ q.text }}</p>
-      <textarea data-anchor="{{ q.anchor }}" placeholder="코드를 보고 답해 주세요"></textarea>
+      {% if q.choices %}
+      <ul class="choices">
+        {% for c in q.choices %}
+        <li><label><input type="radio" name="c-{{ loop.index0 }}-{{ q.anchor }}" data-anchor="{{ q.anchor }}" value="{{ loop.index0 }}"> <span>{{ c }}</span></label></li>
+        {% endfor %}
+      </ul>
+      <p class="why">위 보기를 고른 근거를 한 줄로 써 주세요. 어디를 보고 그렇게 판단했습니까?</p>
+      {% endif %}
+      <textarea data-anchor="{{ q.anchor }}" placeholder="{% if q.choices %}예: token.py L41의 except 절이 원본 토큰을 그대로 반환합니다{% else %}코드를 보고 답해 주세요{% endif %}"></textarea>
       {% if q.body %}
       <details>
         <summary>막혔을 때 — 해당 코드 펼치기</summary>
@@ -146,11 +164,26 @@ document.getElementById("f").addEventListener("submit", function (e) {
   var status = document.getElementById("status");
   var answers = Array.prototype.map.call(
     document.querySelectorAll("textarea[data-anchor]"),
-    function (t) { return { anchor: t.dataset.anchor, text: t.value.trim() }; }
+    function (t) {
+      var anchor = t.dataset.anchor;
+      var picked = document.querySelector(
+        'input[type=radio][data-anchor="' + anchor.replace(/"/g, '\\"') + '"]:checked'
+      );
+      var a = { anchor: anchor, text: t.value.trim() };
+      if (picked) { a.choice = parseInt(picked.value, 10); }
+      return a;
+    }
   );
 
+  var hasChoices = document.querySelector("input[type=radio][data-anchor]") !== null;
   if (answers.some(function (a) { return !a.text; })) {
-    status.textContent = "모든 질문에 답해 주세요. 모르겠다고 쓰셔도 됩니다.";
+    status.textContent = "근거를 한 줄씩 써 주세요. 모르겠다고 쓰셔도 됩니다.";
+    return;
+  }
+  if (hasChoices && answers.some(function (a) {
+    return document.querySelector('input[type=radio][data-anchor="' + a.anchor.replace(/"/g, '\\"') + '"]') && a.choice === undefined;
+  })) {
+    status.textContent = "객관식 문항의 보기를 골라 주세요.";
     return;
   }
 
