@@ -1,0 +1,18 @@
+{
+  "_comment": "Demo-only 30-day history for the comprehension dashboard. Loaded with TLH_DEMO_SEED and added at aggregation time; the page shows a 'Demo data' chip. No snapshot or receipt rows are fabricated. A gated merge is either verified or an exception, so gated == attested + forced per zone.",
+  "totals": {"merged": 41, "gated": 13, "attested": 11, "forced": 2, "waiting": 0},
+  "zones": [
+    {"zone": "sample-app/app/auth/",       "owner": "@daeungo1", "merged": 1,  "gated": 1, "attested": 0, "forced": 1, "answerers": 0, "prs": [27]},
+    {"zone": "sample-app/app/db/",         "owner": "@daeungo1", "merged": 1,  "gated": 1, "attested": 0, "forced": 1, "answerers": 0, "prs": [19]},
+    {"zone": "sample-app/migrations/",     "owner": "@daeungo1", "merged": 1,  "gated": 1, "attested": 1, "forced": 0, "answerers": 1, "prs": [22]},
+    {"zone": "sample-app/app/orders/",     "owner": "@daeungo1", "merged": 2,  "gated": 2, "attested": 2, "forced": 0, "answerers": 2, "prs": [33, 24]},
+    {"zone": "sample-app/tests/",          "owner": "@daeungo1", "merged": 4,  "gated": 4, "attested": 4, "forced": 0, "answerers": 2, "prs": [33, 24, 22, 16]},
+    {"zone": "src/lasthuman/risk.py",      "owner": "@daeungo1", "merged": 2,  "gated": 2, "attested": 2, "forced": 0, "answerers": 1, "prs": [30, 8]},
+    {"zone": "src/lasthuman/interview.py", "owner": "@daeungo1", "merged": 3,  "gated": 3, "attested": 3, "forced": 0, "answerers": 2, "prs": [30, 8, 7]},
+    {"zone": "src/lasthuman/attest.py",    "owner": "@daeungo1", "merged": 1,  "gated": 1, "attested": 1, "forced": 0, "answerers": 1, "prs": [12]},
+    {"zone": "src/lasthuman/structure.py", "owner": "@daeungo1", "merged": 1,  "gated": 1, "attested": 1, "forced": 0, "answerers": 1, "prs": [8]},
+    {"zone": "src/lasthuman/",             "owner": "@daeungo1", "merged": 18, "gated": 6, "attested": 6, "forced": 0, "answerers": 3, "prs": [30, 12, 10, 9, 8, 7]},
+    {"zone": ".github/workflows/",         "owner": "@daeungo1", "merged": 5,  "gated": 2, "attested": 2, "forced": 0, "answerers": 2, "prs": [12, 3]},
+    {"zone": "docs/",                      "owner": "@daeungo1", "merged": 10, "gated": 0, "attested": 0, "forced": 0, "answerers": 0, "prs": []}
+  ]
+}

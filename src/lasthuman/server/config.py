@@ -65,6 +65,8 @@ class Settings:
     presentation_reason_limit: int = _DEFAULT_PRESENTATION_REASON_LIMIT
     presentation_detail_limit: int = _DEFAULT_PRESENTATION_DETAIL_LIMIT
     presentation_paths_per_group: int = _DEFAULT_PRESENTATION_PATHS_PER_GROUP
+    #: 대시보드에 집계 단계에서 더하는 데모 이력. 없으면 실측만 보여준다.
+    demo_seed: Path | None = None
 
     session_ttl: ClassVar[timedelta] = timedelta(minutes=30)
 
@@ -147,6 +149,7 @@ class Settings:
             presentation_locale=_parse_locale(
                 os.environ.get("TLH_PRESENTATION_LOCALE", _DEFAULT_PRESENTATION_LOCALE)
             ),
+            demo_seed=_optional_path(os.environ.get("TLH_DEMO_SEED")),
             presentation_max_chars=_require_bounded_int(
                 "TLH_PRESENTATION_MAX_CHARS",
                 os.environ.get("TLH_PRESENTATION_MAX_CHARS"),
@@ -212,6 +215,16 @@ def _parse_strict_bool(raw: str, name: str) -> bool:
     if value == "false":
         return False
     raise ConfigurationError(f"{name} must be exactly true or false")
+
+
+def _optional_path(raw: str | None) -> Path | None:
+    value = (raw or "").strip()
+    if not value:
+        return None
+    path = _normalize_path(value)
+    if not path.is_file():
+        raise ConfigurationError("TLH_DEMO_SEED must point to an existing file")
+    return path
 
 
 def _parse_locale(raw: str) -> Literal["ko", "en"]:
