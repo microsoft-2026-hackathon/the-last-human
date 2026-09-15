@@ -126,17 +126,22 @@ class PresentationCheckCancelTarget:
     check_run_id: int | None = None
 
 
-_EVIDENCE_RADIUS = 5
-_EVIDENCE_MAX_LINES = 28
+_EVIDENCE_RADIUS = 4
+_EVIDENCE_MAX_LINES = 40
 
 
 def _evidence_centers(snapshot: Snapshot, path: str, lines: Sequence[str]) -> list[int]:
-    """근거 파일에서 보여줄 중심 줄들 — 피호출자 정의, 그 파일의 상수 선언, 없으면 hunk 시작."""
+    """근거 파일에서 보여줄 중심 줄들 — 피호출자 정의와 상수를 쓰는 본문 줄, 그 파일의 상수 선언, 없으면 hunk 시작."""
     centers: list[int] = []
+    stripped = [line.strip() for line in lines]
     for callee in snapshot.structure.callees:
         if callee.defined_in != path:
             continue
         centers.append(callee.line)
+        # 발췌 줄(상수를 실제로 쓰는 줄)이 정의보다 멀리 있으면 그 줄도 보여야 "무엇을 하는지"가 보인다.
+        for excerpt in callee.excerpt:
+            if excerpt.strip() in stripped:
+                centers.append(stripped.index(excerpt.strip()) + 1)
         for constant in callee.constants:
             name = constant.split("=", 1)[0].strip()
             for index, line in enumerate(lines, start=1):

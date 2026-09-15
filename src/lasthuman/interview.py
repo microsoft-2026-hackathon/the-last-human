@@ -186,6 +186,13 @@ def resolve_endpoint() -> tuple[str, str]:
     raise ModelError(f"알 수 없는 공급자입니다: {provider}")
 
 
+def _hint_target(question: Question) -> str:
+    """보류 힌트가 가리킬 곳 — 근거가 hunk 밖 파일이면 그 파일, 아니면 hunk 앵커."""
+    if question.evidence_path and not question.anchor.startswith(f"{question.evidence_path}:"):
+        return question.evidence_path
+    return question.anchor
+
+
 def evidence_paths(risk: RiskResult, structure: StructureContext | None = None) -> tuple[str, ...]:
     """evidencePath 로 허용하는 실재 경로. hunk 파일이 먼저, 그다음 구조 사실의 파일."""
     out: dict[str, None] = {}
@@ -528,7 +535,7 @@ def grade(
                 choice=choice,
                 verdict="hold",
                 choice_correct=False,
-                hint=f"Open {question.anchor} and check what the code actually does.",
+                hint=f"Open {_hint_target(question)} and check what the code actually does.",
             )
 
     if dry_run:
