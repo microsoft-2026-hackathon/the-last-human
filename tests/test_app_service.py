@@ -1799,3 +1799,51 @@ def make_snapshot_with_callee(snapshot: Snapshot) -> Snapshot:
         title=snapshot.title, body=snapshot.body, risk=snapshot.risk, config=snapshot.config,
         diff=snapshot.diff, structure=structure, zones=snapshot.zones, policy_version=snapshot.policy_version,
     )
+
+
+def test_sync_regenerate_replaces_questions_unless_receipts_exist(tmp_path: Path):
+    """운영자의 --regenerate 는 결함 있는 질문 세트를 다시 뽑는다. 영수증이 생긴 뒤에는 거부한다."""
+    clock = FakeClock()
+    snapshot = make_snapshot()
+    calls: list[int] = []
+
+    def generate(risk, title, body, n, *, structure):
+        calls.append(len(calls))
+        questions = make_questions()
+        first = questions[0]
+        questions[0] = Question(
+            type=first.type,
+            anchor=first.anchor,
+            text=f"{first.text} (generation {len(calls)})",
+            expected_evidence=first.expected_evidence,
+            choices=first.choices,
+            answer_index=first.answer_index,
+            evidence_path=first.evidence_path,
+        )
+        return questions
+
+    service, _github = make_service(
+        tmp_path, snapshot=snapshot, pulls=[make_pull(snapshot)] * 4, clock=clock, generate_func=generate
+    )
+    service.sync(snapshot.pr)
+    service.sync(snapshot.pr)
+    assert calls == [0]  # 같은 스냅샷은 저장된 질문을 재사용한다.
+
+    service.sync(snapshot.pr, regenerate=True)
+    assert calls == [0, 1]
+    stored = service.store.load_snapshot(snapshot.snapshot_id)
+    assert stored is not None
+    assert stored.questions[0].question.text.endswith("(generation 2)")
+
+    job_id = service.submit(
+        snapshot.pr,
+        snapshot.author_id,
+        snapshot.snapshot_id,
+        "req-regen",
+        [{"id": str(i), "text": "seen it", "choice": 0} for i in range(len(stored.questions))],
+    )
+    service.drain()
+    assert service.result(job_id, snapshot.author_id)["state"] != "failed"
+    with pytest.raises(BotError, match="receipts cannot be regenerated"):
+        service.sync(snapshot.pr, regenerate=True)
+    assert calls == [0, 1]
