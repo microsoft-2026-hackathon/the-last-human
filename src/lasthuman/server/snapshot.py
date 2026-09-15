@@ -575,6 +575,36 @@ class SnapshotReader:
                 raise SnapshotError("Policy source could not be read") from None
         return hashlib.sha256(bytes(payload)).hexdigest()
 
+    def read_lines(
+        self, head_sha: str, path: str, *, center: int, radius: int = 6
+    ) -> tuple[int, tuple[str, ...]] | None:
+        """head 커밋의 파일에서 ``center`` 주변 줄을 돌려준다 — 보류 화면이 열어 줄 근거.
+
+        (시작 줄 번호, 줄들). 파일이 없거나 캐시가 없으면 None. 4 KiB 를 넘는 발췌는 자른다.
+        """
+        _require_sha(head_sha, "head sha")
+        rel = _validate_repo_path(path)
+        repo_path = self._cache_repo_path()
+        if not repo_path.exists():
+            return None
+        token = self.client.installation_token()
+        raw = self._read_optional_show(repo_path, token, f"{head_sha}:{rel}")
+        if raw is None:
+            return None
+        lines = raw.decode("utf-8", errors="replace").splitlines()
+        if not lines:
+            return None
+        start = max(1, center - radius)
+        end = min(len(lines), center + radius)
+        picked: list[str] = []
+        budget = 4096
+        for line in lines[start - 1:end]:
+            budget -= len(line) + 1
+            if budget < 0:
+                break
+            picked.append(line[:200])
+        return start, tuple(picked)
+
     def _load_base_zones(self, repo_path: Path, token: str, base_sha: str) -> tuple[str, ...]:
         for candidate in CODEOWNERS_PATHS:
             raw = self._read_optional_show(repo_path, token, f"{base_sha}:{candidate}")

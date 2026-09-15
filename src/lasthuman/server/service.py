@@ -107,7 +107,9 @@ class MemoryJob:
     expires_at: float
     state: str = "queued"
     message: str = ""
-    feedback: list[dict[str, str]] = field(default_factory=list)
+    feedback: list[dict[str, object]] = field(default_factory=list)
+    #: 보류 회차에서 이미 통과한 문항. 화면이 Accepted 로 잠근다.
+    accepted: list[str] = field(default_factory=list)
     receipt_id: str | None = None
     question_version: str | None = None
     verified_at: str | None = None
@@ -779,7 +781,7 @@ class BotService:
             job.state = "running"
         hunk_by_anchor = {hunk.anchor: hunk for hunk in record.snapshot.diff.hunks}
         by_id = {item.id: item for item in record.questions}
-        feedback: list[dict[str, str]] = []
+        feedback: list[dict[str, object]] = []
         successful: list[ReceiptAnswer] = []
         for payload in answers:
             with self._lock:
@@ -808,12 +810,15 @@ class BotService:
             if graded.verdict not in {"pass", "hold"}:
                 raise BotError("grader returned an invalid verdict", code="grade_error", status_code=502)
             if graded.verdict == "hold":
-                feedback.append(
-                    {
-                        "id": question.id,
-                        "hint": self._safe_hint(question.question.anchor, graded.hint),
-                    }
-                )
+                item: dict[str, object] = {
+                    "id": question.id,
+                    "hint": self._safe_hint(question.question.anchor, graded.hint),
+                }
+                # 보류일 때만 근거 파일을 열어 준다. 정답이 아니라 어디를 볼지다.
+                evidence = self._evidence_for(record, question.question)
+                if evidence is not None:
+                    item["evidence"] = evidence
+                feedback.append(item)
                 continue
             successful.append(
                 ReceiptAnswer(
@@ -834,6 +839,7 @@ class BotService:
             if feedback:
                 job.state = "needs_followup"
                 job.feedback = feedback
+                job.accepted = [answer.question_id for answer in successful]
                 return
             receipt = self.store.save_receipt(
                 record,
@@ -1516,6 +1522,7 @@ class BotService:
         payload: dict[str, object] = {"state": job.state}
         if job.feedback:
             payload["feedback"] = list(job.feedback)
+            payload["accepted"] = list(job.accepted)
         if job.message:
             payload["message"] = job.message
         if job.receipt_id is not None:
@@ -1932,6 +1939,34 @@ class BotService:
     def _sha256_json(self, payload: object) -> str:
         blob = json.dumps(payload, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
         return hashlib.sha256(blob.encode("utf-8")).hexdigest()
+
+    def _evidence_for(self, record: StoredSnapshot, question: Question) -> dict[str, object] | None:
+        """보류된 문항의 근거 파일 발췌. 읽기에 실패하면 None — 보류를 막지 않는다."""
+        path = question.evidence_path
+        if not path:
+            return None
+        snapshot = record.snapshot
+        center = 1
+        for callee in snapshot.structure.callees:
+            if callee.defined_in == path:
+                center = callee.line
+                break
+        else:
+            for hunk in snapshot.risk.top_hunks:
+                if hunk.file == path:
+                    center = hunk.new_start
+                    break
+        reader = getattr(self.reader, "read_lines", None)
+        if not callable(reader):
+            return None
+        try:
+            excerpt = reader(snapshot.head_sha, path, center=center)
+        except Exception:  # pylint: disable=broad-exception-caught
+            return None
+        if excerpt is None:
+            return None
+        start, lines = excerpt
+        return {"path": path, "start": start, "lines": list(lines)}
 
     def _safe_hint(self, anchor: str, hint: object) -> str:
         text = " ".join(str(hint or "").split())
