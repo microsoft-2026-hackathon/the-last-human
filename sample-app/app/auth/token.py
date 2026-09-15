@@ -1,4 +1,4 @@
-"""액세스 토큰 갱신."""
+"""Access token refresh."""
 
 from __future__ import annotations
 
@@ -8,7 +8,7 @@ from dataclasses import dataclass
 
 from ..http_client import Transport, post_json
 
-#: 만료 판정 시 앞당겨 잡는 여유. 시계 오차와 왕복 시간을 흡수한다.
+#: Margin applied when deciding expiry. Absorbs clock skew and round-trip time.
 CLOCK_SKEW_SEC = 60.0
 
 TOKEN_ENDPOINT = os.environ.get("ORDERLY_TOKEN_ENDPOINT", "https://auth.internal/oauth/token")
@@ -27,9 +27,10 @@ def is_expired(token: TokenSet, now: float | None = None) -> bool:
 
 
 async def refresh(transport: Transport, token: TokenSet) -> TokenSet:
-    """리프레시 토큰으로 새 토큰 세트를 받아온다.
+    """Exchange the refresh token for a new token set.
 
-    실패는 그대로 던진다. 재시도 정책은 호출자가 정한다.
+    Failures are raised as-is. The transport layer already retries transient
+    failures; do not add another retry on top without checking it.
     """
     body = await post_json(
         transport,
@@ -44,7 +45,7 @@ async def refresh(transport: Transport, token: TokenSet) -> TokenSet:
 
 
 async def ensure_fresh(transport: Transport, token: TokenSet) -> TokenSet:
-    """만료가 임박했으면 갱신하고, 아니면 그대로 돌려준다."""
+    """Refresh a near-expiry token, otherwise return it unchanged."""
     if not is_expired(token):
         return token
     return await refresh(transport, token)
