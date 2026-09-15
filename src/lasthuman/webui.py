@@ -47,6 +47,10 @@ def render_page(
         rows.append(
             {
                 "type": q.type,
+                "axis": q.axis,
+                # 정답 위치는 페이지에 실어 보내지 않는다. 공개 저장소의 정적
+                # 페이지라 소스 보기로 그대로 읽힌다. 채점은 Action에서만 한다.
+                "choices": list(q.choices),
                 "anchor": q.anchor,
                 "file": parsed[0] if parsed else q.anchor,
                 "line": parsed[1] if parsed else 1,

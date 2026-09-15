@@ -10,7 +10,9 @@ from dataclasses import dataclass, field
 from typing import Literal
 
 FileStatus = Literal["added", "modified", "deleted", "renamed"]
-QuestionType = Literal["claim", "consequence", "rationale"]
+QuestionType = Literal["claim", "consequence", "rationale", "structure"]
+#: 질문이 무엇을 겨냥하는가. code는 hunk 안, structure는 변경의 전파 범위.
+Axis = Literal["code", "structure"]
 Verdict = Literal["pass", "hold"]
 Band = Literal["human-led", "co-authored", "agent-led"]
 
@@ -90,17 +92,37 @@ class Question:
     type: QuestionType
     anchor: str
     text: str
-    #: 이 답변에 반드시 포함되어야 하는 사실.
+    #: 근거 한 줄에 반드시 담겨야 하는 사실.
     expected_evidence: str
+    #: 객관식 보기. 비어 있으면 서술형이다.
+    #: 보기는 반드시 저장소에 실재하는 사실로 채운다 — 지어낸 이름이 섞이면
+    #: 코드를 몰라도 소거법으로 답이 나온다.
+    choices: tuple[str, ...] = ()
+    #: choices에서 정답의 위치. 서술형이면 -1.
+    answer_index: int = -1
+
+    @property
+    def axis(self) -> Axis:
+        return "structure" if self.type == "structure" else "code"
+
+    @property
+    def is_choice(self) -> bool:
+        return bool(self.choices) and 0 <= self.answer_index < len(self.choices)
 
 
 @dataclass
 class Answer:
     anchor: str
+    #: 근거 한 줄. 객관식이어도 이건 받는다 — 보기만 고르게 하면
+    #: "사람에게 설명을 요구한다"가 "고르게 한다"로 바뀐다.
     text: str
+    #: 고른 보기의 위치. 서술형이면 None.
+    choice: int | None = None
     verdict: Verdict | None = None
     #: 보류일 때 어디를 보면 되는지 한 문장.
     hint: str = ""
+    #: 보기는 맞았는지. 근거 한 줄과 따로 본다.
+    choice_correct: bool | None = None
 
 
 @dataclass
