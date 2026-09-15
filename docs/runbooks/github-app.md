@@ -8,6 +8,11 @@ Mac에서 새 App 개인키·Azure OpenAI·Microsoft Dev Tunnels를 준비하고
 - 아직 운영자 작업은 App 등록, 키 보관, 저장소 설치, 모델 자격 증명, 공개 HTTPS, 브랜치 보호, 실PR 확인이다.
 - 이 경로는 Flask + SQLite 단일 프로세스 기준이다. `.work/lasthuman.sqlite3` 는 개인 개발용 저장소이며, 배포용 영구 저장소를 대신하지 않는다.
 
+문서에 적은 owner/repo/origin 값은 현재 데모 기준 예시다. 실제 운영에서는 `TLH_REPOSITORY`,
+`TLH_REPOSITORY_ID`, `TLH_OWNER_ID`, `TLH_BASE_URL`, `TLH_CHECK_NAME`,
+`TLH_PRESENTATION_NAME`, `TLH_PRESENTATION_LOCALE`, 각 presentation limit 값을 대상에 맞게 바꾸며,
+이를 위해 renderer/service 소스를 고치지 않는다.
+
 | 항목 | 현재 결정 |
 | --- | --- |
 | App owner | `hunhoon21` |
@@ -41,8 +46,9 @@ Mac에서 새 App 개인키·Azure OpenAI·Microsoft Dev Tunnels를 준비하고
 | Pull requests | Read and write |
 | Commit statuses | Read and write |
 | Actions | Read and write |
+| Checks | 기본은 끔. 보조 App Check를 쓸 때만 Read and write |
 
-`Contents`는 코드 읽기, `Pull requests`는 PR 조회·일반 댓글, `Commit statuses`는 게이트 결과, `Actions`는 성공 기록의 독립 재검사를 요청하는 `workflow_dispatch`에 사용한다. 코드를 자동으로 push하는 권한은 요청하지 않는다.
+`Contents`는 코드 읽기, `Pull requests`는 PR 조회·일반 댓글, `Commit statuses`는 권위 있는 최종 게이트 결과, `Actions`는 성공 기록의 독립 재검사를 요청하는 `workflow_dispatch`에 사용한다. `Checks`는 기본값 `TLH_CHECK_RUNS=false`일 때 요청하지 않고, owner가 App 권한 변경과 설치 업데이트를 모두 승인한 뒤에만 켠다. Checks 전용 installation token은 `checks:write`만 별도로 요청하고 캐시한다. 기본 토큰은 기존 권한을 유지하므로 Checks 권한 오류가 댓글·최종 상태·검증 요청을 함께 막지 않는다. Actions의 `GITHUB_TOKEN` 권한을 넓히거나 코드를 자동으로 push하는 권한은 요청하지 않는다.
 
 ## 로컬 비밀 파일과 환경 변수
 
@@ -79,9 +85,17 @@ set +a
 | `TLH_DATABASE` | 기본값 `.work/lasthuman.sqlite3` |
 | `TLH_MODE` | `development` 또는 `live` |
 | `TLH_STATUS_CONTEXT` | 개발은 `comprehension-gate-dev`, 실사용은 `comprehension-gate` |
+| `TLH_CHECK_RUNS` | 기본값 `false`. owner가 `Checks: Read and write` 승인과 설치 업데이트를 끝낸 뒤에만 `true` |
+| `TLH_CHECK_NAME` | 보조 Check 표시 이름. 기본값 `The Last Human` |
 | `TLH_WORKFLOW` | `lasthuman-app.yml` |
 | `TLH_WORKFLOW_REF` | `refs/heads/main` |
 | `TLH_OIDC_AUDIENCE` | 서버와 Actions가 똑같이 쓰는 audience 문자열 |
+| `TLH_PRESENTATION_NAME` | 공개 카드/보조 Check의 표시 이름. 기본값 `The Last Human` |
+| `TLH_PRESENTATION_LOCALE` | 기본값 `ko`, 선택값 `en` |
+| `TLH_PRESENTATION_MAX_CHARS` | 공개 카드 전체 예산. 기본값 `6000` |
+| `TLH_PRESENTATION_REASON_LIMIT` | 대표 reason group 수. 기본값 `3` |
+| `TLH_PRESENTATION_DETAIL_LIMIT` | detail row 수. 기본값 `10` |
+| `TLH_PRESENTATION_PATHS_PER_GROUP` | reason group당 path 예시 수. 기본값 `2` |
 | `LASTHUMAN_PROVIDER` | 모델 공급자 선택 |
 | `LASTHUMAN_AUTH_MODE` | 생략/빈 값/`default`는 기존 자격 증명 경로, `azure-cli`는 명시적 Entra CLI 경로 |
 | `LASTHUMAN_MODEL` | 배포명 또는 모델명 |
@@ -103,6 +117,9 @@ set +a
 - 실사용 모드는 `TLH_WORKFLOW_REF=refs/heads/main` 을 강제한다.
 - 실사용 모드에서 상태 이름이 `-dev` 로 끝나면 거부된다.
 - Actions 쪽에는 App private key, client secret, 모델 자격 증명을 넘기지 않는다.
+- `TLH_CHECK_NAME` 은 보조 Check 표시 이름이고, branch protection에 걸어 두는 권위 있는 값은 계속 `TLH_STATUS_CONTEXT=comprehension-gate` 다.
+- `TLH_PRESENTATION_LOCALE=en` 은 카탈로그 분리용 seam 이다. scorer가 주는 근거 문자열은 원문 언어로 남을 수 있으므로, 완전한 자동 번역을 약속하지 않는다.
+- 개발/`localhost` 경로는 production Check를 발행하지 않는다.
 - 이 문서는 Azure 자원을 자동으로 만들지 않는다. 기존 모델 자격 증명만 연결한다.
 
 ## Azure CLI / Entra 모델 인증
@@ -274,17 +291,19 @@ snapshot 은 아래 형태를 지원하지 않는다.
 
 질문 생성 방식이 바뀌어도 Actions의 책임은 바뀌지 않는다. 아래 relay는 계속 trusted main에서 위험도와 인증 결속을 독립 검증하며, 모델 호출은 App 서버에서 수행한다. 새로운 CI 작업, Azure 자격 증명 전달, 자동 머지 조건은 추가하지 않는다.
 
-`LASTHUMAN_RUNTIME=app` 을 켜면 새 relay workflow 가 동작하고, 기존 `comprehension-gate.yml` 과 `dashboard.yml` 은 `vars.LASTHUMAN_RUNTIME != 'app'` 조건 때문에 멈춘다.
+`LASTHUMAN_RUNTIME=app` 을 켜면 `lasthuman-app.yml` relay workflow 가 동작하고 `dashboard.yml` 은 `vars.LASTHUMAN_RUNTIME != 'app'` 조건 때문에 멈춘다. 예전 `.github/workflows/comprehension-gate.yml` 파일은 제거되지만, 권위 있는 최종 신호는 그대로 commit status context `comprehension-gate` 다. 파일을 지워도 과거 Actions 실행 기록과 이미 남은 PR 댓글은 삭제되지 않는다.
 
 `lasthuman-app.yml` 의 실제 성격은 아래와 같다.
 
 - 이벤트는 `pull_request_target` 의 `opened`, `synchronize`, `reopened`, `edited`, `labeled`, `unlabeled`, `closed` 와 `workflow_dispatch` 하나다.
 - workflow token 권한은 `contents: read`, `pull-requests: read`, `id-token: write` 만 쓴다.
+- run title은 준비 단계에서 `Prepare PR #...`, receipt 재검사에서는 `Verify receipt ...` 로 보인다.
 - workflow 는 PR head가 아니라 저장소 기본 브랜치를 checkout 한다.
 - relay 코드는 `python -m lasthuman.server.relay` 로 trusted source 에서만 돈다.
 - PR 이벤트에서는 metadata-only binding 을 서버에 넘긴다.
 - receipt 검증 이벤트에서는 서버에서 receipt binding 을 받고, Actions 쪽에서도 snapshot 을 다시 읽어 같은 binding 인지 확인한 뒤 검증 요청을 보낸다.
 - 서버는 OIDC 에서 issuer, audience, repository, repository_id, owner_id, workflow 파일, ref, event name 을 모두 확인한다.
+- 보조 App Check는 선택 사항이다. `TLH_CHECK_RUNS=true`여도 현재 SHA/base/policy/snapshot 설명 보강용이며, 필수 merge gate나 branch protection 이름을 대신하지 않는다.
 
 중요한 점 두 가지가 있다.
 
@@ -298,6 +317,7 @@ snapshot 은 아래 형태를 지원하지 않는다.
 | `TLH_MODE` | `development` | `live` |
 | `TLH_BASE_URL` | loopback origin | 공개 `https` origin |
 | commit status 게시 | 하지 않음 | pending/success 게시 |
+| 보조 App Check | 발행하지 않음 | 기본값은 꺼짐. 승인 후에만 발행 |
 | 시작 comment | 필요하면 로컬 전용 안내만 남김 | `/prs/<pr>` 링크 포함 |
 | success status target | 없음 | `/receipts/<id>` 링크 |
 | 상태 이름 기본값 | `comprehension-gate-dev` | `comprehension-gate` |
@@ -316,17 +336,30 @@ gunicorn --bind 0.0.0.0:8000 --workers 1 --threads 4 'lasthuman.server.app:creat
 
 4. 실사용 환경에서 `TLH_MODE=live`, 공개 `TLH_BASE_URL`, `TLH_WORKFLOW_REF=refs/heads/main`, `TLH_STATUS_CONTEXT=comprehension-gate`, 올바른 `TLH_OIDC_AUDIENCE` 를 맞춘다.
 5. 저장소 변수 `LASTHUMAN_RUNTIME=app` 과 `TLH_BOT_URL` 을 넣는다. audience 를 기본 저장소명과 다르게 쓸 때만 `TLH_OIDC_AUDIENCE` 도 같이 맞춘다.
+   - `TLH_CHECK_RUNS` 는 기본값 `false`다. 보조 Check가 필요하면 먼저 GitHub App 설정에서 `Checks: Read and write` 를 추가하고 owner/installation 승인을 마친다.
+   - 승인 뒤에는 trusted 서버의 `runtime.env` 에 `TLH_CHECK_RUNS=true` 와 필요하면 `TLH_CHECK_NAME`, `TLH_PRESENTATION_NAME`, `TLH_PRESENTATION_LOCALE`, 각 presentation limit 값을 넣는다.
+   - `TLH_CHECK_NAME` 기본값 `The Last Human` 은 보조 Check 표시 이름일 뿐이며, 필수 상태 이름 `TLH_STATUS_CONTEXT` 와 다르게 유지한다.
 6. 기존 CI, 리뷰, strict up-to-date 보호는 그대로 둔다. 준비되지 않은 백엔드 때문에 기존 보호를 먼저 내리지 않는다.
 7. 변수 변경 뒤에는 새 PR 이벤트를 만들거나 기존 이벤트를 다시 실행한다. 이미 열려 있던 PR이 자동으로 다시 흘렀다고 가정하지 않는다.
-8. App이 상태를 한 번 발행한 뒤 저장소 `Settings → Rules → Rulesets` 또는 `Branches`에서 대상 브랜치의 필수 상태를 `comprehension-gate`로 지정하고, 기대 발급자로 설치한 App을 선택한다. `TLH App relay` 작업 이름만 필수로 선택하면 안 된다. 기존 CI·리뷰와 최신 base 반영 조건을 유지한다.
+8. App이 상태를 한 번 발행한 뒤 저장소 `Settings → Rules → Rulesets` 또는 `Branches`에서 대상 브랜치의 필수 상태를 `comprehension-gate`로 지정하고, 기대 발급자로 설치한 App을 선택한다. `TLH App relay` 작업 이름이나 보조 Check 표시 이름 `The Last Human` 만 필수로 선택하면 안 된다. 기존 CI·리뷰와 최신 base 반영 조건을 유지한다.
 9. 허가된 PR에서 시작 댓글의 App attribution, 작성자 로그인, 비공개 보완, 성공 기록의 SHA, 검증 workflow, 최종 상태, 실제 머지, 대시보드 증분을 차례로 확인한다. 댓글은 기록 표시용이고 게이트의 권위는 서버 성공 기록과 독립 재검사다.
+
+## 업데이트 / 재시작 / 재동기화
+
+- trusted `main`의 코드, `runtime.env`, App 권한을 바꿨으면 서버를 그 trusted revision으로 다시 시작한다.
+- 문구 카탈로그·렌더링 코드·locale·표시 예산·서버 origin은 별도의 presentation revision으로 추적한다. 재시작 후 현재 PR을 재동기화하면 기존 댓글과 같은 평가의 Check를 갱신하며, origin 변경 시 최종 status 링크도 갱신한다. 표시 변경 자체로 질문을 다시 생성하거나 기존 receipt의 policy binding을 바꾸지는 않는다.
+- `TLH_PRESENTATION_NAME`은 카드와 Check 상세의 표시 이름이다. `TLH_CHECK_NAME`은 GitHub Check 조회에 쓰이는 식별 이름이므로 진행 중인 평가에서는 유지한다. 저장소·설치 자체를 바꾸는 경우에는 해당 ID와 별도의 `TLH_DATABASE`도 함께 설정해 다른 저장소의 운영 상태를 재사용하지 않는다.
+- 공개 카드/보조 Check의 이름·locale·표시 예산을 바꿔도 질문 규칙·receipt 형식·commit status context는 바꾸지 않는다.
+- 이미 열려 있는 PR은 설정 변경만으로 다시 렌더링되지 않는다. 서버가 떠 있으면 웹의 재동기화 경로를 쓰고, 서버를 내린 상태에서 수동 복구가 필요하면 승인된 절차로 `sync --pr` 와 `flush` 를 실행한다.
+- 권한/API 오류는 명시적으로 드러나야 하며, 보조 Check 발행이 실패했다고 commit status 성공으로 조용히 대체하지 않는다.
+- workflow 파일을 지우거나 이름을 다듬어도 예전 Actions 실행 기록은 그대로 남는다.
 
 실사용 연결을 같은 저장소에서 먼저 연습해야 하면, 보호에 아직 걸지 않은 별도 상태 이름을 써도 된다. 다만 실사용 모드는 `-dev` 로 끝나는 이름을 거부하므로 `tlh-app-staging` 같은 별도 이름만 쓴다.
 
 ## 롤백
 
 1. 전환 중에는 새 PR 동작을 멈추고 App 서버의 상태 발행을 중지한다. 진행 중인 새 relay/검증 실행도 개별 실행에서 취소한다.
-2. 저장소 변수 `LASTHUMAN_RUNTIME`을 `app`이 아닌 값으로 돌린다. 이때부터 기존 경로가 다시 실행될 수 있으므로 App writer가 이미 중지됐는지 확인한다.
+2. 저장소 변수 `LASTHUMAN_RUNTIME`을 `app`이 아닌 값으로 돌린다. 이때 dashboard workflow 는 다시 실행될 수 있지만, 제거된 `.github/workflows/comprehension-gate.yml` 이 자동으로 되살아나지는 않는다. App writer가 이미 중지됐는지 확인한다.
 3. 승인된 이전 버전과 해당 필수 상태의 기대 발급자를 함께 복구한다. 신뢰할 수 있는 기존 writer가 준비되기 전에는 상태를 대기/오류로 유지하고 보호 규칙을 풀지 않는다.
 4. open PR을 자동 머지하거나 force-push 로 덮지 않는다. pending 을 억지로 green 으로 바꾸지 않는다.
 

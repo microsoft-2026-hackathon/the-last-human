@@ -82,6 +82,7 @@ class PublicationRequest:
     snapshot_id: str | None = None
     receipt_id: str | None = None
     due_at: str | None = None
+    requeue_failed_sent: bool = False
 
 
 @dataclass(frozen=True)
@@ -110,6 +111,26 @@ class StoredMerge:
     merge_commit_sha: str | None
     head_sha: str | None
     measured: bool
+    updated_at: str
+
+
+@dataclass(frozen=True)
+class StoredPreparationError:
+    snapshot_id: str
+    code: str
+    message: str
+    updated_at: str
+
+
+@dataclass(frozen=True)
+class StoredPresentationCheckRun:
+    pr: int
+    snapshot_id: str
+    head_sha: str
+    external_id: str
+    check_run_id: int
+    status: str
+    conclusion: str | None
     updated_at: str
 
 
@@ -243,6 +264,62 @@ class Store:
                 (snapshot_id,),
             ).fetchone()
         return None if row is None else _stored_snapshot_from_row(row)
+
+    def mark_snapshot_preparation_error(
+        self,
+        snapshot_id: str,
+        *,
+        code: str,
+        message: str,
+        now: str,
+    ) -> None:
+        with self._write_connection() as connection:
+            connection.execute(
+                """
+                INSERT INTO snapshot_operations (
+                    snapshot_id,
+                    preparation_error_code,
+                    preparation_error,
+                    updated_at
+                ) VALUES (?, ?, ?, ?)
+                ON CONFLICT(snapshot_id) DO UPDATE SET
+                    preparation_error_code = excluded.preparation_error_code,
+                    preparation_error = excluded.preparation_error,
+                    updated_at = excluded.updated_at
+                """,
+                (snapshot_id, code[:80], message[:300], now),
+            )
+
+    def clear_snapshot_preparation_error(self, snapshot_id: str, *, now: str) -> None:
+        with self._write_connection() as connection:
+            connection.execute(
+                """
+                INSERT INTO snapshot_operations (
+                    snapshot_id,
+                    preparation_error_code,
+                    preparation_error,
+                    updated_at
+                ) VALUES (?, NULL, NULL, ?)
+                ON CONFLICT(snapshot_id) DO UPDATE SET
+                    preparation_error_code = NULL,
+                    preparation_error = NULL,
+                    updated_at = excluded.updated_at
+                """,
+                (snapshot_id, now),
+            )
+
+    def load_snapshot_preparation_error(self, snapshot_id: str) -> StoredPreparationError | None:
+        with self._read_connection() as connection:
+            row = connection.execute(
+                """
+                SELECT snapshot_id, preparation_error_code, preparation_error, updated_at
+                FROM snapshot_operations
+                WHERE snapshot_id = ?
+                  AND preparation_error_code IS NOT NULL
+                """,
+                (snapshot_id,),
+            ).fetchone()
+        return None if row is None else _preparation_error_from_row(row)
 
     def find_snapshot(
         self,
@@ -586,6 +663,113 @@ class Store:
                 ),
             )
 
+    def save_presentation_check_run(
+        self,
+        *,
+        pr: int,
+        snapshot_id: str,
+        head_sha: str,
+        external_id: str,
+        check_run_id: int,
+        status: str,
+        conclusion: str | None,
+        now: str,
+    ) -> None:
+        with self._write_connection() as connection:
+            connection.execute(
+                """
+                INSERT INTO presentation_check_runs (
+                    pr,
+                    snapshot_id,
+                    head_sha,
+                    external_id,
+                    check_run_id,
+                    status,
+                    conclusion,
+                    updated_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                ON CONFLICT(pr) DO UPDATE SET
+                    snapshot_id = excluded.snapshot_id,
+                    head_sha = excluded.head_sha,
+                    external_id = excluded.external_id,
+                    check_run_id = excluded.check_run_id,
+                    status = excluded.status,
+                    conclusion = excluded.conclusion,
+                    updated_at = excluded.updated_at
+                """,
+                (
+                    pr,
+                    snapshot_id,
+                    head_sha,
+                    external_id,
+                    check_run_id,
+                    status,
+                    conclusion,
+                    now,
+                ),
+            )
+
+    def load_presentation_check_run(self, pr: int) -> StoredPresentationCheckRun | None:
+        with self._read_connection() as connection:
+            row = connection.execute(
+                "SELECT * FROM presentation_check_runs WHERE pr = ?",
+                (pr,),
+            ).fetchone()
+        return None if row is None else _presentation_check_run_from_row(row)
+
+    def load_presentation_publications(
+        self,
+        *,
+        pr: int,
+        snapshot_id: str | None = None,
+        receipt_id: str | None = None,
+    ) -> tuple[OutboxEvent, ...]:
+        query = """
+            SELECT *
+            FROM outbox
+            WHERE pr = ?
+              AND kind IN (
+                'presentation_card',
+                'presentation_check',
+                'presentation_check_cancel',
+                'start_comment',
+                'success_comment'
+              )
+        """
+        params: list[object] = [pr]
+        if snapshot_id is not None:
+            query += " AND snapshot_id = ?"
+            params.append(snapshot_id)
+        if receipt_id is not None:
+            query += " AND (receipt_id = ? OR receipt_id IS NULL)"
+            params.append(receipt_id)
+        query += " ORDER BY created_at ASC, event_id ASC"
+        with self._read_connection() as connection:
+            rows = connection.execute(query, params).fetchall()
+        return tuple(_outbox_event_from_row(row) for row in rows)
+
+    def load_unresolved_presentation_check_publications(
+        self,
+        *,
+        pr: int,
+        excluding_snapshot_id: str,
+    ) -> tuple[OutboxEvent, ...]:
+        with self._read_connection() as connection:
+            rows = connection.execute(
+                """
+                SELECT *
+                FROM outbox
+                WHERE pr = ?
+                  AND kind = 'presentation_check'
+                  AND snapshot_id IS NOT NULL
+                  AND snapshot_id != ?
+                ORDER BY created_at ASC, event_id ASC
+                """,
+                (pr, excluding_snapshot_id),
+            ).fetchall()
+        events = tuple(_outbox_event_from_row(row) for row in rows)
+        return tuple(event for event in events if _presentation_check_needs_reconciliation(event))
+
     def requeue_unverified_dispatches(
         self,
         *,
@@ -791,6 +975,26 @@ class Store:
                 CREATE INDEX IF NOT EXISTS idx_outbox_due
                     ON outbox(status, due_at, created_at);
 
+                CREATE TABLE IF NOT EXISTS snapshot_operations (
+                    snapshot_id TEXT PRIMARY KEY,
+                    preparation_error_code TEXT,
+                    preparation_error TEXT,
+                    updated_at TEXT NOT NULL,
+                    FOREIGN KEY(snapshot_id) REFERENCES snapshots(snapshot_id)
+                );
+
+                CREATE TABLE IF NOT EXISTS presentation_check_runs (
+                    pr INTEGER PRIMARY KEY,
+                    snapshot_id TEXT NOT NULL,
+                    head_sha TEXT NOT NULL,
+                    external_id TEXT NOT NULL,
+                    check_run_id INTEGER NOT NULL,
+                    status TEXT NOT NULL,
+                    conclusion TEXT,
+                    updated_at TEXT NOT NULL,
+                    FOREIGN KEY(snapshot_id) REFERENCES snapshots(snapshot_id)
+                );
+
                 CREATE TABLE IF NOT EXISTS merges (
                     pr INTEGER PRIMARY KEY,
                     snapshot_id TEXT,
@@ -841,7 +1045,7 @@ class Store:
         now: str,
     ) -> None:
         existing = connection.execute(
-            "SELECT status FROM outbox WHERE event_id = ?",
+            "SELECT status, last_error_code FROM outbox WHERE event_id = ?",
             (publication.event_id,),
         ).fetchone()
         due_at = publication.due_at or now
@@ -878,7 +1082,9 @@ class Store:
                 ),
             )
             return
-        if existing["status"] == "sent":
+        if existing["status"] == "sent" and not (
+            publication.requeue_failed_sent and existing["last_error_code"] is not None
+        ):
             return
         connection.execute(
             """
@@ -889,10 +1095,16 @@ class Store:
                 snapshot_id = ?,
                 receipt_id = ?,
                 payload_json = ?,
+                status = 'pending',
+                attempts = CASE
+                    WHEN status = 'sent' AND last_error_code IS NOT NULL THEN 0
+                    ELSE attempts
+                END,
                 due_at = ?,
                 updated_at = ?,
                 last_error_code = NULL,
-                last_error = NULL
+                last_error = NULL,
+                remote_json = NULL
             WHERE event_id = ?
             """,
             (
@@ -1042,6 +1254,19 @@ def _outbox_event_from_row(row: sqlite3.Row) -> OutboxEvent:
     )
 
 
+def _presentation_check_needs_reconciliation(event: OutboxEvent) -> bool:
+    if event.status == "pending":
+        return True
+    if event.remote is None:
+        return True
+    if event.remote.get("skipped") is True:
+        return False
+    return not (
+        event.remote.get("status") == "completed"
+        and event.remote.get("conclusion") is not None
+    )
+
+
 def _merge_from_row(row: sqlite3.Row) -> StoredMerge:
     return StoredMerge(
         pr=row["pr"],
@@ -1050,6 +1275,28 @@ def _merge_from_row(row: sqlite3.Row) -> StoredMerge:
         merge_commit_sha=row["merge_commit_sha"],
         head_sha=row["head_sha"],
         measured=bool(row["measured"]),
+        updated_at=row["updated_at"],
+    )
+
+
+def _preparation_error_from_row(row: sqlite3.Row) -> StoredPreparationError:
+    return StoredPreparationError(
+        snapshot_id=row["snapshot_id"],
+        code=row["preparation_error_code"],
+        message=row["preparation_error"] or "",
+        updated_at=row["updated_at"],
+    )
+
+
+def _presentation_check_run_from_row(row: sqlite3.Row) -> StoredPresentationCheckRun:
+    return StoredPresentationCheckRun(
+        pr=row["pr"],
+        snapshot_id=row["snapshot_id"],
+        head_sha=row["head_sha"],
+        external_id=row["external_id"],
+        check_run_id=row["check_run_id"],
+        status=row["status"],
+        conclusion=row["conclusion"],
         updated_at=row["updated_at"],
     )
 
