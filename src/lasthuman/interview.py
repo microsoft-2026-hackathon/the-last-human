@@ -168,11 +168,16 @@ def call_model(prompt: str, *, token: str | None = None, timeout: float = 60.0) 
         raise ModelError(f"모델 응답 {err.code}: {err.read()[:300]!r}") from err
     except OSError as err:
         raise ModelError(f"모델 호출 실패: {err}") from err
+    except (UnicodeError, json.JSONDecodeError):
+        raise ModelError("모델 응답을 읽지 못했습니다.") from None
 
     try:
-        return data["choices"][0]["message"]["content"]
-    except (KeyError, IndexError) as err:
-        raise ModelError(f"예상과 다른 응답 모양: {str(data)[:300]}") from err
+        content = data["choices"][0]["message"]["content"]
+    except (KeyError, IndexError, TypeError):
+        raise ModelError("예상과 다른 모델 응답 형식입니다.") from None
+    if not isinstance(content, str) or not content.strip():
+        raise ModelError("모델이 비어 있거나 올바르지 않은 내용을 반환했습니다.")
+    return content
 
 
 def shuffle_choices(
@@ -199,6 +204,10 @@ def _extract_json(text: str) -> object:
     if fence:
         text = fence.group(1).strip()
     return json.loads(text)
+
+
+def _format_hunks(hunks: Sequence[Hunk]) -> str:
+    return "\n\n".join(f"{h.anchor}\n{h.body}" for h in hunks)
 
 
 def generate_questions(
@@ -229,17 +238,33 @@ def generate_questions(
     except json.JSONDecodeError:
         # 실패 시 1회 재시도 후 포기.
         raw = call_model(prompt + "\n\nJSON 배열만 출력하십시오.", token=token)
-        parsed = _extract_json(raw)
+        try:
+            parsed = _extract_json(raw)
+        except json.JSONDecodeError:
+            raise ModelError("질문 응답을 읽지 못했습니다.") from None
+
+    if not isinstance(parsed, list):
+        raise ModelError("질문 응답은 배열이어야 합니다.")
 
     valid_anchors = {h.anchor for h in risk.top_hunks}
     out: list[Question] = []
-    for item in parsed if isinstance(parsed, list) else []:
+    for item in parsed:
+        if not isinstance(item, dict):
+            raise ModelError("질문 항목의 형식이 올바르지 않습니다.")
         anchor = str(item.get("anchor", ""))
         if anchor not in valid_anchors:
             # 모델이 앵커를 지어내면 버린다. 대조가 불가능해지기 때문이다.
             continue
-        choices = tuple(str(c).strip() for c in item.get("choices", ()) if str(c).strip())
-        idx = int(item.get("answerIndex", -1) or -1)
+        raw_choices = item.get("choices") or []
+        if not isinstance(raw_choices, list) or any(not isinstance(c, str) for c in raw_choices):
+            raise ModelError("질문 보기의 형식이 올바르지 않습니다.")
+        choices = tuple(c.strip() for c in raw_choices if c.strip())
+        raw_index = item.get("answerIndex", -1)
+        if raw_index is None:
+            raw_index = -1
+        if isinstance(raw_index, bool) or not isinstance(raw_index, int):
+            raise ModelError("질문 정답 위치의 형식이 올바르지 않습니다.")
+        idx = raw_index
         if len(choices) < 2 or not (0 <= idx < len(choices)):
             # 보기가 성립하지 않으면 서술형으로 떨어뜨린다. 버리는 것보다 낫다.
             choices, idx = (), -1
@@ -304,7 +329,9 @@ def grade(
     except json.JSONDecodeError as err:
         raise ModelError("판정 응답을 읽지 못했습니다.") from err
 
-    verdict = "pass" if str(parsed.get("verdict")) == "pass" else "hold"
+    if not isinstance(parsed, dict) or parsed.get("verdict") not in ("pass", "hold"):
+        raise ModelError("판정 응답에 올바른 결과가 없습니다.")
+    verdict = parsed["verdict"]
     return Answer(
         anchor=question.anchor,
         text=answer_text,

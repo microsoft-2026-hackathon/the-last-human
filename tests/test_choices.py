@@ -7,8 +7,12 @@
 
 from __future__ import annotations
 
-from lasthuman.interview import grade, shuffle_choices
-from lasthuman.models import Hunk, Question
+import json
+
+import pytest
+
+from lasthuman.interview import ModelError, generate_questions, grade, shuffle_choices
+from lasthuman.models import Hunk, Question, RiskResult
 
 CHOICE_Q = Question(
     type="structure",
@@ -73,3 +77,33 @@ def test_셔플은_시드가_다르면_정답_위치를_옮긴다():
     seeds = [f"app/x.py:L{i}" for i in range(12)]
     positions = {shuffle_choices(["가", "나", "다", "라"], 0, seed=s)[1] for s in seeds}
     assert len(positions) > 1, "정답이 늘 같은 자리면 화면만 보고 찍힌다"
+
+
+def test_generated_first_choice_remains_the_answer(monkeypatch):
+    def response(prompt, *, token=None):
+        assert HUNK.anchor in prompt
+        assert HUNK.body in prompt
+        return json.dumps([{
+            "type": "structure", "anchor": HUNK.anchor,
+            "text": CHOICE_Q.text, "choices": list(CHOICE_Q.choices),
+            "answerIndex": 0, "expectedEvidence": CHOICE_Q.expected_evidence,
+        }])
+
+    monkeypatch.setattr("lasthuman.interview.call_model", response)
+    questions = generate_questions(RiskResult(50, True, ("critical path",), (HUNK,)), "PR", "", n=1)
+    assert questions[0].is_choice
+    assert questions[0].answer_index == 0
+
+
+@pytest.mark.parametrize("raw", ["not-json", "{}", "[null]", '[{"choices":1,"anchor":"app/auth/token.py:L32"}]'])
+def test_invalid_question_response_is_a_model_error(monkeypatch, raw):
+    monkeypatch.setattr("lasthuman.interview.call_model", lambda prompt, **kwargs: raw)
+    with pytest.raises(ModelError):
+        generate_questions(RiskResult(50, True, (), (HUNK,)), "PR", "")
+
+
+@pytest.mark.parametrize("raw", ["[]", '{"verdict":"unknown"}', '{"error":"unavailable"}'])
+def test_invalid_grade_response_is_not_a_human_hold(monkeypatch, raw):
+    monkeypatch.setattr("lasthuman.interview.call_model", lambda *args, **kwargs: raw)
+    with pytest.raises(ModelError):
+        grade(CHOICE_Q, "code evidence", HUNK, choice=0)
