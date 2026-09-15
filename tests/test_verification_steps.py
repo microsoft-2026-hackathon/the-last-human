@@ -171,7 +171,7 @@ def publication(
         "receipt": receipt(),
         "verified_at": verified_at,
         "gate": {
-            "context": "comprehension-gate",
+            "context": "last-human/human-verified",
             "target_url": f"https://bot.example/receipts/{RECEIPT_ID}",
             "state": state,
             "status_id": status_id,
@@ -274,7 +274,7 @@ def test_five_verification_stages_write_only_bounded_metadata(
                 },
                 {
                     "id": 55,
-                    "context": "comprehension-gate",
+                    "context": "last-human/human-verified",
                     "state": "success",
                     "target_url": f"https://bot.example/receipts/{RECEIPT_ID}",
                 },
@@ -383,7 +383,7 @@ def test_receipt_stage_replaces_prior_attempt_with_fresh_state(
     old_state["snapshot"] = {"binding": binding(), "author_id": 7}
     old_state["verified_at"] = "2026-09-08T12:00:00Z"
     old_state["publication"] = {
-        "context": "comprehension-gate",
+        "context": "last-human/human-verified",
         "target_url": f"https://bot.example/receipts/{RECEIPT_ID}",
         "status_id": 55,
     }
@@ -509,13 +509,13 @@ def test_latest_context_status_never_scans_past_newer_pending() -> None:
             "statuses": [
                 {
                     "id": 56,
-                    "context": "comprehension-gate",
+                    "context": "last-human/human-verified",
                     "state": "pending",
                     "target_url": "https://bot.example/prs/7",
                 },
                 {
                     "id": 55,
-                    "context": "comprehension-gate",
+                    "context": "last-human/human-verified",
                     "state": "success",
                     "target_url": f"https://bot.example/receipts/{RECEIPT_ID}",
                 },
@@ -526,7 +526,7 @@ def test_latest_context_status_never_scans_past_newer_pending() -> None:
     selected = relay._latest_context_status(
         github,
         HEAD_SHA,
-        "comprehension-gate",
+        "last-human/human-verified",
         relay.time.monotonic() + 10,
     )
 
@@ -544,7 +544,7 @@ def test_combined_status_sha_mismatch_is_terminal() -> None:
         relay._latest_context_status(
             github,
             HEAD_SHA,
-            "comprehension-gate",
+            "last-human/human-verified",
             relay.time.monotonic() + 10,
         )
 
@@ -583,7 +583,7 @@ def test_wrong_remote_status_id_times_out_without_advancing_state(
             "statuses": [
                 {
                     "id": 999,
-                    "context": "comprehension-gate",
+                    "context": "last-human/human-verified",
                     "state": "success",
                     "target_url": f"https://bot.example/receipts/{RECEIPT_ID}",
                 }
@@ -650,7 +650,7 @@ def test_publication_waits_for_exact_status_after_nonmatching_success(
     github = FakeGitHub(action_context.settings)
     expected_status = {
         "id": 55,
-        "context": "comprehension-gate",
+        "context": "last-human/human-verified",
         "state": "success",
         "target_url": f"https://bot.example/receipts/{RECEIPT_ID}",
     }

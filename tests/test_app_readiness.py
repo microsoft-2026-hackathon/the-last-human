@@ -42,7 +42,7 @@ def runtime_env(tmp_path: Path) -> dict[str, str]:
         "TLH_SECRET_KEY": "test-session-secret-" * 3,
         "TLH_DATABASE": str(tmp_path / "state" / "bot.sqlite3"),
         "TLH_MODE": "development",
-        "TLH_STATUS_CONTEXT": "comprehension-gate-dev",
+        "TLH_STATUS_CONTEXT": "last-human/human-verified-dev",
         "TLH_WORKFLOW": "lasthuman-app.yml",
         "TLH_WORKFLOW_REF": "refs/heads/main",
         "TLH_OIDC_AUDIENCE": "hunhoon21/the-last-human",

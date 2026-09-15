@@ -293,7 +293,7 @@ def test_settings_from_env_applies_defaults_and_fixed_ttl(
     assert settings.base_url == "http://localhost:8000"
     assert settings.database == tmp_path / ".work" / "lasthuman.sqlite3"
     assert settings.mode == "development"
-    assert settings.status_context == "comprehension-gate-dev"
+    assert settings.status_context == "last-human/human-verified-dev"
     assert settings.workflow == "lasthuman-app.yml"
     assert settings.workflow_ref == "refs/heads/main"
     assert settings.oidc_audience == settings.repository
@@ -317,7 +317,7 @@ def test_settings_from_env_applies_defaults_and_fixed_ttl(
     [
         ({"TLH_SECRET_KEY": "short"}, "TLH_SECRET_KEY"),
         ({"TLH_BASE_URL": "http://example.com"}, "loopback"),
-        ({"TLH_STATUS_CONTEXT": "comprehension-gate"}, "non-production"),
+        ({"TLH_STATUS_CONTEXT": "last-human/human-verified"}, "non-production"),
         (
             {
                 "TLH_MODE": "live",
@@ -328,7 +328,7 @@ def test_settings_from_env_applies_defaults_and_fixed_ttl(
         (
             {
                 "TLH_MODE": "live",
-                "TLH_STATUS_CONTEXT": "comprehension-gate-dev",
+                "TLH_STATUS_CONTEXT": "last-human/human-verified-dev",
             },
             "status context",
         ),

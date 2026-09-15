@@ -1,5 +1,5 @@
-name: TLH App relay
-run-name: "${{ github.event_name == 'pull_request_target' && format('Prepare PR #{0}', github.event.pull_request.number) || format('Verify receipt {0}', inputs.receipt_id) }}"
+name: Last Human · relay
+run-name: "${{ github.event_name == 'pull_request_target' && format('Relay PR #{0}', github.event.pull_request.number) || format('Verify receipt {0}', inputs.receipt_id) }}"
 
 on:
   pull_request_target:
@@ -23,7 +23,7 @@ permissions:
 
 jobs:
   relay:
-    name: "${{ github.event_name == 'pull_request_target' && format('Prepare PR #{0}', github.event.pull_request.number) || format('Verify receipt {0}', inputs.receipt_id) }}"
+    name: "${{ github.event_name == 'pull_request_target' && format('Relay PR #{0}', github.event.pull_request.number) || format('Verify receipt {0}', inputs.receipt_id) }}"
     if: vars.LASTHUMAN_RUNTIME == 'app'
     runs-on: ubuntu-latest
     env:
