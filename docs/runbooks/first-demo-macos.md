@@ -39,6 +39,7 @@ GitHub PR
 
 - 고정 질문지를 쓰지 않는다. 모델을 호출하지 않는 `risk.py`가 먼저 위험도와 이유를 계산한다.
 - 서버가 위험 상위 diff hunk, PR 제목·본문, 호출자·임포터 등 구조 사실을 모델에 전달한다.
+- 생성 요청의 strict JSON Schema는 실제 제공된 앵커만 선택하도록 제한한다. 응답은 `{"questions": [...]}`로 받고 기존 질문 목록으로 변환한다. 앵커 생성 규칙이나 인증 형식은 바꾸지 않는다.
 - App 경로는 질문 3개를 요구한다. 현재 프롬프트는 4지선다와 판단 근거 한 줄을 요구하며, 구조 정보가 있으면 구조 질문도 포함하도록 지시한다.
 - 선택지의 정답 여부는 코드로 비교하고, 작성자가 쓴 근거는 모델로 판정한다. 정답·기대 근거는 브라우저에 보내지 않는다.
 - 보완 피드백은 메모리에만 둔다. 성공한 답변만 private receipt에 저장한다.
@@ -501,6 +502,8 @@ PY
 
 **기대 결과:** GitHub App 인증과 Azure 모델 호출이 각각 끝난다. 모델 호출 시 개인 토큰을 복사하거나 API 키를 활성화하지 않는다. 이 단계는 OAuth 사용자 로그인이나 질문 품질까지 확인하는 것은 아니다. 실제 질문 3개·근거 판정은 첫 PR에서 확인한다.
 
+이 인사 호출은 생성용 스키마를 보내지 않는다. 실제 질문 생성에는 strict `response_format`이 필요하므로, 첫 PR에서 제공된 앵커의 질문 3개가 준비되는지까지 별도로 확인한다. endpoint가 구조화 출력을 거부하면 모델/API 호환성을 해결하고 다시 진행하며 자유 형식으로 우회하지 않는다.
+
 **중단 조건:** CLI/선택 의존성 없음, 재로그인 필요, tenant/subscription/scope 불일치, 401/403/404, 배포 이름 불일치, 네트워크 차단, 요청 형식 오류. 원인을 고치기 전에는 runtime 전환이나 PR 변경 확인을 진행하지 않는다. 토큰 취득은 성공하고 모델 요청만 403이면 추론 RBAC·endpoint를 별도로 확인한다.
 
 ## 9. 기능 브랜치를 trusted main에 먼저 도입
@@ -891,10 +894,10 @@ gh pr create --repo "$TLH_REPO" --base main \
 | Azure CLI 미설치/인증 의존성 없음 | 4.1단계의 CLI와 프로젝트 `.[bot]` 설치 확인. 터미널 C의 PATH도 확인 |
 | Azure CLI 재로그인 필요 | 같은 OS 계정에서 4.2단계의 tenant 지정 `az login` 수행. 토큰을 수동 복사하지 않음 |
 | Azure 401/403 | Entra scope·tenant·추론 RBAC·endpoint·네트워크 확인. `disableLocalAuth=true`를 임의로 해제하지 않음 |
-| Azure 404/400 | resource endpoint와 배포 이름, API version, Chat Completions/temperature 지원 확인 |
+| Azure 404/400 | resource endpoint와 배포 이름, API version, Chat Completions/temperature 및 strict `response_format` 지원 확인 |
 | Azure 429/5xx | 할당량·장애 확인 후 제한적으로 재시도. 사람의 보류 기록으로 남기지 않음 |
 | workflow가 실행되지 않음 | trusted main의 workflow, Actions 설정, `LASTHUMAN_RUNTIME`, 새 PR 이벤트 확인 |
-| 질문 개수·유형 오류로 relay가 실패 | [응답 검증과 제한 재생성](github-app.md#질문-생성-형식-오류) 및 서버 배포 버전을 확인. 질문 수·앵커·유형 기준을 낮추지 않음 |
+| 질문 개수·유형 오류로 relay가 실패 | [제공 앵커 스키마와 제한 재생성](github-app.md#질문-생성-형식-오류) 및 서버 배포 버전을 확인. 질문 수·앵커·유형 기준을 낮추지 않음 |
 | OIDC 거부 | repo/owner ID, workflow 파일/ref, audience, Actions event 확인 |
 | 제출 stale/409 | 새 head/base/PR 메타 변경 여부 확인 후 웹에서 재동기화. 이전 receipt 재사용 금지 |
 | 보완 화면이 사라짐 | 30분 TTL 또는 재시작이면 다시 로그인·미완료 답변 재작성. 보류를 복구용 DB에 저장하지 않음 |
