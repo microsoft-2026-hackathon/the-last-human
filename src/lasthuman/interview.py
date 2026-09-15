@@ -38,6 +38,20 @@ DEFAULT_MODEL = "gpt-4o-mini"
 DEFAULT_AZURE_API_VERSION = "2024-10-21"
 OPENAI_ENDPOINT = "https://api.openai.com/v1/chat/completions"
 QUESTION_TYPES = frozenset({"claim", "consequence", "rationale", "structure"})
+_QUESTION_TYPE_ENUM = tuple(sorted(QUESTION_TYPES))
+_QUESTION_RESPONSE_NAME = "lasthuman_question_batch_v1"
+_QUESTION_KEYS = (
+    "type",
+    "anchor",
+    "text",
+    "choices",
+    "answerIndex",
+    "expectedEvidence",
+)
+# Keep the schema within the conservative Chat Completions compatibility budget.
+_SCHEMA_ENUM_LIMIT = 500
+_SCHEMA_STRING_LIMIT = 15_000
+_LARGE_ENUM_STRING_LIMIT = 7_500
 
 QUESTION_PROMPT = """당신은 코드 리뷰 게이트입니다. 아래 변경을 머지하려는 개발자가
 이 코드를 실제로 이해했는지 확인하는 질문 {n}개를 만드십시오.
@@ -82,10 +96,10 @@ PR 본문: {body}
 구조 사실:
 {structure}
 
-JSON 배열만 출력. 다른 텍스트 금지.
-[{{"type":"structure","anchor":"src/x.py:L88","text":"...",
+JSON 객체만 출력. questions 필드에 질문 배열을 넣으십시오. 다른 텍스트 금지.
+{{"questions":[{{"type":"structure","anchor":"src/x.py:L88","text":"...",
   "choices":["...","...","...","..."],"answerIndex":2,
-  "expectedEvidence":"근거 한 줄에 반드시 나와야 하는 사실"}}]
+  "expectedEvidence":"근거 한 줄에 반드시 나와야 하는 사실"}}]}}
 """
 
 GRADE_PROMPT = """개발자가 객관식 보기를 고르고 그렇게 판단한 근거를 한 줄 썼습니다.
@@ -139,7 +153,91 @@ def resolve_endpoint() -> tuple[str, str]:
     raise ModelError(f"알 수 없는 공급자입니다: {provider}")
 
 
-def call_model(prompt: str, *, token: str | None = None, timeout: float = 60.0) -> str:
+def question_response_format(risk: RiskResult) -> dict[str, object]:
+    """질문 생성용 엄격한 JSON 스키마를 만든다."""
+    anchors: list[str] = []
+    seen: set[str] = set()
+    for hunk in risk.top_hunks:
+        anchor = hunk.anchor
+        if not isinstance(anchor, str) or not anchor.strip():
+            raise ModelError("질문에 사용할 앵커 형식이 올바르지 않습니다.")
+        if anchor not in seen:
+            seen.add(anchor)
+            anchors.append(anchor)
+    if not anchors:
+        raise ModelError("질문에 사용할 앵커가 없습니다.")
+    anchor_chars = sum(map(len, anchors))
+    fixed_chars = len("questions") + sum(map(len, _QUESTION_KEYS)) + sum(map(len, _QUESTION_TYPE_ENUM))
+    if (
+        len(anchors) + len(_QUESTION_TYPE_ENUM) > _SCHEMA_ENUM_LIMIT
+        or anchor_chars + fixed_chars > _SCHEMA_STRING_LIMIT
+        or (len(anchors) > 250 and anchor_chars > _LARGE_ENUM_STRING_LIMIT)
+    ):
+        raise ModelError("질문 앵커 목록이 지원하는 스키마 크기를 초과합니다.")
+
+    question_schema: dict[str, object] = {
+        "type": "object",
+        "properties": {
+            "type": {"type": "string", "enum": list(_QUESTION_TYPE_ENUM)},
+            "anchor": {"type": "string", "enum": anchors},
+            "text": {"type": "string"},
+            "choices": {"type": "array", "items": {"type": "string"}},
+            "answerIndex": {"type": "integer"},
+            "expectedEvidence": {"type": "string"},
+        },
+        "required": list(_QUESTION_KEYS),
+        "additionalProperties": False,
+    }
+    return {
+        "type": "json_schema",
+        "json_schema": {
+            "name": _QUESTION_RESPONSE_NAME,
+            "strict": True,
+            "schema": {
+                "type": "object",
+                "properties": {
+                    "questions": {"type": "array", "items": question_schema},
+                },
+                "required": ["questions"],
+                "additionalProperties": False,
+            },
+        },
+    }
+
+
+def _extract_content(data: object, *, structured: bool) -> str:
+    """chat/completions 응답에서 message.content만 안전하게 꺼낸다."""
+    if not isinstance(data, dict):
+        raise ModelError("예상과 다른 모델 응답 형식입니다.")
+    choices = data.get("choices")
+    if not isinstance(choices, list) or not choices or not isinstance(choices[0], dict):
+        raise ModelError("예상과 다른 모델 응답 형식입니다.")
+    choice = choices[0]
+    message = choice.get("message")
+    if not isinstance(message, dict):
+        raise ModelError("예상과 다른 모델 응답 형식입니다.")
+
+    if structured:
+        if choice.get("finish_reason") != "stop":
+            raise ModelError("구조화된 모델 응답이 완전하지 않습니다.")
+        if message.get("refusal") is not None:
+            raise ModelError("구조화된 모델 응답이 거부되었습니다.")
+        if message.get("tool_calls") not in (None, []) or message.get("function_call") is not None:
+            raise ModelError("구조화된 모델 응답 형식이 올바르지 않습니다.")
+
+    content = message.get("content")
+    if not isinstance(content, str) or not content.strip():
+        raise ModelError("모델이 비어 있거나 올바르지 않은 내용을 반환했습니다.")
+    return content
+
+
+def call_model(
+    prompt: str,
+    *,
+    token: str | None = None,
+    timeout: float = 60.0,
+    response_format: dict[str, object] | None = None,
+) -> str:
     """OpenAI 호환 chat/completions 호출."""
     try:
         azure_cli = model_auth.auth_mode() == "azure-cli"
@@ -156,13 +254,14 @@ def call_model(prompt: str, *, token: str | None = None, timeout: float = 60.0) 
         raise ModelError("모델 자격 증명이 없습니다. LASTHUMAN_API_KEY를 넘겨주세요.")
 
     model = os.environ.get("LASTHUMAN_MODEL", DEFAULT_MODEL)
-    payload = json.dumps(
-        {
-            "model": model,
-            "temperature": 0.2,
-            "messages": [{"role": "user", "content": prompt}],
-        }
-    ).encode("utf-8")
+    request_body: dict[str, object] = {
+        "model": model,
+        "temperature": 0.2,
+        "messages": [{"role": "user", "content": prompt}],
+    }
+    if response_format is not None:
+        request_body["response_format"] = response_format
+    payload = json.dumps(request_body).encode("utf-8")
 
     headers = {"Content-Type": "application/json", "Accept": "application/json"}
     if provider == "azure" and api_key:
@@ -190,29 +289,28 @@ def call_model(prompt: str, *, token: str | None = None, timeout: float = 60.0) 
             if 300 <= err.code < 400:
                 guidance = "Redirects are disabled; configure the direct Azure Chat Completions URL."
             raise ModelError(f"Azure model request failed (HTTP {err.code}). {guidance}") from None
+        if response_format is not None:
+            err.close()
+            raise ModelError(f"모델 응답 {err.code}.") from None
         raise ModelError(f"모델 응답 {err.code}: {err.read()[:300]!r}") from err
     except OSError as err:
-        if azure_cli:
+        if azure_cli or response_format is not None:
             raise ModelError(
                 "Azure model connection failed. Check the endpoint, TLS, and network access."
+                if azure_cli else "Model connection failed. Check the endpoint, TLS, and network access."
             ) from None
         raise ModelError(f"모델 호출 실패: {err}") from err
     except http.client.HTTPException:
-        if azure_cli:
+        if azure_cli or response_format is not None:
             raise ModelError(
                 "Azure model HTTP transport failed. Check the endpoint and network access."
+                if azure_cli else "Model HTTP transport failed. Check the endpoint and network access."
             ) from None
         raise
     except (UnicodeError, json.JSONDecodeError):
         raise ModelError("모델 응답을 읽지 못했습니다.") from None
 
-    try:
-        content = data["choices"][0]["message"]["content"]
-    except (KeyError, IndexError, TypeError):
-        raise ModelError("예상과 다른 모델 응답 형식입니다.") from None
-    if not isinstance(content, str) or not content.strip():
-        raise ModelError("모델이 비어 있거나 올바르지 않은 내용을 반환했습니다.")
-    return content
+    return _extract_content(data, structured=response_format is not None)
 
 
 def shuffle_choices(
@@ -259,6 +357,7 @@ def generate_questions(
     if dry_run:
         return _stub_questions(risk, n, structure)
 
+    response_format = question_response_format(risk)
     prompt = QUESTION_PROMPT.format(
         n=n,
         title=title,
@@ -268,57 +367,62 @@ def generate_questions(
         structure=structure.as_prompt() if structure and not structure.is_empty() else "없음",
     )
     valid_anchors = {h.anchor for h in risk.top_hunks}
-    raw = call_model(prompt, token=token)
-    try:
-        return _parse_questions(_extract_json(raw), valid_anchors, n)
-    except json.JSONDecodeError:
-        retry_prompt = prompt + "\n\nJSON 배열만 출력하십시오."
-    except ModelError:
-        retry_prompt = prompt
-
-    # JSON repair and invalid batches share one retry; never combine partial results.
-    raw = call_model(retry_prompt, token=token)
-    try:
-        return _parse_questions(_extract_json(raw), valid_anchors, n)
-    except json.JSONDecodeError:
-        raise ModelError("질문 응답을 읽지 못했습니다.") from None
+    for attempt in range(2):
+        raw = call_model(prompt, token=token, response_format=response_format)
+        try:
+            return _parse_questions(_extract_json(raw), valid_anchors, n)
+        except json.JSONDecodeError:
+            if attempt == 1:
+                raise ModelError("질문 응답을 읽지 못했습니다.") from None
+        except ModelError as error:
+            if attempt == 1:
+                raise ModelError(str(error)) from None
+    raise AssertionError("unreachable")
 
 
 def _parse_questions(parsed: object, valid_anchors: set[str], n: int) -> list[Question]:
-    if not isinstance(parsed, list):
-        raise ModelError("질문 응답은 배열이어야 합니다.")
-    if len(parsed) != n:
-        raise ModelError(f"질문 응답 수가 요청과 일치하지 않습니다 (요청 {n}, 응답 {len(parsed)}).")
+    if not isinstance(parsed, dict) or set(parsed) != {"questions"}:
+        raise ModelError("질문 응답 루트 형식이 올바르지 않습니다.")
+    items = parsed.get("questions")
+    if not isinstance(items, list):
+        raise ModelError("질문 응답은 questions 배열을 포함해야 합니다.")
+    if len(items) != n:
+        raise ModelError(f"질문 응답 수가 요청과 일치하지 않습니다 (요청 {n}, 응답 {len(items)}).")
 
     out: list[Question] = []
-    for item in parsed:
-        if not isinstance(item, dict):
+    for item in items:
+        if not isinstance(item, dict) or set(item) != set(_QUESTION_KEYS):
             raise ModelError("질문 항목의 형식이 올바르지 않습니다.")
-        anchor = str(item.get("anchor", ""))
+        anchor = item["anchor"]
+        if not isinstance(anchor, str):
+            raise ModelError("질문 앵커의 형식이 올바르지 않습니다.")
         if anchor not in valid_anchors:
             raise ModelError("질문 앵커가 제공된 변경 목록에 없습니다.")
-        question_type = item.get("type", "consequence")
+        question_type = item["type"]
         if not isinstance(question_type, str) or question_type not in QUESTION_TYPES:
             raise ModelError("질문 유형이 올바르지 않습니다.")
-        text = item.get("text", "")
-        evidence = item.get("expectedEvidence", "")
+        text = item["text"]
+        evidence = item["expectedEvidence"]
         if not isinstance(text, str) or not text.strip():
             raise ModelError("질문 내용은 비어 있지 않은 문자열이어야 합니다.")
         if not isinstance(evidence, str) or not evidence.strip():
             raise ModelError("질문 기대 근거는 비어 있지 않은 문자열이어야 합니다.")
-        raw_choices = item.get("choices") or []
+        raw_choices = item["choices"]
         if not isinstance(raw_choices, list) or any(not isinstance(c, str) for c in raw_choices):
             raise ModelError("질문 보기의 형식이 올바르지 않습니다.")
-        choices = tuple(c.strip() for c in raw_choices if c.strip())
-        raw_index = item.get("answerIndex", -1)
-        if raw_index is None:
-            raw_index = -1
+        choices = tuple(c.strip() for c in raw_choices)
+        if any(not choice for choice in choices):
+            raise ModelError("질문 보기는 비어 있지 않은 문자열이어야 합니다.")
+        raw_index = item["answerIndex"]
         if isinstance(raw_index, bool) or not isinstance(raw_index, int):
             raise ModelError("질문 정답 위치의 형식이 올바르지 않습니다.")
         idx = raw_index
-        if len(choices) < 2 or not 0 <= idx < len(choices):
-            # 보기가 성립하지 않으면 서술형으로 떨어뜨린다. 버리는 것보다 낫다.
-            choices, idx = (), -1
+        if not choices:
+            if idx != -1:
+                raise ModelError("서술형 질문의 정답 위치는 -1이어야 합니다.")
+        else:
+            if len(choices) < 2 or not 0 <= idx < len(choices):
+                raise ModelError("질문 보기의 개수 또는 정답 위치가 올바르지 않습니다.")
         out.append(
             Question(
                 type=question_type,

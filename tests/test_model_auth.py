@@ -35,7 +35,16 @@ ENDPOINT = (
     "?api-version=2024-10-21"
 )
 REPLY = b'{"choices":[{"message":{"content":"model reply"}}]}'
+STRUCTURED_REPLY = b'{"choices":[{"finish_reason":"stop","message":{"content":"model reply"}}]}'
 SECRET = "sensitive-value-that-must-not-leak"
+STRUCTURED_FORMAT = {
+    "type": "json_schema",
+    "json_schema": {
+        "name": "schema",
+        "strict": True,
+        "schema": {"type": "object", "properties": {}, "required": [], "additionalProperties": False},
+    },
+}
 
 
 class FakeAuthenticationError(Exception):
@@ -163,6 +172,27 @@ def test_cli_provider_reused_and_called_for_each_token(
         }
     assert http.open.call_args.kwargs == {"timeout": 17}
     assert isinstance(http.build.call_args.args[0], model_auth.AzureCliNoRedirectHandler)
+
+
+def test_cli_structured_requests_serialize_response_format(
+    azure_env: None, sdk: FakeSdk, http: FakeHttp,
+) -> None:
+    def send(request: urllib.request.Request, *, timeout: float) -> io.BytesIO:
+        del timeout
+        http.requests.append(request)
+        return io.BytesIO(STRUCTURED_REPLY)
+
+    http.open.side_effect = send
+
+    assert interview.call_model("question", response_format=STRUCTURED_FORMAT) == "model reply"
+
+    sdk.provider.assert_called_once()
+    assert json.loads(http.requests[0].data) == {
+        "model": "gpt-4.1-mini",
+        "temperature": 0.2,
+        "messages": [{"role": "user", "content": "question"}],
+        "response_format": STRUCTURED_FORMAT,
+    }
 
 
 @pytest.mark.parametrize(("name", "value"), [
@@ -316,11 +346,103 @@ def test_default_auth_and_loopback_compatibility(
     sdk.credential.assert_not_called()
 
 
+def test_default_auth_structured_requests_serialize_response_format(
+    monkeypatch: pytest.MonkeyPatch, sdk: FakeSdk, http: FakeHttp,
+) -> None:
+    monkeypatch.setenv("LASTHUMAN_PROVIDER", "openai")
+    monkeypatch.setenv("LASTHUMAN_ENDPOINT", "http://127.0.0.1:9999/chat/completions")
+    monkeypatch.setenv("LASTHUMAN_API_KEY", "api-key")
+    def send(request: urllib.request.Request, *, timeout: float) -> io.BytesIO:
+        del timeout
+        http.requests.append(request)
+        return io.BytesIO(STRUCTURED_REPLY)
+
+    http.open.side_effect = send
+
+    assert interview.call_model("question", response_format=STRUCTURED_FORMAT) == "model reply"
+
+    assert json.loads(http.requests[0].data) == {
+        "model": "gpt-4o-mini",
+        "temperature": 0.2,
+        "messages": [{"role": "user", "content": "question"}],
+        "response_format": STRUCTURED_FORMAT,
+    }
+    sdk.credential.assert_not_called()
+
+
 def test_default_missing_credentials(http: FakeHttp, monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("LASTHUMAN_ENDPOINT", "http://localhost:9999/chat/completions")
     with pytest.raises(interview.ModelError):
         interview.call_model("question")
     http.open.assert_not_called()
+
+
+@pytest.mark.parametrize("body", [
+    b'null',
+    b"{}",
+    b'{"choices":[null]}',
+    b'{"choices":[{"message":null}]}',
+    b'{"choices":[{"message":{"content":"reply"}}]}',
+    f'{{"choices":[{{"finish_reason":"length","message":{{"content":"{SECRET}"}}}}]}}'.encode(),
+    f'{{"choices":[{{"finish_reason":"content_filter","message":{{"content":"{SECRET}"}}}}]}}'.encode(),
+    b'{"choices":[{"finish_reason":"tool_calls","message":{"content":"reply"}}]}',
+    f'{{"choices":[{{"finish_reason":"stop","message":{{"content":"model reply","refusal":"{SECRET}"}}}}]}}'.encode(),
+    (
+        f'{{"choices":[{{"finish_reason":"stop","message":{{"content":"model reply",'
+        f'"tool_calls":[{{"id":"{SECRET}"}}]}}}}]}}'
+    ).encode(),
+    b'{"choices":[{"finish_reason":"stop","message":{"content":"reply","function_call":{}}}]}',
+    b'{"choices":[{"finish_reason":"stop","message":{}}]}',
+])
+def test_structured_response_envelope_validation_is_sanitized(
+    monkeypatch: pytest.MonkeyPatch, sdk: FakeSdk, http: FakeHttp, body: bytes,
+) -> None:
+    monkeypatch.setenv("LASTHUMAN_PROVIDER", "openai")
+    monkeypatch.setenv("LASTHUMAN_ENDPOINT", "http://127.0.0.1:9999/chat/completions")
+    monkeypatch.setenv("LASTHUMAN_API_KEY", "api-key")
+    http.open.side_effect = lambda request, *, timeout: io.BytesIO(body)
+
+    with pytest.raises(interview.ModelError) as error:
+        interview.call_model("question", response_format=STRUCTURED_FORMAT)
+
+    assert_sanitized(error)
+    sdk.credential.assert_not_called()
+
+
+@pytest.mark.parametrize("failure", [
+    urllib.error.URLError(SECRET),
+    http_client.BadStatusLine(SECRET),
+])
+def test_structured_transport_errors_do_not_expose_connection_details(
+    monkeypatch: pytest.MonkeyPatch, http: FakeHttp, failure: Exception,
+) -> None:
+    monkeypatch.setenv("LASTHUMAN_PROVIDER", "openai")
+    monkeypatch.setenv("LASTHUMAN_ENDPOINT", "http://127.0.0.1:9999/chat/completions")
+    monkeypatch.setenv("LASTHUMAN_API_KEY", "api-key")
+    http.open.side_effect = failure
+    with pytest.raises(interview.ModelError) as error:
+        interview.call_model("question", response_format=STRUCTURED_FORMAT)
+    assert_sanitized(error)
+
+
+def test_structured_http_errors_do_not_leak_backend_bodies(
+    monkeypatch: pytest.MonkeyPatch, sdk: FakeSdk, http: FakeHttp,
+) -> None:
+    monkeypatch.setenv("LASTHUMAN_PROVIDER", "openai")
+    monkeypatch.setenv("LASTHUMAN_ENDPOINT", "http://127.0.0.1:9999/chat/completions")
+    monkeypatch.setenv("LASTHUMAN_API_KEY", "api-key")
+    body = Mock(wraps=io.BytesIO(SECRET.encode()))
+    http.open.side_effect = urllib.error.HTTPError(
+        "http://127.0.0.1:9999/chat/completions", 500, SECRET, Message(), body,
+    )
+
+    with pytest.raises(interview.ModelError, match="모델 응답 500") as error:
+        interview.call_model("question", response_format=STRUCTURED_FORMAT)
+
+    assert_sanitized(error)
+    body.read.assert_not_called()
+    body.close.assert_called_once()
+    sdk.credential.assert_not_called()
 
 
 @pytest.mark.parametrize("mode", [SECRET, "Azure-CLI", " ", "managed-identity"])

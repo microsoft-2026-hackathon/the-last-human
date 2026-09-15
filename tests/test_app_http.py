@@ -15,6 +15,7 @@ import pytest
 from flask.testing import FlaskClient
 
 from lasthuman.config import Config
+from lasthuman.interview import generate_questions
 from lasthuman.models import Answer, DiffResult, FileChange, Hunk, Question, RiskResult
 from lasthuman.server import __main__ as server_main
 from lasthuman.server.app import AppRuntime, AppRuntimeError, create_app
@@ -505,8 +506,53 @@ def extract_csrf(response_text: str) -> str:
 
 def test_full_http_runtime_flow_from_sync_to_verify_publish_merge_and_dashboard(
     tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    client, app, _service, github, settings, _clock = make_app(tmp_path)
+    client, app, service, github, settings, _clock = make_app(tmp_path)
+    snapshot = make_snapshot()
+    schema_questions = [
+        {
+            "type": question.type,
+            "anchor": question.anchor,
+            "text": question.text,
+            "choices": list(question.choices),
+            "answerIndex": question.answer_index,
+            "expectedEvidence": question.expected_evidence,
+        }
+        for question in make_questions()
+    ]
+
+    def fake_call_model(prompt: str, *, token=None, timeout=60.0, response_format=None) -> str:
+        del token, timeout
+        assert snapshot.risk.top_hunks[0].anchor in prompt
+        assert snapshot.risk.top_hunks[1].anchor in prompt
+        assert response_format is not None
+        assert response_format["type"] == "json_schema"
+        assert response_format["json_schema"]["name"] == "lasthuman_question_batch_v1"
+        assert response_format["json_schema"]["strict"] is True
+        item_schema = response_format["json_schema"]["schema"]["properties"]["questions"]["items"]
+        assert item_schema["required"] == [
+            "type",
+            "anchor",
+            "text",
+            "choices",
+            "answerIndex",
+            "expectedEvidence",
+        ]
+        assert item_schema["properties"]["type"]["enum"] == [
+            "claim",
+            "consequence",
+            "rationale",
+            "structure",
+        ]
+        assert item_schema["properties"]["anchor"]["enum"] == [
+            snapshot.risk.top_hunks[0].anchor,
+            snapshot.risk.top_hunks[1].anchor,
+        ]
+        return json.dumps({"questions": schema_questions})
+
+    monkeypatch.setattr("lasthuman.interview.call_model", fake_call_model)
+    service.generate = generate_questions
 
     health = client.get("/healthz")
     assert health.status_code == 200
