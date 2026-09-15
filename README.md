@@ -1,146 +1,192 @@
 # The Last Human
 
-The Last Human, who understands the change and owns the decision to merge.
+*The Last Human, who understands the change and owns the decision to merge.*
 
-**Who Actually Understood This Merge?**
-Agentic Coding 레포의 머지 전 이해 검증 게이트 · 내부 코드네임 STAMP
+**A human checkpoint for agent-assisted software development.**
 
-에이전트가 코드를 쓰는 시대에, 그 코드를 이해한 사람이 있는지 확인할 방법이 없습니다.
-승인은 기록되지만 이해는 기록되지 않습니다.
+Before a risky pull request merges, its author explains the change from the code.
+The Last Human connects that explanation to the current revision, verifies the
+confirmation through GitHub Actions, and records module-level coverage.
 
-모든 AI 리뷰 도구는 사람에게 설명을 **전달**합니다.
-The Last Human은 사람에게 설명을 **요구**합니다.
+## Why The Last Human?
 
-## Hackathon repository
+AI coding tools can accelerate implementation. Engineers still need to understand
+the behavior they accept and maintain.
 
-이 저장소는 [microsoft-2026-hackathon/the-last-human](https://github.com/microsoft-2026-hackathon/the-last-human)입니다.
-[원본 개발 저장소](https://github.com/hunhoon21/the-last-human)의
-[`65a6dbf`](https://github.com/hunhoon21/the-last-human/commit/65a6dbfb1b0d476eb51b462380ee1dcc50e881e2)까지
-96개 커밋을 작업 단위·작성자·메시지·파일 내용·병합 관계를 유지해 이관했습니다.
-게이트 이름을 `last-human/human-verified`로 통일한 변경까지 포함합니다.
+The Last Human makes code-backed explanation part of the pull-request workflow:
+not just an approval, but a record of what the author confirmed for that change.
+It complements GitHub Copilot and other coding workflows without relying on AI
+detection to decide which changes need attention.
 
-새 저장소의 작성·커밋 날짜는 **2026-09-15의 이관 시점**이며 원래 개발 날짜를 뜻하지 않습니다.
-날짜 재작성으로 SHA가 변경됐고, 기존 암호화 서명은 유효하지 않아 제거했습니다.
-[원본 SHA·날짜와 새 SHA 대응표](docs/migration/commit-map.json)와
-[이관 정보](docs/migration/import.json)로 출처를 확인할 수 있습니다.
-원본 저장소와 upstream인 [daeungo1/the-last-human](https://github.com/daeungo1/the-last-human)의
-기여 이력은 원본에 그대로 남아 있습니다.
+## How it works
 
-기존 PR·댓글·Actions 실행 기록·미머지 브랜치·로컬 DB는 복제하지 않았습니다.
-문서의 이전 데모 번호와 링크는 원본 저장소 기준입니다. App 연결은
-[새 조직에서의 수동 설정](docs/runbooks/github-app.md#hackathon-repository-cutover)을 따릅니다.
+```text
+Pull request
+    |
+    v
+Risk selection --------------------> Below threshold: no interview
+    |
+    v
+Author explains the change
+    |
+    +--> Hold: inspect the evidence and clarify
+    |
+    v
+Successful answers -> private receipt
+    |
+    v
+Independent verification of the current revision
+    |
+    v
+Human-verified -> author decides to merge -> module coverage
+```
 
-## 구성
+The public PR card updates as the workflow progresses. In the interview, questions
+show **Accepted** or **Hold**, with code evidence to guide clarification. A successful
+answer set is not the final gate: the receipt must also pass independent verification.
 
-| 경로 | 역할 | 상태 |
-| --- | --- | --- |
-| `src/lasthuman/diff.py` | diff 파싱과 고정 앵커 생성 | 완료 |
-| `src/lasthuman/config.py` | `.lasthuman.yml` 로더 | 완료 |
-| `src/lasthuman/risk.py` | 위험 점수. 순수 함수, 모델을 부르지 않음 | 완료 |
-| `src/lasthuman/interview.py` | 질문 생성과 판정 | 예정 |
-| `src/lasthuman/webui.py` | 면담 웹 UI 생성 | 예정 |
-| `src/lasthuman/attest.py` | 인증 형식, 커밋 SHA 결속 | 예정 |
-| `.github/workflows/` | 게이트 워크플로 | 예정 |
-| `sample-app/` | 게이트가 판정할 샘플 워크로드 | 완료 |
+Confirmation is tied to the reviewed commit and snapshot. A new commit requires
+fresh confirmation; a changed base or policy can also make an earlier receipt stale.
 
-## 시작하기
+## Key capabilities
+
+| Capability | What it provides |
+| --- | --- |
+| **Risk-based selection** | Deterministic rules for important paths, change size, risky patterns, and other configured signals. |
+| **Evidence beyond the diff** | Questions grounded in selected changes and available context from functions they call, including relevant behavior in other files. |
+| **Guided clarification** | Multiple-choice answers with code-backed explanations; Hold feedback points the author to the relevant evidence. |
+| **Private confirmation** | Author-only interviews and receipts. Successful confirmation records persist; incomplete answers and clarification feedback are temporary. |
+| **Visible progress** | One updating PR card, a final commit status, and an optional GitHub App Check Run. |
+| **Module-level coverage** | A CODEOWNERS-based view of pre-merge confirmation coverage, evidence PRs, and areas with gaps. |
+
+### GitHub status and verification
+
+Configure **`last-human/human-verified`** as a required status check to enforce the
+gate before merging. The supplemental App Check is optional and has a separate name.
+
+GitHub Actions verifies a receipt in five real steps:
+
+1. Load the verification receipt.
+2. Read the current PR snapshot.
+3. Compare the receipt with the current change.
+4. Wait for server verification.
+5. Confirm that GitHub reports the expected gate success.
+
+These are steps inside the verification job, not five separate checks in the PR
+summary. Actions does not keep a runner waiting throughout the author's interview.
+
+## Demo: the interaction outside the diff
+
+The sample workload is a small order service with authentication, HTTP, and database
+components. Its HTTP layer already retries transient failures.
+
+The demonstration explores a change that adds another retry loop around token
+refresh. The diff can look reasonable on its own, while the two layers multiply
+the number of requests sent upstream.
+
+The author examines the called code, explains the combined behavior, corrects the
+change, and confirms the new revision. A documentation-only change provides the
+low-risk comparison: no interview and no human-verification record.
+
+The focus is the engineering decision, not a quiz score. The Last Human requests
+evidence; it does not automatically diagnose or repair the code.
+
+## Local development
+
+Requirements: **Git**, **uv**, and **Python 3.11+**. Python **3.12** is recommended.
 
 ```bash
-python -m pip install -e ".[dev]"
+git clone https://github.com/microsoft-2026-hackathon/the-last-human.git
+cd the-last-human
+
+uv venv --python 3.12
+source .venv/bin/activate
+uv pip install -e ".[dev,bot,lint]"
+
 python -m pytest
 ```
 
-### Pylint
-
-Python 3.11 또는 3.12에서 저장소 루트를 기준으로 실행합니다. CI와 같은 의존성을 설치하고,
-추적 중인 모든 Python 파일을 애플리케이션과 테스트로 나누어 검사합니다.
-
-```bash
-python -m pip install -e ".[dev,bot,lint]"
-python -m pylint $(git ls-files '*.py' ':!:tests/**' ':!:sample-app/tests/**')
-python -m pylint \
-  --disable=protected-access,redefined-outer-name,unused-argument,use-implicit-booleaness-not-comparison \
-  $(git ls-files 'tests/*.py' 'sample-app/tests/*.py')
-```
-
-`pyproject.toml`에 Pylint 버전과 규칙을 고정합니다. 줄 길이는 120자이며, 한국어 이름,
-문서 문자열 유무, 데이터 계약·서비스 경계의 복잡도와 중복 코드는 이번 검사에서 제외합니다.
-테스트에만 fixture 이름 재사용, 테스트 대역의 미사용 인자, 내부 메서드 접근,
-빈 리스트·튜플의 정확한 비교를 허용합니다. import 오류·미정의 이름·미사용 import 등은 유지하고,
-점수 기준을 낮추거나 실패 종료를 무시하지 않습니다.
-
-### diff와 위험 점수 확인
+On Windows PowerShell, use `.venv\Scripts\Activate.ps1` instead of `source`.
+The local test suite uses test doubles and does not require live model credentials
+or a GitHub App installation.
 
 ```bash
-python -m lasthuman.cli score --base main --head pr-1-auth-retry
+# Run the sample workload tests.
+python -m pytest -c sample-app/pytest.ini sample-app/tests
+
+# Explore the CLI and server commands.
+lasthuman --help
+python -m lasthuman.server --help
 ```
 
-## GitHub App 로컬 런타임
+Pylint is configured in [`pyproject.toml`](pyproject.toml); the exact CI commands are
+in the [Pylint workflow](.github/workflows/pylint.yml).
 
-실제 GitHub App 서버 실행, 권한, 환경 변수, Actions relay, 실사용 전환 순서는 [docs/runbooks/github-app.md](docs/runbooks/github-app.md)에 정리해 두었습니다.
+## Run with GitHub
 
-```bash
-set -a &&
-. "$HOME/.config/the-last-human/hackathon/runtime.env" &&
-set +a &&
-python -m lasthuman.server serve --host 127.0.0.1 --port 8000
+The runtime uses a **GitHub App**, a **Flask service**, **SQLite**, and a configured
+model endpoint. Question generation requires strict Chat Completions structured
+output support. Azure OpenAI with Azure CLI / Microsoft Entra authentication is
+supported.
+
+To connect a repository:
+
+1. Register and install the GitHub App with the required repository permissions.
+2. Configure the service, persistent database, model access, and public HTTPS origin.
+3. Align the OAuth callback and GitHub Actions OIDC settings.
+4. Set the repository's `TLH_BOT_URL` and enable the App path with `LASTHUMAN_RUNTIME=app`.
+5. Confirm the workflow operates, then require `last-human/human-verified` in branch protection.
+
+For the optional App Check, approve **Checks: Read and write** and set the server
+environment variable **`TLH_CHECK_RUNS=true`**. It is disabled by default.
+
+See the [runtime configuration guide](docs/runbooks/github-app.md) for permissions,
+environment variables, deployment, and troubleshooting. App registration alone
+does not start the service.
+
+## Architecture
+
+```text
+GitHub PR / Actions <-> TLH App service <-> Model endpoint
+                             ^
+                             |
+                        Author Web UI
+                             |
+                      Successful records
+                             |
+                       Module dashboard
 ```
 
-환경 파일은 새 조직용으로 별도 준비합니다. 원본 서버의 환경 파일이나 DB를 재사용하지 않습니다.
+The App publishes the PR card, final status, and optional Check. Actions independently
+checks the current change and receipt. The model neither publishes GitHub statuses
+nor merges pull requests.
 
-특정 PR을 수동으로 다시 읽을 때는 아래를 씁니다.
-
-```bash
-PR_NUMBER=1
-python -m lasthuman.server sync --pr "$PR_NUMBER"
-python -m lasthuman.server flush
-```
-
-`localhost` 개발 경로는 GitHub commit status 를 쓰지 않고, 필요하면 로컬 전용 안내 comment 만 남깁니다.
-trusted Actions relay 파일은 계속 `lasthuman-app.yml`이고, 권위 있는 최종 신호는 여전히 commit status
-context `last-human/human-verified`입니다. 보조 App Check는 기본적으로 꺼져 있으며
-(`TLH_CHECK_RUNS=false`), 켜더라도 표시 이름 `TLH_CHECK_NAME` 기본값 `The Last Human`은
-필수 status context와 다릅니다. 예전 `.github/workflows/comprehension-gate.yml`을 지워도
-기존 Actions 실행 기록은 삭제되지 않습니다.
-
-## 시연
-
-`sample-app/`은 게이트가 판정할 대상인 가짜 주문 서비스입니다.
-아래는 원본 개발 과정의 시연 브랜치 예시입니다. 이번 이관은 `main` 이력만 포함하므로
-새 저장소에는 해당 브랜치와 PR을 별도로 준비해야 합니다.
-
-| 브랜치 | 무엇을 증명하는가 |
+| Path | Responsibility |
 | --- | --- |
-| `pr-1-auth-retry` | 주력 데모. 설명은 재시도를 주장하지만 코드에 루프가 없다. AI 리뷰는 초록, 사람은 막힌다 |
-| `pr-2-purge-soft-deleted` | 위험 신호. 마이그레이션 + 원시 DELETE가 동시에 걸려 점수가 높다 |
-| `pr-3-readme-typo` | **반증. 전수 적용하지 않는다.** 임계값 아래라 중립 통과 |
-| `pr-4-external-rate-limit` | OSS 모드. 외부 기여는 기본 발동 |
+| `src/lasthuman/` | Diff parsing, risk scoring, structure context, questions, and CLI. |
+| `src/lasthuman/server/` | GitHub App runtime, authentication, snapshots, receipts, publication, and coverage. |
+| `src/lasthuman/templates/` | Interview, receipt, and dashboard views. |
+| `.github/workflows/` | PR relay, receipt verification, and development checks. |
+| `sample-app/` | Demonstration workload and tests. |
+| `tests/` | Core and App regression tests. |
 
-PR 본문과 심어둘 AI 리뷰 코멘트 원문은 [docs/demo-pr/](docs/demo-pr/)에 있습니다.
-현재 영상 기준은 [스토리보드 v4](docs/demo/storyboard-v4.md)이며, 문서의 원본 PR 번호는
-새 저장소에서 만든 데모의 번호·리비전과 구분해야 합니다.
+## Principles and current scope
 
-게이트 설정은 루트의 [`.lasthuman.yml`](.lasthuman.yml) 하나이고, 샘플 워크로드와 게이트 자신의 코드를 함께 다룹니다.
-개발 기간 동안 이 게이트를 이 저장소 자신의 PR에도 겁니다.
+- **Risk, not authorship:** selection is based on the change, not whether AI wrote it.
+- **Code-backed evidence:** confirmation concerns a specific revision, not a permanent qualification for a person.
+- **Privacy:** no individual scores or rankings; no public or permanent history of Hold answers.
+- **Human decisions:** the author explains the change and decides whether to merge.
+- **Honest coverage:** only eligible pre-merge records contribute to confirmation coverage.
 
-## 대시보드
+The dashboard's **Can answer** count represents distinct people with eligible
+confirmation records for the selected code anchors in a module. It is not a general
+measure of individual skill. Insufficient samples are identified, and optional
+seeded history is labelled **Demo data**.
 
-App 방식에서는 구역(CODEOWNERS 경로) 단위 이해 커버리지를 서버의 `/dashboard`에서 봅니다.
-주소는 수동으로 설정한 `TLH_BASE_URL`을 기준으로 합니다. 이전 Pages 주소는 새 저장소의
-배포 주소가 아닙니다.
+The current runtime is single-repository and single-process. Cross-file structure
+analysis is Python-focused. Confirmation is scoped to selected questions and code
+evidence, not an exhaustive guarantee about every changed line.
 
-선언된 담당 옆에 **실제로 답할 수 있는 사람 수**를 나란히 놓습니다. 담당자가 적혀 있다는
-사실이 그 코드를 이해한 사람이 있다는 뜻은 아니고, 그 격차가 이 화면이 드러내려는 것입니다.
+## License
 
-집계는 구역 단위입니다. 개인 점수도, 순위도, 사람 이름이 붙은 성과 지표도 만들지 않습니다.
-게이트 5건 미만인 구역은 비율 대신 `표본 부족`으로 표시합니다 — 적은 표본의 백분율은
-없는 신호를 읽게 만듭니다.
-
-## 지켜야 할 선
-
-개인 점수 없음. 순위 없음. 감점 없음. 팀장 조회 불가.
-자세한 내용은 [.github/copilot-instructions.md](.github/copilot-instructions.md).
-
-## 문서
-
-계획서 v2.0: [docs/plan-v2.html](docs/plan-v2.html)
+[MIT](LICENSE).
