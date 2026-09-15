@@ -370,7 +370,7 @@ gunicorn --bind 0.0.0.0:8000 --workers 1 --threads 4 'lasthuman.server.app:creat
 | 로그인 401 | App 설치 범위, `TLH_CLIENT_ID`, `TLH_CLIENT_SECRET`, callback origin 일치 여부 |
 | 제출 403 | PR 작성자 본인인지, `X-CSRF-Token` 또는 form `csrf_token` 이 있는지 |
 | 제출 409 stale | PR이 바뀌었거나 닫혔다. 다시 sync 후 다시 제출 |
-| `/healthz` 가 503 | outbox 재시도 중이거나 SQLite 접근 실패 |
+| `/healthz` 가 503 | outbox 재시도·SQLite 접근 실패·게시 스레드 종료 여부를 확인한다. `scheduler_stopped`는 요청된 스케줄러가 실제로 살아 있지 않다는 뜻이다. |
 | workflow는 초록인데 상태가 안 바뀜 | 서버 작업 완료와 GitHub 발행 완료는 별개다. `/healthz`, 검증 Actions 실행, 현재 SHA의 App status를 함께 확인한다. 현재 receipt 화면은 상세 발행·재시도 상태를 모두 보여주지 않는다. |
 | 로컬에서 comment 만 생기고 상태가 없음 | 정상이다. `localhost` 개발 경로는 상태를 쓰지 않는다 |
 | 질문 생성이 안 됨 | 모델 자격 증명과 endpoint 설정 확인 |
@@ -380,6 +380,8 @@ gunicorn --bind 0.0.0.0:8000 --workers 1 --threads 4 'lasthuman.server.app:creat
 | Azure CLI 인증 실패 | 같은 OS 계정의 `az login`, tenant/subscription/scope, 터미널 PATH와 `.[bot]` 의존성 확인 |
 | 토큰 취득은 되는데 Azure 모델이 403 | 해당 리소스의 추론 RBAC와 endpoint를 확인. API 키 인증을 임의로 활성화하지 않음 |
 | snapshot 지원 불가 | merge queue, shared head, 과대 diff, binary, 순수 rename 여부 확인 |
+| `hunk new_start must be a positive integer`로 게시 스레드 종료 | 파일 삭제·내용 비우기의 `+0,0`은 유효한 diff다. 0 시작 줄 복원 수정이 포함된 trusted main으로 서버를 갱신·재시작하고 PR을 다시 동기화한다. DB나 대기 작업을 삭제하지 않는다. |
+| 게시 대기열의 `stored_snapshot_invalid` | 해당 스냅샷 복원을 확인한다. 원문 데이터는 공개하지 않으며 기존 재시도 정책을 사용한다. 이 오류 하나가 다른 PR의 정상 게시를 중단시키지는 않는다. |
 
 ### 질문 생성 형식 오류
 
