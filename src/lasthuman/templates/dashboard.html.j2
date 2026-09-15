@@ -1,0 +1,382 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>이해 게이트 대시보드 · {{ s.repo }}</title>
+<style>
+  :root {
+    color-scheme: light dark;
+    --bg: #ffffff; --fg: #1f2328; --muted: #59636e; --line: #d1d9e0;
+    --card: #f6f8fa; --accent: #0969da; --warn: #9a6700; --warn-bg: #fff8c5;
+    --ok: #1a7f37; --bad: #cf222e; --band: #eaeef2;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #0d1117; --fg: #e6edf3; --muted: #9198a1; --line: #3d444d;
+      --card: #151b23; --accent: #4493f8; --warn: #d29922; --warn-bg: #282215;
+      --ok: #3fb950; --bad: #f85149; --band: #21262d;
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; padding: 1.5rem 1rem 4rem; background: var(--bg); color: var(--fg);
+    font: 15px/1.6 -apple-system, BlinkMacSystemFont, "Segoe UI", "Apple SD Gothic Neo",
+          "Malgun Gothic", sans-serif;
+  }
+  main { max-width: 1040px; margin: 0 auto; }
+  .mono { font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, monospace; }
+  a { color: var(--accent); }
+
+  .panel { border: 1px solid var(--line); border-radius: 8px; background: var(--bg); }
+  .panel-head {
+    display: flex; justify-content: space-between; align-items: center; gap: 1rem;
+    padding: .8rem 1rem; border-bottom: 1px solid var(--line); flex-wrap: wrap;
+  }
+  .panel-head:last-child { border-bottom: 0; }
+  .panel-head h2 { font-size: .95rem; margin: 0; font-weight: 600; }
+  .meta { color: var(--muted); font-size: .82rem; }
+  h1 { font-size: 1.05rem; margin: 0; font-weight: 600; }
+  h3 { font-size: .82rem; margin: 2rem 0 .6rem; font-weight: 600; color: var(--muted); }
+
+  .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 0; }
+  @media (max-width: 720px) { .grid2 { grid-template-columns: 1fr; } }
+  .stat { padding: 1.1rem 1.2rem; }
+  .grid2 .stat + .stat { border-left: 1px solid var(--line); }
+  @media (max-width: 720px) {
+    .grid2 .stat + .stat { border-left: 0; border-top: 1px solid var(--line); }
+  }
+  .stat .label { font-size: .82rem; color: var(--muted); }
+  .stat .big { font-size: 2.4rem; font-weight: 700; line-height: 1.15; margin: .2rem 0; }
+  .stat .big.ok { color: var(--ok); }
+  .stat .big.warn { color: var(--warn); }
+  .stat .note { font-size: .82rem; color: var(--muted); }
+
+  .bars { padding: .9rem 1rem 1.1rem; display: grid; gap: .5rem; }
+  .bar-row {
+    display: grid; grid-template-columns: 6.5rem 1fr 8.5rem; gap: .7rem;
+    align-items: center; font-size: .85rem;
+  }
+  @media (max-width: 720px) {
+    .bar-row { grid-template-columns: 5.5rem 1fr; }
+    .bar-row .tail { grid-column: 2; }
+  }
+  .track { background: var(--band); border-radius: 4px; height: 1.7rem; overflow: hidden; }
+  .fill {
+    height: 100%; display: flex; align-items: center; justify-content: flex-end;
+    padding-right: .5rem; color: #fff; font-weight: 600; font-size: .8rem;
+    border-radius: 4px; min-width: 1.6rem;
+  }
+  .fill.pass { background: var(--ok); }
+  .fill.force { background: var(--bad); }
+  .fill.wait { background: var(--warn); }
+  .fill.drop { background: var(--muted); }
+  .tail { color: var(--muted); font-size: .8rem; }
+
+  table { width: 100%; border-collapse: collapse; font-size: .85rem; }
+  th, td { padding: .55rem .7rem; text-align: left; border-bottom: 1px solid var(--line); }
+  th { font-weight: 600; color: var(--muted); font-size: .8rem; }
+  td.num, th.num { text-align: right; }
+  tbody tr:last-child td { border-bottom: 0; }
+  .zone-cols { background: color-mix(in srgb, var(--accent) 5%, transparent); }
+
+  .chip {
+    display: inline-block; padding: .05rem .45rem; border-radius: 999px;
+    font-size: .72rem; border: 1px solid var(--line); color: var(--muted); white-space: nowrap;
+  }
+  .chip.zero { background: color-mix(in srgb, var(--bad) 12%, transparent); border-color: var(--bad); color: var(--bad); }
+  .chip.thin { background: var(--warn-bg); border-color: var(--warn); color: var(--warn); }
+  .chip.ok { background: color-mix(in srgb, var(--ok) 12%, transparent); border-color: var(--ok); color: var(--ok); }
+  .bad { color: var(--bad); }
+  .dash { color: var(--muted); }
+
+  .why { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
+  @media (max-width: 720px) { .why { grid-template-columns: 1fr; } }
+  .why .big { font-size: 2.2rem; font-weight: 700; padding: 1.1rem 1.2rem .3rem; color: var(--bad); }
+  .why .line { padding: .55rem 1.2rem; border-top: 1px solid var(--line); font-size: .84rem; }
+
+  .lookup { display: grid; grid-template-columns: 15rem 1fr; gap: 0; }
+  @media (max-width: 720px) { .lookup { grid-template-columns: 1fr; } }
+  .lookup .tree { border-right: 1px solid var(--line); padding: .5rem; }
+  @media (max-width: 720px) { .lookup .tree { border-right: 0; border-bottom: 1px solid var(--line); } }
+  .lookup .tree button {
+    display: flex; justify-content: space-between; width: 100%; gap: .5rem;
+    background: none; border: 0; color: inherit; font: inherit; font-size: .82rem;
+    padding: .35rem .5rem; border-radius: 5px; cursor: pointer; text-align: left;
+  }
+  .lookup .tree button:hover { background: var(--card); }
+  .lookup .tree button[aria-current="true"] { background: var(--card); font-weight: 600; }
+  .lookup .detail { padding: 1rem 1.2rem; }
+  .lookup .detail dl { margin: 0; display: grid; grid-template-columns: 9rem 1fr; gap: .5rem 1rem; font-size: .85rem; }
+  .lookup .detail dt { color: var(--muted); }
+  .lookup .detail dd { margin: 0; }
+  input[type=text] {
+    width: 100%; padding: .5rem .7rem; border: 1px solid var(--line); border-radius: 6px;
+    background: var(--bg); color: var(--fg); font: inherit; font-size: .85rem;
+  }
+
+  .tabs { display: flex; gap: 1.2rem; border-bottom: 1px solid var(--line); margin: 2rem 0 1rem; }
+  .tabs button {
+    background: none; border: 0; border-bottom: 2px solid transparent; color: var(--muted);
+    font: inherit; font-size: .85rem; padding: .5rem 0; cursor: pointer;
+  }
+  .tabs button[aria-selected="true"] { color: var(--fg); border-bottom-color: var(--accent); font-weight: 600; }
+  .empty { padding: 1.5rem 1.2rem; color: var(--muted); font-size: .85rem; margin: 0; }
+  footer { margin-top: 2.5rem; color: var(--muted); font-size: .8rem; line-height: 1.7; }
+  .stack > * + * { margin-top: 1rem; }
+</style>
+</head>
+<body>
+<main class="stack">
+
+<div class="panel">
+  <div class="panel-head">
+    <h1 class="mono">{{ s.repo }}</h1>
+    <span class="meta">측정 시작 {{ since }}</span>
+  </div>
+  <div class="panel-head">
+    <span class="meta">최근 {{ s.window_days }}일</span>
+    <span class="meta">머지 {{ s.merged_total }}건 · CODEOWNERS · 목표 {{ target }}%</span>
+  </div>
+</div>
+
+<h3>지금 이 저장소</h3>
+<div class="panel grid2">
+  <div class="stat">
+    <div class="label">인증을 거친 변경</div>
+    {% if s.attested_rate is none %}
+    <div class="big warn">표본 부족</div>
+    <div class="note">게이트된 PR {{ s.attested_total }} / {{ s.gated_total }} — {{ min_sample }}건 미만이라 비율을 내세우지 않습니다</div>
+    {% else %}
+    <div class="big {{ 'ok' if s.attested_rate * 100 >= target else 'warn' }}">{{ (s.attested_rate * 100) | round | int }}%</div>
+    <div class="note">게이트된 PR {{ s.attested_total }} / {{ s.gated_total }}</div>
+    {% endif %}
+    <div class="note">코드 기준 <span class="mono">{{ s.attested_lines }} / {{ s.gated_lines }}</span> 줄</div>
+  </div>
+  <div class="stat">
+    <div class="label">인증자가 2명 이상인 구역</div>
+    <div class="big {{ 'ok' if s.gated_zones and s.covered_zones == s.gated_zones else 'warn' }}">{{ s.covered_zones }} / {{ s.gated_zones }}</div>
+    <div class="note">1명 {{ one_zone }}개 · 0명 {{ zero_zone }}개</div>
+    <div class="note">부족한 구역에 머지 {{ thin_merges }}건</div>
+  </div>
+</div>
+
+<div class="panel">
+  <div class="panel-head"><h2>게이트 발동 {{ s.gated_total }}건</h2></div>
+  <div class="bars">
+    {% for b in bars %}
+    <div class="bar-row">
+      <span>{{ b.label }}</span>
+      <div class="track"><div class="fill {{ b.kind }}" style="width: {{ b.pct }}%">{{ b.count }}</div></div>
+      <span class="tail">{{ b.note }}</span>
+    </div>
+    {% endfor %}
+  </div>
+</div>
+
+<h3>왜 낮은가</h3>
+<div class="why">
+  <div class="panel">
+    <div class="big">{{ s.forced_total }}</div>
+    <div class="line">강제 머지</div>
+    <div class="line meta">게이트 {{ s.gated_total }}건 중</div>
+  </div>
+  <div class="panel">
+    <div class="big">{{ s.thin_zones }}</div>
+    <div class="line">답할 사람 1명 이하 구역</div>
+    <div class="line meta">게이트 구역 {{ s.gated_zones }}개 중</div>
+  </div>
+</div>
+
+<div class="panel">
+  <div class="panel-head"><h2>구역별</h2><span class="meta">위험순</span></div>
+  <table>
+    <thead>
+      <tr>
+        <th>구역</th><th>선언된 담당</th><th class="num">머지</th>
+        <th class="num zone-cols">인증된 머지</th><th class="num zone-cols">강제 머지</th>
+        <th class="num zone-cols">답할 사람</th><th class="zone-cols">조치</th><th>상태</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for z in s.zones %}
+      <tr>
+        <td class="mono">{{ z.zone }}</td>
+        <td class="mono meta">{{ z.owner }}</td>
+        <td class="num">{{ z.merged }}</td>
+        {% if z.gated %}
+        <td class="num zone-cols">
+          {% if z.rate is none %}{{ z.attested }} / {{ z.gated }} <span class="chip">표본 부족</span>
+          {% else %}{{ (z.rate * 100) | round | int }}% {{ z.attested }} / {{ z.gated }}{% endif %}
+        </td>
+        <td class="num zone-cols {{ 'bad' if z.forced else '' }}">{{ z.forced }}</td>
+        <td class="num zone-cols {{ 'bad' if z.answerers == 0 else '' }}">{{ z.answerers }}</td>
+        <td class="zone-cols">{{ zone_actions.get(z.zone, "—") }}</td>
+        <td>
+          {% if z.answerers == 0 %}<span class="chip zero">0명</span>
+          {% elif z.answerers == 1 %}<span class="chip thin">1명</span>
+          {% else %}<span class="chip ok">{{ z.answerers }}명</span>{% endif %}
+        </td>
+        {% else %}
+        <td class="num zone-cols dash">—</td><td class="num zone-cols dash">—</td>
+        <td class="num zone-cols dash">—</td><td class="zone-cols dash">—</td>
+        <td><span class="chip">위험도 낮음</span></td>
+        {% endif %}
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+<h3>어떻게 올리는가</h3>
+<div class="panel">
+  {% if actions %}
+  <table>
+    <thead><tr><th>구역</th><th>조치</th><th>대상</th><th class="num">효과</th></tr></thead>
+    <tbody>
+      {% for a in actions %}
+      <tr>
+        <td class="mono">{{ a.zone }}</td><td>{{ a.action }}</td>
+        <td class="mono meta">{{ a.target }}</td>
+        <td class="num" style="color:var(--ok)">{{ a.effect }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <p class="empty">지금 올릴 것이 없습니다. 강제 머지가 없고, 게이트가 발동한 구역에 답할 사람이 모두 2명 이상입니다.</p>
+  {% endif %}
+</div>
+
+<h3>구역·파일 조회</h3>
+<div class="panel">
+  <div style="padding:.8rem 1rem; border-bottom:1px solid var(--line)">
+    <input type="text" id="lookup" placeholder="경로 붙여넣기 — {{ sample_path }}" autocomplete="off">
+  </div>
+  <div class="lookup">
+    <div class="tree" id="tree"></div>
+    <div class="detail" id="detail"></div>
+  </div>
+</div>
+
+<div class="tabs" role="tablist">
+  <button role="tab" aria-selected="true" data-tab="forced">강제 머지</button>
+  <button role="tab" aria-selected="false" data-tab="trend">추세</button>
+  <button role="tab" aria-selected="false" data-tab="firstday">도입 첫날</button>
+  <button role="tab" aria-selected="false" data-tab="mine">내 것</button>
+</div>
+
+<div class="panel" id="tab-forced">
+  <div class="panel-head"><h2>강제 머지</h2></div>
+  {% if forced_rows %}
+  <table>
+    <thead><tr><th>구역</th><th class="num">건수</th><th class="num">사후 인증</th><th class="num">미인증</th></tr></thead>
+    <tbody>
+      {% for r in forced_rows %}
+      <tr>
+        <td class="mono">{{ r.zone }}</td><td class="num">{{ r.count }}</td>
+        <td class="num">{{ r.after }}</td><td class="num bad">{{ r.count - r.after }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <p class="empty">강제 머지가 없습니다.</p>
+  {% endif %}
+</div>
+
+<div class="panel" id="tab-trend" hidden>
+  <p class="empty">추세는 집계가 두 번 이상 쌓여야 나옵니다. 다음 집계부터 표시됩니다.</p>
+</div>
+
+<div class="panel" id="tab-firstday" hidden>
+  <div class="panel-head"><h2>도입 첫날</h2></div>
+  <p class="empty">
+    측정 시작 <span class="mono">{{ since }}</span> 이전의 머지는 게이트를 거치지 않았습니다.
+    그 기간을 미인증으로 세면 숫자가 실제보다 나쁘게 보이므로 집계에서 제외합니다.
+  </p>
+</div>
+
+<div class="panel" id="tab-mine" hidden>
+  <p class="empty">
+    개인 이해 이력은 <strong>본인만</strong> 봅니다. 이 페이지는 저장소 단위 집계라
+    개인 기록을 담지 않습니다. 팀장이 조회할 수 없고, 여기에도 실리지 않습니다.
+  </p>
+</div>
+
+<footer>
+  집계는 구역 단위입니다. 개인 점수도, 순위도, 사람 이름이 붙은 성과 지표도 만들지 않습니다.
+  담당자 이름은 CODEOWNERS에 이미 공개된 사실이라 그대로 보여주고, 인증한 사람은 "몇 명"으로만 셉니다.<br>
+  게이트 {{ min_sample }}건 미만인 구역은 비율 대신 <span class="chip">표본 부족</span>으로 표시합니다.
+  적은 표본의 백분율은 없는 신호를 읽게 만듭니다.<br>
+  생성 {{ s.generated_at }}
+</footer>
+</main>
+
+<script>
+var ZONES = {{ zones_json }};
+
+function render(zone) {
+  var tree = document.getElementById("tree");
+  var detail = document.getElementById("detail");
+  tree.innerHTML = "";
+  ZONES.forEach(function (z) {
+    var b = document.createElement("button");
+    b.className = "mono";
+    b.setAttribute("aria-current", z.zone === zone ? "true" : "false");
+    var name = document.createElement("span");
+    name.textContent = z.zone;
+    var tail = document.createElement("span");
+    tail.className = "meta";
+    tail.textContent = z.gated ? z.answerers + "명" : "—";
+    b.appendChild(name); b.appendChild(tail);
+    b.onclick = function () { render(z.zone); };
+    tree.appendChild(b);
+  });
+
+  var z = ZONES.filter(function (x) { return x.zone === zone; })[0];
+  if (!z) {
+    detail.innerHTML = "<p class='empty'>구역을 고르거나 경로를 붙여넣으세요.</p>";
+    return;
+  }
+  var rate = z.gated === 0 ? "—"
+    : (z.rate === null
+        ? z.attested + " / " + z.gated + " <span class='chip'>표본 부족</span>"
+        : Math.round(z.rate * 100) + "% " + z.attested + " / " + z.gated);
+  detail.innerHTML =
+    "<h2 class='mono' style='margin:0 0 .8rem;font-size:1rem'></h2><dl>" +
+    "<dt>답할 수 있는 사람</dt><dd>" +
+      (z.answerers === 0 ? "<span class='chip zero'>없음</span>" : z.answerers + "명") + "</dd>" +
+    "<dt>선언된 담당</dt><dd class='mono'></dd>" +
+    "<dt>머지</dt><dd>" + z.merged + "건</dd>" +
+    "<dt>인증된 머지</dt><dd>" + rate + "</dd>" +
+    "<dt>강제 머지</dt><dd" + (z.forced ? " class='bad'" : "") + ">" + z.forced + "건</dd>" +
+    "</dl>";
+  // 구역명과 담당자는 textContent로 넣는다. CODEOWNERS 문자열이 그대로
+  // innerHTML에 들어가면 저장소를 고칠 수 있는 사람이 이 페이지에 마크업을 심을 수 있다.
+  detail.querySelector("h2").textContent = z.zone;
+  detail.querySelectorAll("dd")[1].textContent = z.owner + " (CODEOWNERS)";
+}
+
+document.getElementById("lookup").addEventListener("input", function (e) {
+  var p = e.target.value.trim().replace(/^\/+/, "");
+  if (!p) { render(ZONES.length ? ZONES[0].zone : null); return; }
+  var hit = ZONES
+    .filter(function (z) { return p.indexOf(z.zone.replace(/^\/+/, "")) === 0; })
+    .sort(function (a, b) { return b.zone.length - a.zone.length; })[0];
+  render(hit ? hit.zone : null);
+});
+
+document.querySelectorAll(".tabs button").forEach(function (btn) {
+  btn.addEventListener("click", function () {
+    document.querySelectorAll(".tabs button").forEach(function (b) {
+      b.setAttribute("aria-selected", b === btn ? "true" : "false");
+      document.getElementById("tab-" + b.dataset.tab).hidden = b !== btn;
+    });
+  });
+});
+
+render(ZONES.length ? ZONES[0].zone : null);
+</script>
+</body>
+</html>

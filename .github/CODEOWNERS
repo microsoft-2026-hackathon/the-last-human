@@ -1,0 +1,24 @@
+# 이 파일은 대시보드의 구역 정의이기도 합니다.
+#
+# 대시보드는 여기 적힌 "선언된 담당" 옆에 "실제로 답할 수 있는 사람 수"를
+# 나란히 놓습니다. 둘 사이의 격차가 이 프로젝트가 드러내려는 것입니다.
+# 담당자가 적혀 있다는 사실이 그 코드를 이해한 사람이 있다는 뜻은 아닙니다.
+
+# 게이트 자신의 판단이 들어가는 곳
+/src/lasthuman/risk.py          @daeungo1
+/src/lasthuman/interview.py     @daeungo1
+/src/lasthuman/attest.py        @daeungo1
+/src/lasthuman/structure.py     @daeungo1
+
+# 게이트의 나머지
+/src/lasthuman/                 @daeungo1
+/.github/workflows/             @daeungo1
+
+# 시연 워크로드
+/sample-app/app/auth/           @daeungo1
+/sample-app/app/db/             @daeungo1
+/sample-app/app/orders/         @daeungo1
+/sample-app/migrations/         @daeungo1
+/sample-app/tests/              @daeungo1
+
+/docs/                          @daeungo1

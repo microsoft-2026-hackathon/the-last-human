@@ -23,6 +23,8 @@ from .config import load_config
 from .diff import collect_hunks
 from .interview import ModelError, generate_questions, grade as grade_answer
 from .structure import build_context
+from .dashboard import render_dashboard
+from .ledger import MergedPr, aggregate, zones_from_repo
 from .models import Answer, Attestation, PrMeta, Question, RiskResult
 from .risk import score as score_risk
 from .webui import render_page
@@ -150,6 +152,79 @@ def cmd_page(args: argparse.Namespace) -> int:
     )
     _emit_output(question_count=len(questions))
     print(f"질문 {len(questions)}개 · {out_dir / 'index.html'}")
+    return 0
+
+
+# --- dashboard ---------------------------------------------------------------
+
+
+def cmd_dashboard(args: argparse.Namespace) -> int:
+    """저장소 단위 이해 커버리지 대시보드를 만든다.
+
+    입력은 워크플로가 GitHub에서 뽑아 온 머지 기록이다. 여기서 API를 직접
+    부르지 않는 이유는 집계를 순수하게 두어 테스트할 수 있게 하기 위해서다.
+    """
+    raw = _read_json(args.prs) or []
+    zones, owners = zones_from_repo(args.repo_path)
+    if not zones:
+        print("구역 정의를 찾지 못했습니다. CODEOWNERS를 두십시오.", file=sys.stderr)
+        return 2
+
+    prs = [
+        MergedPr(
+            number=int(p.get("number", 0)),
+            merged_at=str(p.get("mergedAt", "")),
+            files=tuple(p.get("files", ())),
+            triggered=bool(p.get("triggered", False)),
+            attested=bool(p.get("attested", False)),
+            attester_count=int(p.get("attesterCount", 0)),
+            forced=bool(p.get("forced", False)),
+            changed_lines=int(p.get("changedLines", 0)),
+        )
+        for p in raw
+    ]
+
+    # 구역별로 답할 수 있는 사람의 수. 이름이 아니라 수만 센다.
+    answerers: dict[str, int] = {}
+    for p in raw:
+        if not p.get("attested"):
+            continue
+        for f in p.get("files", ()):
+            from .ledger import zone_of
+
+            z = zone_of(f, zones)
+            if z:
+                answerers[z] = max(answerers.get(z, 0), int(p.get("attesterCount", 0)))
+
+    summary = aggregate(
+        args.repo,
+        prs,
+        zones,
+        owners=owners,
+        answerers=answerers,
+        window_days=args.window,
+        waiting=args.waiting,
+    )
+
+    out_dir = Path(args.out_dir)
+    out_dir.mkdir(parents=True, exist_ok=True)
+    (out_dir / "index.html").write_text(
+        render_dashboard(summary, since=args.since, target=args.target),
+        encoding="utf-8",
+    )
+    (out_dir / "coverage.json").write_text(
+        json.dumps(summary.to_json(), ensure_ascii=False, indent=2), encoding="utf-8"
+    )
+    rate = summary.attested_rate
+    print(
+        f"구역 {summary.gated_zones}개 · 인증 {summary.attested_total}/{summary.gated_total} · "
+        + ("표본 부족" if rate is None else f"{rate * 100:.0f}%")
+    )
+    _emit_output(
+        covered_zones=summary.covered_zones,
+        gated_zones=summary.gated_zones,
+        forced=summary.forced_total,
+    )
     return 0
 
 
@@ -319,6 +394,17 @@ def main(argv: list[str] | None = None) -> int:
     common(p)
     p.add_argument("--meta", help="PR 사실이 담긴 JSON")
     p.add_argument("--mode", choices=["internal", "oss"])
+
+    d = sub.add_parser("dashboard", help="저장소 단위 이해 커버리지 대시보드")
+    d.add_argument("--repo", required=True, help="owner/name")
+    d.add_argument("--repo-path", default=".")
+    d.add_argument("--prs", required=True, help="머지 기록 JSON")
+    d.add_argument("--out-dir", required=True)
+    d.add_argument("--since", default="", help="측정 시작일")
+    d.add_argument("--window", type=int, default=30)
+    d.add_argument("--waiting", type=int, default=0, help="현재 인증 대기 중인 PR 수")
+    d.add_argument("--target", type=int, default=80)
+    d.set_defaults(func=cmd_dashboard)
     p.add_argument("--out")
     p.set_defaults(func=cmd_score)
 

@@ -93,7 +93,11 @@ def score(
         reasons.append(f"에이전트 흔적 (+{config.agent_hint})")
 
     # 6. 외부 기여자 — OSS 모드에서만.
-    if config.mode == "oss":
+    #
+    # 모드 판단을 여기 둔다. 워크플로의 한쪽 잡에서만 --mode를 넘기면
+    # Action이 재계산할 때 다른 점수가 나오고, 신뢰 경계가 자기 자신을
+    # 불일치로 잡아낸다. 실제로 그렇게 한 번 막혔다.
+    if config.mode == "oss" or config.oss_mode_label in meta.labels:
         external = meta.author_association.upper() not in _TRUSTED_ASSOCIATIONS
         # 계정이 하나뿐인 시연 환경에서는 라벨로 외부 기여를 흉내 낸다.
         if config.external_contributor_label in meta.labels:

@@ -39,6 +39,9 @@ class Config:
     max_hunks: int = 5
     #: 시연 편의용. 이 라벨이 붙으면 외부 기여자로 간주한다.
     external_contributor_label: str = "external-contributor"
+    #: 이 라벨이 붙으면 PR 하나만 OSS 모드로 본다. 계정이 하나뿐인
+    #: 시연 환경에서 외부 기여 시나리오를 재현하기 위한 경로다.
+    oss_mode_label: str = "oss-mode"
 
 
 def _pairs(raw: Any) -> tuple[tuple[str, int], ...]:
