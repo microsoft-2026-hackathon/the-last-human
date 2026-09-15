@@ -216,3 +216,17 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+# The Last Human local artifacts
+node_modules/
+out/
+*.vsix
+*.tsbuildinfo
+.env.*
+*.pem
+.DS_Store
+.patches/
+/docs/handoff/
+.venv/
+.work/
+site/

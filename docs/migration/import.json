@@ -1,0 +1,32 @@
+{
+  "source_repository": "hunhoon21/the-last-human",
+  "source_tip": "65a6dbfb1b0d476eb51b462380ee1dcc50e881e2",
+  "source_commits": 96,
+  "destination_repository": "microsoft-2026-hackathon/the-last-human",
+  "destination_repository_id": 1371498352,
+  "destination_created_at": "2026-09-15T13:12:30+00:00",
+  "destination_initial_commit": "f08bad794f034ef613278dbf242318e9febf2719",
+  "rewritten_source_tip": "fa7e2ac32711d781779e4be9759f4751e4a2f309",
+  "migration_timestamp": "2026-09-15T13:50:18+00:00",
+  "date_semantics": "Author and committer dates record migration time, not original development time.",
+  "preserved": [
+    "commit units",
+    "file trees",
+    "message bytes",
+    "author and committer identities",
+    "ordered parent topology"
+  ],
+  "changed": [
+    "commit IDs",
+    "author and committer dates",
+    "invalidated cryptographic signatures removed"
+  ],
+  "removed_headers": {
+    "gpgsig": 31,
+    "gpgsig-sha256": 0,
+    "mergetag": 0
+  },
+  "commit_map": "commit-map.json",
+  "unmerged_source_prs_imported": false,
+  "bot_runtime_migrated": false
+}
