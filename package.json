@@ -1,0 +1,21 @@
+{
+  "name": "the-last-human",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Comprehension Gate for Agentic Merges — 머지 직전 이해 검증 게이트",
+  "workspaces": [
+    "packages/*"
+  ],
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "build": "npm run build --workspaces --if-present",
+    "test": "npm run test --workspaces --if-present",
+    "typecheck": "tsc -b packages/core"
+  },
+  "devDependencies": {
+    "@types/node": "^20.11.30",
+    "typescript": "^5.4.5"
+  }
+}
