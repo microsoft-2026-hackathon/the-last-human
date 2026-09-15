@@ -11,6 +11,25 @@ Agentic Coding 레포의 머지 전 이해 검증 게이트 · 내부 코드네�
 모든 AI 리뷰 도구는 사람에게 설명을 **전달**합니다.
 The Last Human은 사람에게 설명을 **요구**합니다.
 
+## Hackathon repository
+
+이 저장소는 [microsoft-2026-hackathon/the-last-human](https://github.com/microsoft-2026-hackathon/the-last-human)입니다.
+[원본 개발 저장소](https://github.com/hunhoon21/the-last-human)의
+[`65a6dbf`](https://github.com/hunhoon21/the-last-human/commit/65a6dbfb1b0d476eb51b462380ee1dcc50e881e2)까지
+96개 커밋을 작업 단위·작성자·메시지·파일 내용·병합 관계를 유지해 이관했습니다.
+게이트 이름을 `last-human/human-verified`로 통일한 변경까지 포함합니다.
+
+새 저장소의 작성·커밋 날짜는 **2026-09-15의 이관 시점**이며 원래 개발 날짜를 뜻하지 않습니다.
+날짜 재작성으로 SHA가 변경됐고, 기존 암호화 서명은 유효하지 않아 제거했습니다.
+[원본 SHA·날짜와 새 SHA 대응표](docs/migration/commit-map.json)와
+[이관 정보](docs/migration/import.json)로 출처를 확인할 수 있습니다.
+원본 저장소와 upstream인 [daeungo1/the-last-human](https://github.com/daeungo1/the-last-human)의
+기여 이력은 원본에 그대로 남아 있습니다.
+
+기존 PR·댓글·Actions 실행 기록·미머지 브랜치·로컬 DB는 복제하지 않았습니다.
+문서의 이전 데모 번호와 링크는 원본 저장소 기준입니다. App 연결은
+[새 조직에서의 수동 설정](docs/runbooks/github-app.md#hackathon-repository-cutover)을 따릅니다.
+
 ## 구성
 
 | 경로 | 역할 | 상태 |
@@ -61,11 +80,13 @@ python -m lasthuman.cli score --base main --head pr-1-auth-retry
 실제 GitHub App 서버 실행, 권한, 환경 변수, Actions relay, 실사용 전환 순서는 [docs/runbooks/github-app.md](docs/runbooks/github-app.md)에 정리해 두었습니다.
 
 ```bash
-set -a
-. "$HOME/.config/the-last-human/github-app/runtime.env"
-set +a
+set -a &&
+. "$HOME/.config/the-last-human/hackathon/runtime.env" &&
+set +a &&
 python -m lasthuman.server serve --host 127.0.0.1 --port 8000
 ```
+
+환경 파일은 새 조직용으로 별도 준비합니다. 원본 서버의 환경 파일이나 DB를 재사용하지 않습니다.
 
 특정 PR을 수동으로 다시 읽을 때는 아래를 씁니다.
 
@@ -85,7 +106,8 @@ context `last-human/human-verified`입니다. 보조 App Check는 기본적으�
 ## 시연
 
 `sample-app/`은 게이트가 판정할 대상인 가짜 주문 서비스입니다.
-시연 PR 네 개가 이 저장소의 브랜치로 올라가 있고, 각각 다른 것을 증명합니다.
+아래는 원본 개발 과정의 시연 브랜치 예시입니다. 이번 이관은 `main` 이력만 포함하므로
+새 저장소에는 해당 브랜치와 PR을 별도로 준비해야 합니다.
 
 | 브랜치 | 무엇을 증명하는가 |
 | --- | --- |
@@ -95,15 +117,17 @@ context `last-human/human-verified`입니다. 보조 App Check는 기본적으�
 | `pr-4-external-rate-limit` | OSS 모드. 외부 기여는 기본 발동 |
 
 PR 본문과 심어둘 AI 리뷰 코멘트 원문은 [docs/demo-pr/](docs/demo-pr/)에 있습니다.
+현재 영상 기준은 [스토리보드 v4](docs/demo/storyboard-v4.md)이며, 문서의 원본 PR 번호는
+새 저장소에서 만든 데모의 번호·리비전과 구분해야 합니다.
 
 게이트 설정은 루트의 [`.lasthuman.yml`](.lasthuman.yml) 하나이고, 샘플 워크로드와 게이트 자신의 코드를 함께 다룹니다.
 개발 기간 동안 이 게이트를 이 저장소 자신의 PR에도 겁니다.
 
 ## 대시보드
 
-구역(CODEOWNERS 경로) 단위 이해 커버리지를 집계해 Pages에 올립니다.
-
-`https://daeungo1.github.io/the-last-human/dashboard/`
+App 방식에서는 구역(CODEOWNERS 경로) 단위 이해 커버리지를 서버의 `/dashboard`에서 봅니다.
+주소는 수동으로 설정한 `TLH_BASE_URL`을 기준으로 합니다. 이전 Pages 주소는 새 저장소의
+배포 주소가 아닙니다.
 
 선언된 담당 옆에 **실제로 답할 수 있는 사람 수**를 나란히 놓습니다. 담당자가 적혀 있다는
 사실이 그 코드를 이해한 사람이 있다는 뜻은 아니고, 그 격차가 이 화면이 드러내려는 것입니다.
