@@ -51,6 +51,9 @@ class Callee:
     line: int
     #: 정의 파일의 대문자 모듈 상수. ``MAX_ATTEMPTS = 3`` 형태의 원문.
     constants: tuple[str, ...]
+    #: 그 심볼이 실제로 무엇을 하는지 — docstring 첫 줄과, 본문에서 모듈 상수를 쓰는 줄.
+    #: "post_json 이 MAX_ATTEMPTS 까지 다시 보낸다"는 사실은 상수 목록이 아니라 여기에 있다.
+    excerpt: tuple[str, ...] = ()
 
     @property
     def anchor(self) -> str:
@@ -91,6 +94,8 @@ class StructureContext:
             lines.append(f"  호출하는 곳: {used}")
         for c in self.callees:
             lines.append(f"- 변경된 코드가 호출하는 다른 파일의 심볼 {c.symbol} (정의: {c.anchor})")
+            for line in c.excerpt:
+                lines.append(f"  {c.symbol}: {line}")
             if c.constants:
                 lines.append(f"  그 파일의 상수: {', '.join(c.constants)}")
         if self.sibling_files:
@@ -166,12 +171,35 @@ def _module_constants(tree: ast.AST) -> tuple[str, ...]:
     return tuple(out)
 
 
-def _top_level_defs(tree: ast.AST) -> dict[str, tuple[int, set[str]]]:
-    """최상위 함수/클래스 이름 -> (정의 줄, 그 본문이 호출하는 이름들)."""
-    out: dict[str, tuple[int, set[str]]] = {}
+MAX_EXCERPT_LINES = 4
+
+
+def _top_level_defs(
+    tree: ast.AST, source_lines: Sequence[str] = (), constant_names: frozenset[str] = frozenset()
+) -> dict[str, tuple[int, set[str], tuple[str, ...]]]:
+    """최상위 함수/클래스 이름 -> (정의 줄, 본문이 호출하는 이름들, 동작 발췌).
+
+    발췌는 docstring 첫 문장과, 본문에서 모듈 상수를 쓰는 줄이다. 호출된 것이
+    "무엇을 몇 번 하는지"를 질문 생성기가 알 수 있는 최소한의 근거.
+    """
+    out: dict[str, tuple[int, set[str], tuple[str, ...]]] = {}
     for node in getattr(tree, "body", ()):
-        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
-            out[node.name] = (node.lineno, _called_names(node))
+        if not isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
+            continue
+        excerpt: list[str] = []
+        doc = ast.get_docstring(node)
+        if doc:
+            first = doc.strip().split("\n\n", 1)[0].replace("\n", " ").strip()
+            excerpt.append(first[:160])
+        if source_lines and constant_names:
+            end = getattr(node, "end_lineno", node.lineno) or node.lineno
+            for lineno in range(node.lineno, min(end, len(source_lines)) + 1):
+                text = source_lines[lineno - 1].strip()
+                if any(name in text for name in constant_names) and not text.startswith(("#", '"""')):
+                    excerpt.append(text[:160])
+                if len(excerpt) >= MAX_EXCERPT_LINES:
+                    break
+        out[node.name] = (node.lineno, _called_names(node), tuple(excerpt[:MAX_EXCERPT_LINES]))
     return out
 
 
@@ -211,18 +239,20 @@ def build_context(
     # 저장소 전체를 한 번만 훑는다.
     imports_by_file: dict[str, set[str]] = {}
     calls_by_file: dict[str, set[str]] = {}
-    defs_by_file: dict[str, dict[str, tuple[int, set[str]]]] = {}
+    defs_by_file: dict[str, dict[str, tuple[int, set[str], tuple[str, ...]]]] = {}
     constants_by_file: dict[str, tuple[str, ...]] = {}
     for p in _iter_py(root):
         rel = p.relative_to(root).as_posix()
         try:
-            tree = ast.parse(p.read_text(encoding="utf-8", errors="replace"))
+            text = p.read_text(encoding="utf-8", errors="replace")
+            tree = ast.parse(text)
         except (OSError, SyntaxError):
             continue
         imports_by_file[rel] = _imported_modules(tree)
         calls_by_file[rel] = _called_names(tree)
-        defs_by_file[rel] = _top_level_defs(tree)
         constants_by_file[rel] = _module_constants(tree)
+        names = frozenset(c.split(" = ", 1)[0] for c in constants_by_file[rel])
+        defs_by_file[rel] = _top_level_defs(tree, text.splitlines(), names)
 
     importers: dict[str, tuple[str, ...]] = {}
     symbols: list[SymbolUse] = []
@@ -277,7 +307,7 @@ def _resolve_callees(
     changed: dict[str, set[int]],
     symbols: Sequence[SymbolUse],
     imports_by_file: dict[str, set[str]],
-    defs_by_file: dict[str, dict[str, tuple[int, set[str]]]],
+    defs_by_file: dict[str, dict[str, tuple[int, set[str], tuple[str, ...]]]],
     constants_by_file: dict[str, tuple[str, ...]],
 ) -> tuple[Callee, ...]:
     """변경된 심볼의 본문이 부르는 이름을 다른 파일의 최상위 정의에 맞춘다.
@@ -297,7 +327,7 @@ def _resolve_callees(
         changed_names = [s.symbol for s in symbols if s.defined_in == rel]
         wanted: dict[str, None] = {}
         for name in changed_names:
-            for called in sorted(local_defs.get(name, (0, set()))[1]):
+            for called in sorted(local_defs.get(name, (0, set(), ()))[1]):
                 wanted.setdefault(called, None)
                 # 같은 파일 안 한 홉.
                 if called in local_defs and called not in changed_names:
@@ -332,6 +362,7 @@ def _resolve_callees(
                     defined_in=target,
                     line=defs_by_file[target][called][0],
                     constants=constants_by_file.get(target, ()),
+                    excerpt=defs_by_file[target][called][2],
                 )
             )
             if len(out) >= MAX_CALLEES:
