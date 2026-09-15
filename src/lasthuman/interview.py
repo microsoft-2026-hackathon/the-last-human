@@ -18,9 +18,20 @@ from collections.abc import Sequence
 
 from .models import Answer, Hunk, Question, RiskResult
 
-#: GitHub Models. 워크플로에서 `models: read` 권한만 있으면 GITHUB_TOKEN으로 호출된다.
-DEFAULT_ENDPOINT = "https://models.github.ai/inference/chat/completions"
-DEFAULT_MODEL = "openai/gpt-4o-mini"
+# 모델 공급자는 환경변수로 갈아끼운다.
+#
+# GitHub Models는 2026년 9월 현재 폐지 브라운아웃 상태라(410
+# github_models_retirement_brownout) 기본값으로 쓸 수 없다. 기본은
+# Azure OpenAI이고, OpenAI 호환 엔드포인트면 무엇이든 붙는다.
+#
+#   LASTHUMAN_PROVIDER   azure | openai | none   (기본 azure)
+#   LASTHUMAN_ENDPOINT   전체 URL. 지정하면 provider보다 우선한다
+#   LASTHUMAN_MODEL      배포 이름 또는 모델 이름
+#   LASTHUMAN_API_KEY    Azure/OpenAI 키. 없으면 LASTHUMAN_TOKEN을 Bearer로 쓴다
+#   AZURE_OPENAI_ENDPOINT / AZURE_OPENAI_API_VERSION
+DEFAULT_MODEL = "gpt-4o-mini"
+DEFAULT_AZURE_API_VERSION = "2024-10-21"
+OPENAI_ENDPOINT = "https://api.openai.com/v1/chat/completions"
 
 QUESTION_PROMPT = """당신은 코드 리뷰 게이트입니다. 아래 변경을 머지하려는 개발자가
 이 코드를 실제로 이해했는지 확인하는 질문 {n}개를 만드십시오.
@@ -80,13 +91,38 @@ def _format_hunks(hunks: Sequence[Hunk], limit_lines: int = 60) -> str:
     return "\n\n".join(out)
 
 
-def call_model(prompt: str, *, token: str | None = None, timeout: float = 60.0) -> str:
-    """GitHub Models 호출. OpenAI 호환 스키마다."""
-    token = token or os.environ.get("GITHUB_TOKEN") or os.environ.get("LASTHUMAN_TOKEN")
-    if not token:
-        raise ModelError("토큰이 없습니다. GITHUB_TOKEN을 넘겨주세요.")
+def resolve_endpoint() -> tuple[str, str]:
+    """(엔드포인트, 공급자)를 정한다. 공급자를 바꿔도 호출부는 그대로다."""
+    explicit = os.environ.get("LASTHUMAN_ENDPOINT")
+    provider = os.environ.get("LASTHUMAN_PROVIDER", "azure").lower()
+    if explicit:
+        return explicit, provider
+    if provider == "openai":
+        return OPENAI_ENDPOINT, provider
+    if provider == "azure":
+        base = (os.environ.get("AZURE_OPENAI_ENDPOINT") or "").rstrip("/")
+        if not base:
+            raise ModelError(
+                "AZURE_OPENAI_ENDPOINT가 없습니다. "
+                "LASTHUMAN_ENDPOINT로 직접 지정하거나 LASTHUMAN_PROVIDER를 바꾸십시오."
+            )
+        deployment = os.environ.get("LASTHUMAN_MODEL", DEFAULT_MODEL)
+        version = os.environ.get("AZURE_OPENAI_API_VERSION", DEFAULT_AZURE_API_VERSION)
+        return (
+            f"{base}/openai/deployments/{deployment}/chat/completions?api-version={version}",
+            provider,
+        )
+    raise ModelError(f"알 수 없는 공급자입니다: {provider}")
 
-    endpoint = os.environ.get("LASTHUMAN_MODEL_ENDPOINT", DEFAULT_ENDPOINT)
+
+def call_model(prompt: str, *, token: str | None = None, timeout: float = 60.0) -> str:
+    """OpenAI 호환 chat/completions 호출."""
+    endpoint, provider = resolve_endpoint()
+    api_key = os.environ.get("LASTHUMAN_API_KEY")
+    token = token or api_key or os.environ.get("LASTHUMAN_TOKEN") or os.environ.get("GITHUB_TOKEN")
+    if not token:
+        raise ModelError("모델 자격 증명이 없습니다. LASTHUMAN_API_KEY를 넘겨주세요.")
+
     model = os.environ.get("LASTHUMAN_MODEL", DEFAULT_MODEL)
     payload = json.dumps(
         {
@@ -96,15 +132,14 @@ def call_model(prompt: str, *, token: str | None = None, timeout: float = 60.0) 
         }
     ).encode("utf-8")
 
-    req = urllib.request.Request(
-        endpoint,
-        data=payload,
-        headers={
-            "Authorization": f"Bearer {token}",
-            "Content-Type": "application/json",
-            "Accept": "application/json",
-        },
-    )
+    headers = {"Content-Type": "application/json", "Accept": "application/json"}
+    if provider == "azure" and api_key:
+        # Azure OpenAI는 api-key 헤더를 쓴다. Entra 토큰이면 Bearer로 보낸다.
+        headers["api-key"] = api_key
+    else:
+        headers["Authorization"] = f"Bearer {token}"
+
+    req = urllib.request.Request(endpoint, data=payload, headers=headers)
     try:
         with urllib.request.urlopen(req, timeout=timeout) as res:
             data = json.loads(res.read().decode("utf-8"))

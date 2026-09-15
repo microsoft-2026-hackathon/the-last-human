@@ -5,10 +5,16 @@
 #   analyze     위험 점수를 계산한다. 임계값 미달이면 여기서 끝난다
 #   interview   질문을 만들고 면담 웹 UI를 생성해 Pages에 올린다  <- 사람이 답하는 단계
 #   grade       사람이 붙여넣은 답변을 채점하고 인증을 남긴다
-#   gate        인증을 현재 커밋과 대조해 통과 여부를 결정한다  <- 필수 검사로 지정할 잡
+#   gate        인증을 현재 커밋과 대조해 커밋 상태를 갱신한다
 #
-# 브랜치 보호에서 필수로 지정할 검사 이름은 `gate` 잡입니다.
-# 위험도 미달 PR에서도 이 잡은 초록으로 끝납니다 — 전수 적용하지 않기 때문입니다.
+# 브랜치 보호에서 필수로 지정할 검사 이름은 커밋 상태 `comprehension-gate`입니다.
+# 잡 자체는 항상 초록으로 끝나고, 판정은 커밋 상태로만 알립니다.
+#
+#   pending   인증이 아직 없다. 머지 버튼이 잠긴다
+#   success   인증 완료, 또는 위험도 미달로 애초에 필요 없음
+#
+# 아직 답하지 않았을 뿐인 정상 상태를 실패(빨간 X)로 두면 사고처럼 보입니다.
+# 위험도 미달 PR도 success로 끝납니다 — 전수 적용하지 않기 때문입니다.
 #
 # 보안 — 코멘트 본문은 절대 셸 스크립트에 직접 보간하지 않습니다.
 # 공개 저장소라 누구나 코멘트를 달 수 있고, 보간하면 그 자리가 그대로
@@ -30,13 +36,18 @@ permissions:
   contents: read
   pull-requests: write
   issues: write
-  models: read
+  statuses: write
 
 env:
   PYTHONIOENCODING: utf-8
   GH_TOKEN: ${{ github.token }}
-  # GitHub Models 호출에 쓴다. models: read 권한이 있으면 이 토큰으로 그대로 된다.
-  LASTHUMAN_TOKEN: ${{ github.token }}
+  # 브랜치 보호에서 필수로 지정할 검사 이름. 바꾸면 보호 설정도 함께 바꿔야 한다.
+  STATUS_CONTEXT: comprehension-gate
+  # 모델 자격 증명. 비어 있으면 면담이 dry-run 스텁으로 돈다.
+  LASTHUMAN_PROVIDER: ${{ vars.LASTHUMAN_PROVIDER || 'azure' }}
+  LASTHUMAN_MODEL: ${{ vars.LASTHUMAN_MODEL || 'gpt-4o-mini' }}
+  AZURE_OPENAI_ENDPOINT: ${{ vars.AZURE_OPENAI_ENDPOINT }}
+  LASTHUMAN_API_KEY: ${{ secrets.LASTHUMAN_API_KEY }}
 
 jobs:
   # ---------------------------------------------------------------- analyze --
@@ -116,8 +127,27 @@ jobs:
           BASE_REF: ${{ steps.ctx.outputs.base_ref }}
           HEAD_SHA: ${{ steps.ctx.outputs.head_sha }}
         run: |
+          # `oss-mode` 라벨이 붙은 PR은 OSS 모드로 본다.
+          MODE=""
+          if python3 -c "import json,sys; sys.exit(0 if 'oss-mode' in json.load(open('meta.json',encoding='utf-8'))['labels'] else 1)"; then
+            MODE="--mode oss"
+          fi
           lasthuman score --base "origin/$BASE_REF" --head "$HEAD_SHA" \
-            --meta meta.json --out risk.json
+            --meta meta.json $MODE --out risk.json
+
+      - name: 검사를 대기 상태로 걸어둔다
+        # 인증이 없으면 실패(빨간 X)가 아니라 대기로 남긴다.
+        # 필수 검사가 pending이면 머지 버튼이 잠기고, 사람이 통과하면 풀린다.
+        if: steps.score.outputs.triggered == 'true'
+        env:
+          HEAD_SHA: ${{ steps.ctx.outputs.head_sha }}
+          SCORE: ${{ steps.score.outputs.score }}
+        run: |
+          gh api -X POST "repos/$GITHUB_REPOSITORY/statuses/$HEAD_SHA" \
+            -f state=pending \
+            -f context="$STATUS_CONTEXT" \
+            -f description="이해 인증 대기 · 위험 점수 $SCORE" \
+            -f target_url="$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID" >/dev/null
 
       - uses: actions/upload-artifact@v4
         with:
@@ -136,7 +166,7 @@ jobs:
     permissions:
       contents: write        # gh-pages 브랜치에 면담 페이지를 올린다
       pull-requests: write
-      models: read
+      statuses: write
     env:
       PR_NUMBER: ${{ needs.analyze.outputs.pr }}
       HEAD_SHA: ${{ needs.analyze.outputs.head_sha }}
@@ -162,7 +192,14 @@ jobs:
           git fetch origin "$BASE_REF"
           gh pr view "$PR_NUMBER" --repo "$GITHUB_REPOSITORY" --json body --jq .body > pr-body.md
           TITLE=$(gh pr view "$PR_NUMBER" --repo "$GITHUB_REPOSITORY" --json title --jq .title)
-          lasthuman page \
+          # 자격 증명이 없으면 결정적 스텁으로 돈다. 파이프라인이 멈추지 않게 하려는 것이고,
+          # 키가 들어오는 순간 실제 질문으로 바뀐다.
+          DRY=""
+          if [ -z "$LASTHUMAN_API_KEY" ]; then
+            DRY="--dry-run"
+            echo "::warning::모델 자격 증명이 없어 dry-run 스텁 질문으로 진행합니다."
+          fi
+          lasthuman page $DRY \
             --base "origin/$BASE_REF" --head "$HEAD_SHA" \
             --risk risk.json \
             --repo "$GITHUB_REPOSITORY" --pr "$PR_NUMBER" --head-sha "$HEAD_SHA" \
@@ -257,13 +294,14 @@ jobs:
         env:
           ACTOR: ${{ github.event.comment.user.login }}
         run: |
+          if [ -z "$LASTHUMAN_API_KEY" ]; then DRY="--dry-run"; fi
           git fetch origin "$BASE_REF"
           lasthuman grade \
             --base "origin/$BASE_REF" --head "$HEAD_SHA" \
             --comment-file comment.md \
             --questions questions.json --risk risk.json \
             --repo "$GITHUB_REPOSITORY" --pr "$PR_NUMBER" --head-sha "$HEAD_SHA" \
-            --actor "$ACTOR" --out result.md
+            --actor "$ACTOR" ${DRY:-} --out result.md
 
       - name: 결과 남기기
         run: gh pr comment "$PR_NUMBER" --repo "$GITHUB_REPOSITORY" --body-file result.md
@@ -309,12 +347,29 @@ jobs:
               sys.exit("재계산 결과가 다릅니다. 위험 점수가 결정적이지 않습니다.")
           PY
 
-      - name: 인증 대조
+      - id: decide
+        name: 인증 대조
         run: |
           gh api "repos/$GITHUB_REPOSITORY/issues/$PR_NUMBER/comments" --paginate \
             --slurp > comments.json
-          lasthuman gate \
+          # --soft: 판정은 커밋 상태로 알린다. 잡 자체를 빨갛게 만들지 않는다.
+          lasthuman gate --soft \
             --risk recomputed.json --comments comments.json \
             --head-sha "$HEAD_SHA" --pr-author "$PR_AUTHOR" \
             --out decision.md
           cat decision.md >> "$GITHUB_STEP_SUMMARY"
+
+      - name: 커밋 상태 갱신
+        env:
+          CONCLUSION: ${{ steps.decide.outputs.conclusion }}
+          SUMMARY: ${{ steps.decide.outputs.summary }}
+        run: |
+          # 통과하지 못한 상태는 pending이다. 실패로 두면 사람이 아직 답하지
+          # 않았을 뿐인 정상 상태가 사고처럼 보인다.
+          if [ "$CONCLUSION" = "failure" ]; then STATE=pending; else STATE=success; fi
+          gh api -X POST "repos/$GITHUB_REPOSITORY/statuses/$HEAD_SHA" \
+            -f state="$STATE" \
+            -f context="$STATUS_CONTEXT" \
+            -f description="${SUMMARY:0:140}" \
+            -f target_url="$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID" >/dev/null
+          echo "$STATE · $SUMMARY"
