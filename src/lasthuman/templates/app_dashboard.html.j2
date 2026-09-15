@@ -1,0 +1,266 @@
+{#-
+  Last Human dashboard — light UI.
+
+  All user-facing wording lives in the `copy` block below so the script can
+  change without touching markup. Counts only; the only names on this page are
+  CODEOWNERS owners, which the repository already publishes.
+-#}
+{% set copy = {
+  "product": "The Last Human",
+  "subtitle": "Last Human dashboard",
+  "demo_chip": "Demo data",
+  "demo_title": "The history in this window includes seeded demo data; live merges are added on top.",
+  "signed_in": "Signed in as",
+  "sign_out": "Sign out",
+  "headline": "Where trust is thin",
+  "window": "Last %d days",
+  "generated": "generated",
+  "kpi_verified": "Human-verified before merge",
+  "kpi_verified_unit": "gated",
+  "kpi_verified_note": "%d merged · %d gated · %d waiting",
+  "kpi_small_sample": "sample < %d",
+  "kpi_forced": "Merged without verification",
+  "kpi_forced_note": "Gate triggered, merged anyway — recorded as an exception, not blocked",
+  "kpi_zero": "Zones with 0 answerers",
+  "kpi_zero_note": "Gated zones where no one has verified a change · always gated",
+  "table_title": "Coverage by zone",
+  "table_sub": "Sorted by risk — fewest answerers and most exceptions first · counts, never names · rates only from %d gated PRs",
+  "col_zone": "Zone",
+  "col_owner": "Declared owner",
+  "col_answer": "Can answer",
+  "col_gated": "Gated",
+  "col_verified": "Verified",
+  "col_exc": "Exc.",
+  "col_evidence": "Evidence",
+  "no_zones": "No CODEOWNERS zones have been seen yet. The first analysed pull request fills this table.",
+  "actions_title": "What moves the number",
+  "actions_sub": "zone → action → effect",
+  "actions_owner": "owner",
+  "actions_unit": "answerers",
+  "actions_none_empty": "No gated merges in this window yet. The first verified merge lights a zone.",
+  "actions_none_ok": "Nothing to raise: no exceptions, and every gated zone has at least two people who can answer.",
+  "foot_people_h": "No people metrics",
+  "foot_people": "Owners come from CODEOWNERS as written. People who verified are counted, never named. No rankings, no hold history, no raw answers.",
+  "foot_sample_h": "Small samples stay small",
+  "foot_sample": "A zone with fewer than %d gated PRs shows counts, not a rate. A percentage of three is a signal that isn't there.",
+  "foot_retro_h": "No retroactive credit",
+  "foot_retro": "A verification after merge never raises the before-merge rate. Exceptions stay visible."
+} %}
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="csrf-token" content="{{ csrf_token }}">
+<title>{{ copy.subtitle }} · {{ repo }}</title>
+<style>
+  :root {
+    color-scheme: light;
+    --bg: #F5F7F6; --surface: #FFFFFF; --ink: #152C3B; --ink-2: #3B4E5C; --muted: #64737D;
+    --line: #D9E0E3; --line-soft: #E9EEF0; --tint: #EEF3F1;
+    --human: #D77864; --human-soft: #FBEAE4; --human-ink: #A7503F;
+    --good: #1F7A3F; --good-soft: #E3F2E7;
+    --crit: #C0392B; --crit-soft: #FBE6E3;
+    --warn: #9A6700; --warn-soft: #FFF3D6;
+    --focus: #2F6FED;
+    --radius: 6px;
+    --font: -apple-system, BlinkMacSystemFont, "Segoe UI", "Helvetica Neue", Arial, sans-serif;
+    --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--bg); color: var(--ink);
+    font: 14px/1.55 var(--font); padding: 0 20px 64px;
+    font-variant-numeric: tabular-nums; -webkit-font-smoothing: antialiased;
+  }
+  a { color: var(--ink); text-decoration: none; }
+  a:hover { text-decoration: underline; }
+  :focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; border-radius: 3px; }
+  .mono { font-family: var(--mono); font-size: .92em; }
+  .page { max-width: 1080px; margin: 0 auto; }
+
+  .top { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; padding: 18px 0 14px; border-bottom: 1px solid var(--line); margin-bottom: 22px; }
+  .brand { display: flex; align-items: center; gap: 10px; }
+  .brand .mark { width: 34px; height: 34px; border-radius: 50%; border: 1.5px solid var(--ink); background: var(--human-soft); display: grid; place-items: center; color: var(--human-ink); font-weight: 700; font-size: .8rem; flex: none; }
+  .brand .name { font-weight: 700; letter-spacing: -.01em; line-height: 1.15; }
+  .brand .name small { display: block; font-weight: 400; color: var(--muted); font-size: .8rem; }
+  .sep { width: 1px; height: 26px; background: var(--line); }
+  .repo { font-weight: 600; }
+  .chip { display: inline-flex; align-items: center; gap: 5px; font-size: .76rem; font-weight: 500; padding: 1px 8px; border-radius: 999px; border: 1px solid var(--line); color: var(--muted); white-space: nowrap; vertical-align: middle; }
+  .chip.demo { background: var(--warn-soft); border-color: transparent; color: #5C4200; margin-left: 8px; }
+  .chip.ok { background: var(--good-soft); border-color: transparent; color: var(--good); }
+  .chip.low { background: var(--tint); border-color: transparent; color: var(--muted); }
+  .right { margin-left: auto; display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+  .who { color: var(--muted); font-size: .85rem; }
+  .btn { font: inherit; font-size: .82rem; padding: 5px 11px; border-radius: var(--radius); border: 1px solid var(--line); background: var(--surface); color: var(--ink); cursor: pointer; }
+  .btn:hover { background: var(--tint); }
+  form { margin: 0; }
+
+  .headline { display: flex; align-items: flex-end; justify-content: space-between; gap: 16px; flex-wrap: wrap; margin-bottom: 14px; }
+  .headline h1 { margin: 0; font-size: 1.25rem; font-weight: 700; letter-spacing: -.01em; }
+  .headline .gen { color: var(--muted); font-size: .8rem; }
+
+  .kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px; margin-bottom: 18px; }
+  .kpi { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 14px 16px 12px; display: flex; flex-direction: column; gap: 2px; min-height: 106px; }
+  .kpi .l { font-size: .8rem; color: var(--muted); font-weight: 500; }
+  .kpi .v { font-size: 2rem; font-weight: 700; line-height: 1.1; letter-spacing: -.02em; margin-top: 6px; display: flex; align-items: baseline; gap: 6px; }
+  .kpi .v small { font-size: 1rem; font-weight: 500; color: var(--muted); letter-spacing: 0; }
+  .kpi .v.crit { color: var(--crit); }
+  .kpi .v .chip { font-size: .78rem; letter-spacing: 0; }
+  .kpi .d { font-size: .8rem; color: var(--muted); margin-top: auto; padding-top: 6px; }
+
+  .panel { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); margin-bottom: 14px; }
+  .panel > header { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; flex-wrap: wrap; padding: 12px 16px; border-bottom: 1px solid var(--line-soft); }
+  .panel h2 { margin: 0; font-size: .95rem; font-weight: 700; }
+  .panel header .sub { color: var(--muted); font-size: .82rem; }
+  .panel .body { padding: 12px 16px 14px; }
+
+  .tablewrap { overflow-x: auto; }
+  table { border-collapse: collapse; width: 100%; font-size: .88rem; }
+  th, td { text-align: left; vertical-align: middle; padding: 8px 10px; border-bottom: 1px solid var(--line-soft); white-space: nowrap; }
+  th { font-size: .74rem; font-weight: 600; color: var(--muted); letter-spacing: .04em; text-transform: uppercase; background: var(--tint); }
+  th.num, td.num { text-align: right; }
+  tbody tr:last-child td { border-bottom: 0; }
+  tbody tr:hover td { background: #FAFBFB; }
+  td.zone { font-family: var(--mono); font-size: .84rem; font-weight: 500; }
+  td.owner { font-family: var(--mono); font-size: .82rem; color: var(--ink-2); }
+  td.owner .none { color: var(--muted); font-family: var(--font); }
+  .people { display: inline-flex; align-items: center; gap: 8px; }
+  .people .n { font-weight: 700; min-width: 1.2em; text-align: right; }
+  .people .n.zero { color: var(--crit); }
+  .people .n.zero.quiet { color: var(--muted); font-weight: 600; }
+  .people .marks { display: inline-flex; gap: 3px; }
+  .people .marks i { width: 9px; height: 9px; border-radius: 2px; background: var(--human); display: block; }
+  .people .marks i.off { background: var(--line); }
+  td .of { color: var(--muted); font-weight: 400; margin-left: 4px; font-size: .8rem; }
+  td .forced { color: var(--crit); font-weight: 600; }
+  td.prs a { font-family: var(--mono); font-size: .8rem; margin-right: 5px; color: var(--ink-2); }
+  td.prs a:hover { color: var(--ink); }
+  .empty { padding: 20px 16px; color: var(--muted); font-size: .9rem; }
+
+  .acts { margin: 0; padding: 0; list-style: none; display: grid; gap: 8px; }
+  .acts li { display: grid; grid-template-columns: auto 1fr auto; gap: 12px; align-items: center; padding: 8px 10px; border: 1px solid var(--line-soft); border-radius: var(--radius); background: var(--bg); }
+  .acts .z { font-family: var(--mono); font-size: .8rem; font-weight: 500; }
+  .acts .a { font-size: .86rem; color: var(--ink-2); }
+  .acts .a .t { color: var(--muted); }
+  .acts .e { font-size: .8rem; font-weight: 600; color: var(--human-ink); background: var(--human-soft); padding: 2px 8px; border-radius: 999px; white-space: nowrap; }
+  .acts .none { color: var(--muted); font-size: .86rem; padding: 6px 2px; }
+
+  .foot { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 10px 24px; margin-top: 18px; padding-top: 14px; border-top: 1px solid var(--line); font-size: .8rem; color: var(--muted); }
+  .foot b { display: block; color: var(--ink-2); font-weight: 600; margin-bottom: 2px; }
+  @media (max-width: 640px) { .acts li { grid-template-columns: 1fr; } .kpi { min-height: 0; } }
+</style>
+</head>
+<body>
+<div class="page">
+  <div class="top">
+    <div class="brand" aria-label="{{ copy.product }}">
+      <span class="mark" aria-hidden="true">TLH</span>
+      <div class="name">{{ copy.product }}<small>{{ copy.subtitle }}</small></div>
+    </div>
+    <div class="sep" aria-hidden="true"></div>
+    <div class="repo">{{ repo }}{% if dashboard.demo_seeded %} <span class="chip demo" title="{{ copy.demo_title }}">{{ copy.demo_chip }}</span>{% endif %}</div>
+    <div class="right">
+      <span class="who">{{ copy.signed_in }} {{ actor_login }}</span>
+      <form method="post" action="{{ url_for('logout') }}">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+        <button class="btn" type="submit">{{ copy.sign_out }}</button>
+      </form>
+    </div>
+  </div>
+
+  <div class="headline">
+    <h1>{{ copy.headline }}</h1>
+    <span class="gen">{{ copy.window|format(dashboard.window_days) }} · {{ copy.generated }} <span class="mono">{{ dashboard.generated_at }}</span></span>
+  </div>
+
+  <div class="kpis">
+    <div class="kpi">
+      <span class="l">{{ copy.kpi_verified }}</span>
+      <span class="v">{{ dashboard.attested_total }}<small>/ {{ dashboard.gated_total }} {{ copy.kpi_verified_unit }}</small>
+        {% if dashboard.attested_rate is not none %}<span class="chip ok">{{ (dashboard.attested_rate * 100)|round|int }}%</span>
+        {% else %}<span class="chip low">{{ copy.kpi_small_sample|format(dashboard.min_sample) }}</span>{% endif %}
+      </span>
+      <span class="d">{{ copy.kpi_verified_note|format(dashboard.merged_total, dashboard.gated_total, dashboard.waiting_total) }}</span>
+    </div>
+    <div class="kpi">
+      <span class="l">{{ copy.kpi_forced }}</span>
+      <span class="v{% if dashboard.forced_total %} crit{% endif %}">{{ dashboard.forced_total }}</span>
+      <span class="d">{{ copy.kpi_forced_note }}</span>
+    </div>
+    <div class="kpi">
+      <span class="l">{{ copy.kpi_zero }}</span>
+      <span class="v{% if dashboard.zero_answerer_zones %} crit{% endif %}">{{ dashboard.zero_answerer_zones }}</span>
+      <span class="d">{{ copy.kpi_zero_note }}</span>
+    </div>
+  </div>
+
+  <section class="panel" aria-labelledby="zones-h">
+    <header>
+      <h2 id="zones-h">{{ copy.table_title }}</h2>
+      <span class="sub">{{ copy.table_sub|format(dashboard.min_sample) }}</span>
+    </header>
+    {% if dashboard.zones %}
+    <div class="tablewrap">
+      <table>
+        <thead>
+          <tr>
+            <th>{{ copy.col_zone }}</th>
+            <th>{{ copy.col_owner }}</th>
+            <th>{{ copy.col_answer }}</th>
+            <th class="num">{{ copy.col_gated }}</th>
+            <th class="num">{{ copy.col_verified }}</th>
+            <th class="num">{{ copy.col_exc }}</th>
+            <th>{{ copy.col_evidence }}</th>
+          </tr>
+        </thead>
+        <tbody>
+        {% for zone in dashboard.zones %}
+          <tr>
+            <td class="zone">{{ zone.zone }}</td>
+            <td class="owner">{% if zone.owner %}{{ zone.owner }}{% else %}<span class="none">—</span>{% endif %}</td>
+            <td>
+              <span class="people">
+                <span class="marks" aria-hidden="true">{% for i in range(3) %}<i{% if i >= zone.answerers %} class="off"{% endif %}></i>{% endfor %}</span>
+                <span class="n{% if zone.answerers == 0 %} zero{% if not zone.gated %} quiet{% endif %}{% endif %}">{{ zone.answerers }}</span>
+              </span>
+            </td>
+            <td class="num">{% if zone.gated %}{{ zone.gated }}{% else %}—{% endif %}</td>
+            <td class="num">{% if zone.gated %}{{ zone.attested }}<span class="of">/ {{ zone.gated }}{% if zone.rate is not none %} · {{ (zone.rate * 100)|round|int }}%{% endif %}</span>{% else %}—{% endif %}</td>
+            <td class="num">{% if zone.forced %}<span class="forced">{{ zone.forced }}</span>{% else %}0{% endif %}</td>
+            <td class="prs">{% for pr in zone.prs %}<a href="https://github.com/{{ repo }}/pull/{{ pr }}">#{{ pr }}</a>{% endfor %}</td>
+          </tr>
+        {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% else %}
+    <p class="empty">{{ copy.no_zones }}</p>
+    {% endif %}
+  </section>
+
+  <section class="panel" aria-labelledby="act-h">
+    <header><h2 id="act-h">{{ copy.actions_title }}</h2><span class="sub">{{ copy.actions_sub }}</span></header>
+    <div class="body">
+      <ul class="acts">
+      {% for action in dashboard.actions %}
+        <li>
+          <span class="z">{{ action.zone }}</span>
+          <span class="a">{{ action.action }}{% if action.owner %} <span class="t">· {{ copy.actions_owner }} {{ action.owner }}</span>{% endif %}</span>
+          <span class="e">{{ action.from }} → {{ action.to }} {{ copy.actions_unit }}</span>
+        </li>
+      {% else %}
+        <li class="none">{% if dashboard.gated_total == 0 %}{{ copy.actions_none_empty }}{% else %}{{ copy.actions_none_ok }}{% endif %}</li>
+      {% endfor %}
+      </ul>
+    </div>
+  </section>
+
+  <div class="foot">
+    <div><b>{{ copy.foot_people_h }}</b>{{ copy.foot_people }}</div>
+    <div><b>{{ copy.foot_sample_h }}</b>{{ copy.foot_sample|format(dashboard.min_sample) }}</div>
+    <div><b>{{ copy.foot_retro_h }}</b>{{ copy.foot_retro }}</div>
+  </div>
+</div>
+</body>
+</html>
