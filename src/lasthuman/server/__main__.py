@@ -61,7 +61,7 @@ def main(argv: list[str] | None = None) -> int:
         )
         try:
             if args.command == "sync":
-                result = service.sync(args.pr)
+                result = service.sync(args.pr, regenerate=args.regenerate)
                 service.flush_publications()
                 print(json.dumps(_cli_payload(result), sort_keys=True))
                 return 0
@@ -93,6 +93,7 @@ def _parser() -> argparse.ArgumentParser:
 
     sync = subparsers.add_parser("sync")
     sync.add_argument("--pr", type=int, required=True)
+    sync.add_argument("--regenerate", action="store_true", help="discard the stored questions and generate again")
 
     subparsers.add_parser("flush")
     return parser
