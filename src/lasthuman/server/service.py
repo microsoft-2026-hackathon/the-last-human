@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+import hashlib
 import ipaddress
+import json
 import sqlite3
 import time
 from collections.abc import Callable, Mapping, Sequence
@@ -13,7 +15,7 @@ from threading import RLock
 from urllib.parse import urlsplit
 
 from lasthuman.diff import parse_anchor
-from lasthuman.interview import ModelError, generate_questions, grade
+from lasthuman.interview import ModelError, generate_questions, grade as grade_answer
 from lasthuman.models import Answer, Hunk, Question
 from lasthuman.server.config import Settings
 from lasthuman.server.github import GitHubError
@@ -97,7 +99,7 @@ class BotService:
         store: Store,
         *,
         generate: Callable[..., list[Question]] = generate_questions,
-        grade: Callable[..., Answer] = grade,
+        grade: Callable[..., Answer] = grade_answer,
         clock: Callable[[], float] = time.time,
     ) -> None:
         self.settings = settings
@@ -240,7 +242,11 @@ class BotService:
             existing_job_id = self._requests.get(request_key)
             if existing_job_id is not None:
                 existing_job = self._jobs.get(existing_job_id)
-                if existing_job is not None and existing_job.snapshot_id == snapshot_id and existing_job.body_digest == body_digest:
+                if (
+                    existing_job is not None
+                    and existing_job.snapshot_id == snapshot_id
+                    and existing_job.body_digest == body_digest
+                ):
                     return existing_job.job_id
                 raise BotError("request_id already used with different content", code="conflict", status_code=409)
             queued_jobs = sum(1 for job in self._jobs.values() if job.state in {"queued", "running"})
@@ -523,7 +529,9 @@ class BotService:
                         "answerers": answerers,
                         "rate": None if gated < MIN_SAMPLE else (attested / gated if gated else None),
                         "low_sample": 0 < gated < MIN_SAMPLE,
-                        "sample_state": "no_data" if gated == 0 else ("small_sample" if gated < MIN_SAMPLE else "measured"),
+                        "sample_state": (
+                            "no_data" if gated == 0 else ("small_sample" if gated < MIN_SAMPLE else "measured")
+                        ),
                     }
                 )
             return {
@@ -835,7 +843,7 @@ class BotService:
             if question.choices:
                 if len(question.choices) < 2:
                     raise BotError("generated question choices are invalid", code="question_shape", status_code=502)
-                if not (0 <= question.answer_index < len(question.choices)):
+                if not 0 <= question.answer_index < len(question.choices):
                     raise BotError("generated question choices are invalid", code="question_shape", status_code=502)
             elif question.answer_index != -1:
                 raise BotError("generated question choices are invalid", code="question_shape", status_code=502)
@@ -858,7 +866,9 @@ class BotService:
                 raise BotError("answer payload contains unsupported fields", code="invalid_answers", status_code=400)
             identifier = str(raw.get("id", "")).strip()
             if not identifier or identifier not in expected_ids or identifier in seen:
-                raise BotError("answers must cover every question exactly once", code="invalid_answers", status_code=400)
+                raise BotError(
+                    "answers must cover every question exactly once", code="invalid_answers", status_code=400
+                )
             text = raw.get("text", "")
             if not isinstance(text, str):
                 raise BotError("answer text must be a string", code="invalid_answers", status_code=400)
@@ -868,7 +878,7 @@ class BotService:
             if choice is not None and (isinstance(choice, bool) or not isinstance(choice, int)):
                 raise BotError("answer choice must be an integer", code="invalid_answers", status_code=400)
             question = next(item for item in record.questions if item.id == identifier)
-            if choice is not None and question.question.choices and not (0 <= choice < len(question.question.choices)):
+            if choice is not None and question.question.choices and not 0 <= choice < len(question.question.choices):
                 raise BotError("answer choice is out of range", code="invalid_answers", status_code=400)
             normalized.append({"id": identifier, "text": text, "choice": choice})
             seen.add(identifier)
@@ -1057,11 +1067,15 @@ class BotService:
                 merge_commit_sha=_optional_str(data.get("merge_commit_sha")),
                 head_sha=_sha(_mapping(data.get("head"), "pull request head").get("sha"), "pull request head sha"),
                 base_sha=_sha(_mapping(data.get("base"), "pull request base").get("sha"), "pull request base sha"),
-                author_id=_positive_int(_mapping(data.get("user"), "pull request user").get("id"), "pull request author id"),
-                author_login=_nonempty_str(_mapping(data.get("user"), "pull request user").get("login"), "pull request author login"),
+                author_id=_positive_int(
+                    _mapping(data.get("user"), "pull request user").get("id"), "pull request author id"
+                ),
+                author_login=_nonempty_str(
+                    _mapping(data.get("user"), "pull request user").get("login"), "pull request author login"
+                ),
                 commit_count=_optional_positive_int(data.get("commits")),
             )
-        except (ValueError, TypeError) as error:
+        except (ValueError, TypeError):
             raise BotError("GitHub response was invalid", code="github_response", status_code=502) from None
 
     def _assert_pull_current(self, snapshot: Snapshot, pull: PullFacts) -> None:
@@ -1170,9 +1184,6 @@ class BotService:
             return True
 
     def _sha256_json(self, payload: object) -> str:
-        import hashlib
-        import json
-
         blob = json.dumps(payload, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
         return hashlib.sha256(blob.encode("utf-8")).hexdigest()
 
@@ -1262,7 +1273,9 @@ class BotService:
             if dispatch.attempts >= _MAX_VERIFIER_DISPATCH_ATTEMPTS:
                 payload["verification_state"] = "error"
                 return payload
-            payload["verification_state"] = "retrying" if dispatch.attempts > 0 or dispatch.last_error_code is not None else "waiting"
+            payload["verification_state"] = (
+                "retrying" if dispatch.attempts > 0 or dispatch.last_error_code is not None else "waiting"
+            )
             payload["verification_retry_at"] = dispatch.due_at
             return payload
         if dispatch.remote is not None and dispatch.remote.get("reason") == "retry_exhausted":

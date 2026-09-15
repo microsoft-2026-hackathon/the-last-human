@@ -155,7 +155,8 @@ def test_documented_gunicorn_factory_starts_and_stops(runtime_env: dict[str, str
     port = listener.getsockname()[1]
     env = {name: value for name, value in os.environ.items() if not name.startswith(("TLH_", "LASTHUMAN_"))}
     env.update(runtime_env, TLH_BASE_URL=f"http://localhost:{port}")
-    process = subprocess.Popen(
+    # Teardown below explicitly terminates the server and checks its exit status.
+    process = subprocess.Popen(  # pylint: disable=consider-using-with
         [sys.executable, "-m", "gunicorn", "--bind", f"fd://{listener.fileno()}",
          "--workers", "1", "--threads", "4", "--graceful-timeout", "5",
          "lasthuman.server.app:create_app()"],

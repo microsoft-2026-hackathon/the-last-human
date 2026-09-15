@@ -259,6 +259,6 @@ def zones_from_repo(repo_root: str | Path_, fallback: Sequence[str] = ()) -> tup
         if not rules:
             continue
         zones = [p for p, _ in rules]
-        owners = {p: o for p, o in rules}
+        owners = dict(rules)
         return zones, owners
     return list(fallback), {}
