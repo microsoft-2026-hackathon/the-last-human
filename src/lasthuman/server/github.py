@@ -6,7 +6,7 @@ import re
 from datetime import datetime, timedelta, timezone
 from threading import Lock
 from typing import Final, Literal, cast
-from urllib.parse import unquote, urlsplit
+from urllib.parse import quote, unquote, urlsplit
 
 import jwt
 import requests
@@ -16,6 +16,8 @@ from .config import Settings
 JsonObject = dict[str, object]
 JsonData = JsonObject | list[object]
 StatusState = Literal["pending", "success", "error"]
+CheckStatus = Literal["in_progress", "completed"]
+CheckConclusion = Literal["success", "neutral", "cancelled", "action_required"]
 
 _API_ORIGIN: Final = "https://api.github.com"
 _ACCEPT: Final = "application/vnd.github+json"
@@ -26,6 +28,12 @@ _MAX_PAGES: Final = 10
 _TOKEN_REFRESH_SKEW: Final = timedelta(seconds=60)
 _SHA_RE = re.compile(r"^[0-9a-f]{40}$")
 _WORKFLOW_STATES = {"pending", "success", "error"}
+_CHECK_STATUSES = {"in_progress", "completed"}
+_COMPLETED_CHECK_CONCLUSIONS = {"success", "neutral", "cancelled", "action_required"}
+_CHECK_EXTERNAL_ID_MAX = 512
+_CHECK_OUTPUT_TEXT_MAX = 65_535
+_PR_CARD_MARKER_PREFIX = "lasthuman:pr-card:"
+_MARKER_RESERVATION_CHARS = 128
 
 
 class GitHubError(RuntimeError):
@@ -53,10 +61,13 @@ class GitHubClient:
         self._repo_path = f"repos/{settings.repository}"
         self._verification_lock = Lock()
         self._token_lock = Lock()
+        self._check_token_lock = Lock()
         self._repository_verified = False
         self._repository_verification_expiry: datetime | None = None
         self._installation_token: str | None = None
         self._installation_token_expiry: datetime | None = None
+        self._check_installation_token: str | None = None
+        self._check_installation_token_expiry: datetime | None = None
 
     def request(
         self,
@@ -146,6 +157,55 @@ class GitHubClient:
             raise GitHubError("GitHub installation token is unavailable")
         return token
 
+    def _check_token(self) -> str:
+        self._ensure_checks_enabled()
+        now = datetime.now(timezone.utc)
+        with self._check_token_lock:
+            token = self._check_installation_token
+            expiry = self._check_installation_token_expiry
+        if (
+            token is not None
+            and expiry is not None
+            and now + _TOKEN_REFRESH_SKEW < expiry
+            and self._repository_verification_is_fresh(now)
+        ):
+            return token
+
+        self.verify_repository()
+
+        now = datetime.now(timezone.utc)
+        with self._check_token_lock:
+            token = self._check_installation_token
+            expiry = self._check_installation_token_expiry
+            if (
+                token is not None
+                and expiry is not None
+                and now + _TOKEN_REFRESH_SKEW < expiry
+                and self._repository_verification_is_fresh(now)
+            ):
+                return token
+
+            app_token = self._app_jwt()
+            payload = self._request_object(
+                "POST",
+                f"app/installations/{self.settings.installation_id}/access_tokens",
+                token=app_token,
+                json={
+                    "repository_ids": [self.settings.repository_id],
+                    "permissions": {"checks": "write"},
+                },
+                expected_statuses=(201,),
+            )
+            token = _require_str(payload.get("token"), "token", "installation token response")
+            expiry = _parse_github_timestamp(
+                _require_str(payload.get("expires_at"), "expires_at", "installation token response")
+            )
+            if expiry <= now:
+                raise GitHubError("GitHub installation token is already expired")
+            self._check_installation_token = token
+            self._check_installation_token_expiry = expiry
+            return token
+
     def user(self, access_token: str) -> JsonObject:
         if not access_token.strip():
             raise GitHubError("GitHub user access token must not be empty")
@@ -218,6 +278,155 @@ class GitHubClient:
 
         self._validate_comment_attribution(created, marker)
         return self._comment_result(created)
+
+    def find_pr_card(self, pr: int) -> JsonObject | None:
+        _validate_positive_number(pr, "pull request number")
+        marker = _pr_card_marker(pr)
+        existing = self._find_unique_pr_card(pr, marker)
+        if existing is None:
+            return None
+        return self._pr_card_result(existing)
+
+    def ensure_pr_card(self, pr: int, body: str) -> JsonObject:
+        _validate_positive_number(pr, "pull request number")
+        marker = _pr_card_marker(pr)
+        desired_body = _append_marker_with_budget(
+            body,
+            marker,
+            self.settings.presentation_max_chars,
+        )
+        existing = self._find_unique_pr_card(pr, marker)
+        if existing is not None:
+            self._validate_comment_attribution(existing, marker)
+            existing_id = _require_positive_int(
+                existing.get("id"),
+                "id",
+                "issue comment",
+            )
+            if _require_str(existing.get("body"), "body", "issue comment") == desired_body:
+                return self._pr_card_result(existing)
+            try:
+                updated = self._request_object(
+                    "PATCH",
+                    f"{self._repo_path}/issues/comments/{existing_id}",
+                    json={"body": desired_body},
+                    expected_statuses=(200,),
+                    allow_transport_errors=True,
+                )
+            except (requests.exceptions.Timeout, requests.exceptions.ConnectionError):
+                return self._reconcile_pr_card_after_uncertain_write(pr, marker, desired_body)
+            self._validate_comment_attribution(updated, marker)
+            if _require_str(updated.get("body"), "body", "issue comment") != desired_body:
+                raise GitHubError("GitHub PR card update result mismatch")
+            return self._pr_card_result(updated)
+
+        try:
+            created = self._request_object(
+                "POST",
+                f"{self._repo_path}/issues/{pr}/comments",
+                json={"body": desired_body},
+                expected_statuses=(201,),
+                allow_transport_errors=True,
+            )
+        except (requests.exceptions.Timeout, requests.exceptions.ConnectionError):
+            return self._reconcile_pr_card_after_uncertain_write(pr, marker, desired_body)
+
+        self._validate_comment_attribution(created, marker)
+        if _require_str(created.get("body"), "body", "issue comment") != desired_body:
+            raise GitHubError("GitHub PR card creation result mismatch")
+        return self._pr_card_result(created)
+
+    def find_check_run(self, sha: str, external_id: str) -> JsonObject | None:
+        self._ensure_checks_enabled()
+        normalized_sha = _require_sha(sha, "check run head sha")
+        normalized_external_id = _require_external_id(external_id)
+        existing = self._find_unique_check_run(normalized_sha, normalized_external_id)
+        if existing is None:
+            return None
+        self._validate_check_run_identity(existing, normalized_sha, normalized_external_id)
+        return self._check_run_result(existing)
+
+    def ensure_check_run(
+        self,
+        sha: str,
+        external_id: str,
+        *,
+        status: CheckStatus,
+        conclusion: CheckConclusion | None,
+        title: str,
+        summary: str,
+        details_url: str,
+    ) -> JsonObject:
+        self._ensure_checks_enabled()
+        request = _validate_check_run_request(
+            sha,
+            external_id,
+            status=status,
+            conclusion=conclusion,
+            title=title,
+            summary=summary,
+            details_url=details_url,
+        )
+        self._validate_runtime_url(request["details_url"], "check details URL")
+
+        existing = self._find_unique_check_run(request["sha"], request["external_id"])
+        if existing is not None:
+            self._validate_check_run_identity(existing, request["sha"], request["external_id"])
+            if self._check_run_matches_request(existing, request):
+                return self._check_run_result(existing)
+            existing_id = _require_positive_int(
+                existing.get("id"),
+                "id",
+                "check run",
+            )
+            return self._patch_check_run(existing_id, request, expected_id=existing_id)
+
+        try:
+            created = self._request_check_object(
+                "POST",
+                f"{self._repo_path}/check-runs",
+                json=_check_run_create_payload(self.settings.check_name, request),
+                expected_statuses=(201,),
+                allow_transport_errors=True,
+            )
+        except (requests.exceptions.Timeout, requests.exceptions.ConnectionError):
+            return self._reconcile_check_run_after_uncertain_write(request)
+
+        self._validate_check_run_identity(created, request["sha"], request["external_id"])
+        if not self._check_run_matches_request(created, request):
+            raise GitHubError("GitHub check run creation result mismatch")
+        return self._check_run_result(created)
+
+    def cancel_check_run(
+        self,
+        check_run_id: int,
+        *,
+        sha: str,
+        external_id: str,
+        title: str,
+        summary: str,
+        details_url: str,
+    ) -> JsonObject:
+        self._ensure_checks_enabled()
+        _validate_positive_number(check_run_id, "check run id")
+        request = _validate_check_run_request(
+            sha,
+            external_id,
+            status="completed",
+            conclusion="cancelled",
+            title=title,
+            summary=summary,
+            details_url=details_url,
+        )
+        self._validate_runtime_url(request["details_url"], "check details URL")
+        existing = self._request_check_object(
+            "GET",
+            f"{self._repo_path}/check-runs/{check_run_id}",
+        )
+        self._validate_check_run_identity(existing, request["sha"], request["external_id"])
+        if self._check_run_matches_request(existing, request):
+            return self._check_run_result(existing)
+        return self._patch_check_run(check_run_id, request, expected_id=check_run_id)
 
     def set_status(
         self,
@@ -336,6 +545,149 @@ class GitHubClient:
                 return None
         raise GitHubError("GitHub issue comment scan exceeded the pagination cap")
 
+    def _find_unique_pr_card(self, pr: int, marker: str) -> JsonObject | None:
+        matches = self._find_comment_matches(pr, marker)
+        if not matches:
+            return None
+        if len(matches) > 1:
+            raise GitHubError("GitHub PR card identity is ambiguous")
+        return matches[0]
+
+    def _find_comment_matches(self, pr: int, marker: str) -> list[JsonObject]:
+        matches: list[JsonObject] = []
+        for page in range(1, _MAX_PAGES + 1):
+            payload = self.request(
+                "GET",
+                f"{self._repo_path}/issues/{pr}/comments?per_page={_PER_PAGE}&page={page}",
+            )
+            comments = _require_list(payload, "issue comments response")
+            for comment in comments:
+                comment_object = _require_object(comment, "issue comment")
+                if self._comment_has_attribution(comment_object, marker):
+                    matches.append(comment_object)
+            if len(comments) < _PER_PAGE:
+                return matches
+        raise GitHubError("GitHub issue comment scan exceeded the pagination cap")
+
+    def _reconcile_pr_card_after_uncertain_write(
+        self,
+        pr: int,
+        marker: str,
+        desired_body: str,
+    ) -> JsonObject:
+        try:
+            existing = self._find_unique_pr_card(pr, marker)
+        except GitHubError:
+            raise GitHubUncertainResultError(
+                "GitHub PR card publication outcome is uncertain"
+            ) from None
+        try:
+            if (
+                existing is not None
+                and _require_str(existing.get("body"), "body", "issue comment") == desired_body
+            ):
+                return self._pr_card_result(existing)
+        except GitHubError:
+            raise GitHubUncertainResultError(
+                "GitHub PR card publication outcome is uncertain"
+            ) from None
+        raise GitHubUncertainResultError(
+            "GitHub PR card publication outcome is uncertain"
+        ) from None
+
+    def _ensure_checks_enabled(self) -> None:
+        if not self.settings.checks_enabled:
+            raise GitHubError("GitHub Check Runs are disabled by configuration")
+
+    def _find_unique_check_run(self, sha: str, external_id: str) -> JsonObject | None:
+        matches = self._find_check_runs(sha, external_id)
+        if not matches:
+            return None
+        if len(matches) > 1:
+            raise GitHubError("GitHub check run identity is ambiguous")
+        return matches[0]
+
+    def _find_check_runs(self, sha: str, external_id: str) -> list[JsonObject]:
+        matches: list[JsonObject] = []
+        encoded_name = quote(self.settings.check_name, safe="")
+        for page in range(1, _MAX_PAGES + 1):
+            payload = self._request_check_object(
+                "GET",
+                (
+                    f"{self._repo_path}/commits/{sha}/check-runs?"
+                    f"check_name={encoded_name}&filter=all&per_page={_PER_PAGE}&page={page}"
+                ),
+            )
+            runs = _require_list(payload.get("check_runs"), "check runs response")
+            for item in runs:
+                check_run = _require_object(item, "check run")
+                if self._check_run_has_identity(check_run, sha, external_id):
+                    matches.append(check_run)
+            if len(runs) < _PER_PAGE:
+                return matches
+        raise GitHubError("GitHub check run scan exceeded the pagination cap")
+
+    def _patch_check_run(
+        self,
+        check_run_id: int,
+        request: JsonObject,
+        *,
+        expected_id: int,
+    ) -> JsonObject:
+        try:
+            updated = self._request_check_object(
+                "PATCH",
+                f"{self._repo_path}/check-runs/{check_run_id}",
+                json=_check_run_update_payload(request),
+                expected_statuses=(200,),
+                allow_transport_errors=True,
+            )
+        except (requests.exceptions.Timeout, requests.exceptions.ConnectionError):
+            return self._reconcile_check_run_after_uncertain_write(
+                request,
+                expected_id=expected_id,
+            )
+        self._validate_check_run_identity(updated, request["sha"], request["external_id"])
+        if _require_positive_int(updated.get("id"), "id", "check run") != expected_id:
+            raise GitHubError("GitHub check run update result id mismatch")
+        if not self._check_run_matches_request(updated, request):
+            raise GitHubError("GitHub check run update result mismatch")
+        return self._check_run_result(updated)
+
+    def _reconcile_check_run_after_uncertain_write(
+        self,
+        request: JsonObject,
+        *,
+        expected_id: int | None = None,
+    ) -> JsonObject:
+        try:
+            matches = self._find_check_runs(request["sha"], request["external_id"])
+        except GitHubError:
+            raise GitHubUncertainResultError(
+                "GitHub check run publication outcome is uncertain"
+            ) from None
+        try:
+            if (
+                len(matches) == 1
+                and (
+                    expected_id is None
+                    or _require_positive_int(
+                        matches[0].get("id"),
+                        "id",
+                        "check run",
+                    ) == expected_id
+                )
+                and self._check_run_matches_request(matches[0], request)
+            ):
+                return self._check_run_result(matches[0])
+        except GitHubError:
+            raise GitHubUncertainResultError(
+                "GitHub check run publication outcome is uncertain"
+            ) from None
+        raise GitHubUncertainResultError(
+            "GitHub check run publication outcome is uncertain"
+        ) from None
+
     def _latest_status_for_context(self, statuses: list[object]) -> JsonObject | None:
         for item in statuses:
             status = _require_object(item, "commit status")
@@ -385,17 +737,86 @@ class GitHubClient:
             "html_url": _require_str(comment.get("html_url"), "html_url", "issue comment"),
         }
 
+    def _pr_card_result(self, comment: JsonObject) -> JsonObject:
+        return {
+            "id": _require_positive_int(comment.get("id"), "id", "issue comment"),
+            "html_url": _require_str(comment.get("html_url"), "html_url", "issue comment"),
+            "body": _require_str(comment.get("body"), "body", "issue comment"),
+        }
+
+    def _check_run_has_identity(
+        self,
+        check_run: JsonObject,
+        sha: object,
+        external_id: object,
+    ) -> bool:
+        try:
+            self._validate_check_run_identity(check_run, sha, external_id)
+            return True
+        except GitHubError:
+            return False
+
+    def _validate_check_run_identity(
+        self,
+        check_run: JsonObject,
+        sha: object,
+        external_id: object,
+    ) -> None:
+        _require_positive_int(check_run.get("id"), "id", "check run")
+        if _require_str(check_run.get("name"), "name", "check run") != self.settings.check_name:
+            raise GitHubError("GitHub check run name mismatch")
+        if _require_sha(check_run.get("head_sha"), "check run head sha") != sha:
+            raise GitHubError("GitHub check run sha mismatch")
+        if _require_str(check_run.get("external_id"), "external_id", "check run") != external_id:
+            raise GitHubError("GitHub check run external identity mismatch")
+        app = _require_object(check_run.get("app"), "check run app attribution")
+        if _require_int(app.get("id"), "id", "check run app attribution") != self.settings.app_id:
+            raise GitHubError("GitHub check run app attribution mismatch")
+
+    def _check_run_matches_request(self, check_run: JsonObject, request: JsonObject) -> bool:
+        output = _require_object(check_run.get("output"), "check run output")
+        return (
+            _require_str(check_run.get("status"), "status", "check run") == request["status"]
+            and _string_or_none(check_run.get("conclusion")) == request["conclusion"]
+            and _string_or_none(check_run.get("details_url")) == request["details_url"]
+            and _string_or_none(output.get("title")) == request["title"]
+            and _string_or_none(output.get("summary")) == request["summary"]
+        )
+
+    def _check_run_result(self, check_run: JsonObject) -> JsonObject:
+        output = _optional_object(check_run.get("output"), "check run output")
+        return {
+            "id": _require_positive_int(check_run.get("id"), "id", "check run"),
+            "html_url": _string_or_none(check_run.get("html_url")),
+            "name": _require_str(check_run.get("name"), "name", "check run"),
+            "head_sha": _require_sha(check_run.get("head_sha"), "check run head sha"),
+            "external_id": _require_str(check_run.get("external_id"), "external_id", "check run"),
+            "status": _require_str(check_run.get("status"), "status", "check run"),
+            "conclusion": _string_or_none(check_run.get("conclusion")),
+            "details_url": _string_or_none(check_run.get("details_url")),
+            "app_id": _require_int(
+                _require_object(check_run.get("app"), "check run app attribution").get("id"),
+                "id",
+                "check run app attribution",
+            ),
+            "title": _string_or_none(output.get("title")) if output is not None else None,
+            "summary": _string_or_none(output.get("summary")) if output is not None else None,
+        }
+
     def _validate_target_url(self, target_url: str) -> None:
+        self._validate_runtime_url(target_url, "status target URL")
+
+    def _validate_runtime_url(self, target_url: str, label: str) -> None:
         parsed = urlsplit(target_url)
         if not parsed.scheme or not parsed.netloc:
-            raise GitHubError("GitHub status target URL must be absolute")
+            raise GitHubError(f"GitHub {label} must be absolute")
         if parsed.query or parsed.fragment or parsed.username or parsed.password:
-            raise GitHubError("GitHub status target URL must not contain secrets")
+            raise GitHubError(f"GitHub {label} must not contain secrets")
         if _origin_tuple(parsed) != _origin_tuple(urlsplit(self.settings.base_url)):
-            raise GitHubError("GitHub status target URL must stay under the configured base_url")
+            raise GitHubError(f"GitHub {label} must stay under the configured base_url")
         decoded_path = unquote(parsed.path)
         if "\\" in decoded_path or any(segment == ".." for segment in decoded_path.split("/")):
-            raise GitHubError("GitHub status target URL must not include parent traversal")
+            raise GitHubError(f"GitHub {label} must not include parent traversal")
 
     def _request_object(
         self,
@@ -411,6 +832,25 @@ class GitHubClient:
             method,
             relative_api_path,
             token=token if token is not None else self.installation_token(),
+            json=json,
+            expected_statuses=expected_statuses,
+            allow_transport_errors=allow_transport_errors,
+        )
+        return _require_object(payload, f"{method.upper()} {relative_api_path} response")
+
+    def _request_check_object(
+        self,
+        method: str,
+        relative_api_path: str,
+        *,
+        json: JsonObject | None = None,
+        expected_statuses: tuple[int, ...] = (200,),
+        allow_transport_errors: bool = False,
+    ) -> JsonObject:
+        payload = self._request_data(
+            method,
+            relative_api_path,
+            token=self._check_token(),
             json=json,
             expected_statuses=expected_statuses,
             allow_transport_errors=allow_transport_errors,
@@ -506,6 +946,14 @@ def _publication_marker(publication_id: str) -> str:
     return f"lasthuman:publication:{marker}"
 
 
+def _pr_card_marker(pr: int) -> str:
+    _validate_positive_number(pr, "pull request number")
+    marker = f"{_PR_CARD_MARKER_PREFIX}{pr}"
+    if len(_hidden_marker(marker)) > _MARKER_RESERVATION_CHARS:
+        raise GitHubError("GitHub PR card marker exceeds reserved presentation budget")
+    return marker
+
+
 def _append_marker(body: str, marker: str) -> str:
     comment = body.rstrip()
     hidden_marker = _hidden_marker(marker)
@@ -516,8 +964,92 @@ def _append_marker(body: str, marker: str) -> str:
     return hidden_marker
 
 
+def _append_marker_with_budget(body: str, marker: str, max_chars: int) -> str:
+    if len(_hidden_marker(marker)) > _MARKER_RESERVATION_CHARS:
+        raise GitHubError("GitHub PR card marker exceeds reserved presentation budget")
+    comment = _append_marker(body, marker)
+    if len(comment) > max_chars:
+        raise GitHubError("GitHub PR card body exceeds presentation character budget")
+    return comment
+
+
 def _hidden_marker(marker: str) -> str:
     return f"<!-- {marker} -->"
+
+
+def _validate_check_run_request(
+    sha: str,
+    external_id: str,
+    *,
+    status: CheckStatus,
+    conclusion: CheckConclusion | None,
+    title: str,
+    summary: str,
+    details_url: str,
+) -> JsonObject:
+    normalized_sha = _require_sha(sha, "check run head sha")
+    normalized_external_id = _require_external_id(external_id)
+    if status not in _CHECK_STATUSES:
+        raise GitHubError("GitHub check run status must be in_progress or completed")
+    if status == "in_progress":
+        if conclusion is not None:
+            raise GitHubError("GitHub in_progress check run conclusion must be absent")
+    elif conclusion not in _COMPLETED_CHECK_CONCLUSIONS:
+        raise GitHubError(
+            "GitHub completed check run conclusion must be success, neutral, "
+            "cancelled, or action_required"
+        )
+    return {
+        "sha": normalized_sha,
+        "external_id": normalized_external_id,
+        "status": status,
+        "conclusion": conclusion,
+        "title": _require_bounded_text(title, "title", "check run output"),
+        "summary": _require_bounded_text(summary, "summary", "check run output"),
+        "details_url": _require_str(details_url, "details_url", "check run"),
+    }
+
+
+def _check_run_create_payload(name: str, request: JsonObject) -> JsonObject:
+    payload = _check_run_update_payload(request)
+    payload.update(
+        {
+            "name": name,
+            "head_sha": request["sha"],
+            "external_id": request["external_id"],
+        }
+    )
+    return payload
+
+
+def _check_run_update_payload(request: JsonObject) -> JsonObject:
+    payload: JsonObject = {
+        "status": request["status"],
+        "details_url": request["details_url"],
+        "output": {
+            "title": request["title"],
+            "summary": request["summary"],
+        },
+    }
+    if request["status"] == "completed":
+        payload["conclusion"] = request["conclusion"]
+    return payload
+
+
+def _require_external_id(value: object) -> str:
+    external_id = _require_str(value, "external_id", "check run")
+    if len(external_id) > _CHECK_EXTERNAL_ID_MAX:
+        raise GitHubError("GitHub check run external identity is too long")
+    if re.search(r"\s", external_id):
+        raise GitHubError("GitHub check run external identity must not contain whitespace")
+    return external_id
+
+
+def _require_bounded_text(value: object, field_name: str, context: str) -> str:
+    text = _require_str(value, field_name, context)
+    if len(text) > _CHECK_OUTPUT_TEXT_MAX:
+        raise GitHubError(f"GitHub {context} {field_name} is too long")
+    return text
 
 
 def _normalize_relative_api_path(relative_api_path: str) -> str:
@@ -577,6 +1109,12 @@ def _require_object(value: object, context: str) -> JsonObject:
     return cast(JsonObject, value)
 
 
+def _optional_object(value: object, context: str) -> JsonObject | None:
+    if value is None:
+        return None
+    return _require_object(value, context)
+
+
 def _require_list(value: object, context: str) -> list[object]:
     if not isinstance(value, list):
         raise GitHubError(f"GitHub {context} must be a JSON array")
@@ -593,6 +1131,13 @@ def _require_int(value: object, field_name: str, context: str) -> int:
     if isinstance(value, bool) or not isinstance(value, int):
         raise GitHubError(f"GitHub {context} missing {field_name}")
     return value
+
+
+def _require_positive_int(value: object, field_name: str, context: str) -> int:
+    integer = _require_int(value, field_name, context)
+    if integer <= 0:
+        raise GitHubError(f"GitHub {context} {field_name} must be positive")
+    return integer
 
 
 def _require_sha(value: object, context: str) -> str:

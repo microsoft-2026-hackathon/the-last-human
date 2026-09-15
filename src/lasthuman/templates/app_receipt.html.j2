@@ -41,6 +41,7 @@
   ul { margin: 0; padding-left: 1.2rem; }
   li + li { margin-top: 0.65rem; }
   a { color: var(--accent); }
+  .warning { border-color: #d29922; }
 </style>
 </head>
 <body>
@@ -51,6 +52,14 @@
     <p class="meta">Head <span class="mono">{{ receipt.head_sha }}</span></p>
     <p class="meta">Verified {{ receipt.verified_at or "pending" }}</p>
   </div>
+
+  {% set presentation = receipt.publication.presentation if receipt.publication is defined and receipt.publication.presentation is defined else {} %}
+  {% if presentation.check is defined and presentation.check.failed %}
+  <div class="panel warning">
+    <h2>Supplemental Check delivery</h2>
+    <p class="meta">The private receipt remains authoritative. The supplemental Check needs operator attention.</p>
+  </div>
+  {% endif %}
 
   <div class="panel">
     <h2>Successful answers</h2>

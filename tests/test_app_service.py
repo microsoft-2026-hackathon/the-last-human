@@ -61,9 +61,14 @@ class FakeGitHub:
         self.request_calls: list[tuple[str, str]] = []
         self.status_calls: list[dict[str, object]] = []
         self.comment_calls: list[dict[str, object]] = []
+        self.check_calls: list[dict[str, object]] = []
+        self.cancel_check_calls: list[dict[str, object]] = []
+        self.check_runs: dict[str, dict[str, object]] = {}
+        self.pr_card: dict[str, object] | None = None
         self.dispatch_calls: list[str] = []
         self.fail_status = 0
         self.fail_comment = 0
+        self.fail_check = 0
         self.fail_dispatch = 0
 
     def pull(self, pr: int, user_token: str | None = None) -> dict[str, object]:
@@ -102,6 +107,94 @@ class FakeGitHub:
         self.comment_calls.append(call)
         return {"id": len(self.comment_calls), "html_url": f"https://example.com/comments/{len(self.comment_calls)}"}
 
+    def find_pr_card(self, pr: int) -> dict[str, object] | None:
+        if self.pr_card is None or self.pr_card["pr"] != pr:
+            return None
+        return dict(self.pr_card)
+
+    def ensure_pr_card(self, pr: int, body: str) -> dict[str, object]:
+        if self.fail_comment > 0:
+            self.fail_comment -= 1
+            raise GitHubError("card failed RAW_SECRET", status_code=502)
+        existing = self.find_pr_card(pr)
+        if existing is not None and existing["body"] == body:
+            return existing
+        card_id = 1 if self.pr_card is None else int(self.pr_card["id"])
+        self.pr_card = {
+            "id": card_id,
+            "pr": pr,
+            "body": body,
+            "html_url": f"https://example.com/comments/{card_id}",
+        }
+        self.comment_calls.append({"pr": pr, "body": body, "publication_id": "pr-card"})
+        return dict(self.pr_card)
+
+    def ensure_check_run(
+        self,
+        sha: str,
+        external_id: str,
+        *,
+        status: str,
+        conclusion: str | None,
+        title: str,
+        summary: str,
+        details_url: str,
+    ) -> dict[str, object]:
+        if self.fail_check > 0:
+            self.fail_check -= 1
+            raise GitHubError("check failed RAW_SECRET", status_code=403)
+        call = {
+            "sha": sha,
+            "external_id": external_id,
+            "status": status,
+            "conclusion": conclusion,
+            "title": title,
+            "summary": summary,
+            "details_url": details_url,
+        }
+        existing = self.check_runs.get(external_id)
+        if existing is not None and all(existing[key] == value for key, value in call.items()):
+            return dict(existing)
+        check_id = len(self.check_runs) + 1 if existing is None else existing["id"]
+        result = {"id": check_id, "html_url": f"https://example.com/checks/{check_id}", **call}
+        self.check_runs[external_id] = result
+        self.check_calls.append(call)
+        return dict(result)
+
+    def find_check_run(self, sha: str, external_id: str) -> dict[str, object] | None:
+        existing = self.check_runs.get(external_id)
+        if existing is None or existing["sha"] != sha:
+            return None
+        return dict(existing)
+
+    def cancel_check_run(
+        self,
+        check_run_id: int,
+        *,
+        sha: str,
+        external_id: str,
+        title: str,
+        summary: str,
+        details_url: str,
+    ) -> dict[str, object]:
+        existing = self.find_check_run(sha, external_id)
+        if existing is None or existing["id"] != check_run_id:
+            raise GitHubError("check run not found", status_code=404)
+        call = {
+            "id": check_run_id,
+            "html_url": existing.get("html_url"),
+            "sha": sha,
+            "external_id": external_id,
+            "title": title,
+            "summary": summary,
+            "details_url": details_url,
+            "status": "completed",
+            "conclusion": "cancelled",
+        }
+        self.cancel_check_calls.append(call)
+        self.check_runs[external_id] = call
+        return call
+
     def dispatch_verification(self, receipt_id: str) -> None:
         self.dispatch_calls.append(receipt_id)
         if self.fail_dispatch > 0:
@@ -126,7 +219,7 @@ class FakeGitHub:
             raise GitHubError("commit not found", status_code=404) from None
 
 
-def make_settings(tmp_path: Path, *, live: bool = False) -> Settings:
+def make_settings(tmp_path: Path, *, live: bool = False, checks_enabled: bool = False) -> Settings:
     key_file = tmp_path / "app.pem"
     key_file.write_text("not used", encoding="utf-8")
     return Settings(
@@ -146,6 +239,7 @@ def make_settings(tmp_path: Path, *, live: bool = False) -> Settings:
         workflow="lasthuman-app.yml",
         workflow_ref="refs/heads/main",
         oidc_audience="hunhoon21/the-last-human",
+        checks_enabled=checks_enabled,
     )
 
 
@@ -296,13 +390,14 @@ def make_service(
     pulls: list[dict[str, object]],
     clock: FakeClock,
     live: bool = False,
+    checks_enabled: bool = False,
     questions: list[Question] | None = None,
     verdicts: dict[str, str] | None = None,
     generate_func: Callable[..., list[Question]] | None = None,
     grade_func: Callable[..., Answer] | None = None,
     commits: dict[str, dict[str, object]] | None = None,
 ) -> tuple[BotService, FakeGitHub]:
-    settings = make_settings(tmp_path, live=live)
+    settings = make_settings(tmp_path, live=live, checks_enabled=checks_enabled)
     github = FakeGitHub(pulls, commits=commits)
     reader = FakeReader(snapshot)
     store = Store(settings.database)
@@ -455,7 +550,7 @@ def test_sync_requires_a_complete_regenerated_batch(tmp_path: Path, monkeypatch,
         service.shutdown()
 
 
-def test_sync_queues_start_comment_with_live_link_and_localhost_copy(tmp_path: Path):
+def test_sync_queues_canonical_card_with_real_renderer_and_no_localhost_status(tmp_path: Path):
     live_path = tmp_path / "live"
     dev_path = tmp_path / "dev"
     live_path.mkdir()
@@ -471,17 +566,12 @@ def test_sync_queues_start_comment_with_live_link_and_localhost_copy(tmp_path: P
         live=True,
     )
     live_service.sync(live_snapshot.pr)
-    live_events = {
-        event.kind: event
-        for event in live_service.store.load_due_publications(
-            now="9999-12-31T23:59:59Z",
-            limit=10,
-        )
-    }
-    live_body = str(live_events["start_comment"].payload["body"])
+    live_service.flush_publications()
+    live_body = str(_live_github.pr_card["body"])
     assert f"https://example.com/prs/{live_snapshot.pr}" in live_body
-    assert live_snapshot.head_sha in live_body
+    assert live_snapshot.head_sha[:7] in live_body
     assert "localhost" not in live_body
+    assert "Human Verified" not in live_body
 
     dev_clock = FakeClock()
     dev_snapshot = make_snapshot(pr=8)
@@ -492,6 +582,7 @@ def test_sync_queues_start_comment_with_live_link_and_localhost_copy(tmp_path: P
         clock=dev_clock,
     )
     dev_service.sync(dev_snapshot.pr)
+    dev_service.flush_publications()
     dev_events = {
         event.kind: event
         for event in dev_service.store.load_due_publications(
@@ -499,10 +590,11 @@ def test_sync_queues_start_comment_with_live_link_and_localhost_copy(tmp_path: P
             limit=10,
         )
     }
-    dev_body = str(dev_events["start_comment"].payload["body"]).lower()
-    assert "localhost" in dev_body
-    assert "local service only" in dev_body
-    assert "http://localhost:8000/prs/" not in dev_body
+    assert _dev_github.pr_card is not None
+    dev_body = str(_dev_github.pr_card["body"]).lower()
+    assert f"{dev_service.settings.base_url}/prs/{dev_snapshot.pr}" in dev_body
+    assert _dev_github.status_calls == []
+    assert _dev_github.check_calls == []
     assert "pending_status" not in dev_events
 
 
@@ -1212,9 +1304,10 @@ def test_flush_skips_stale_pending_publications_when_pull_changes(tmp_path: Path
     service.sync(snapshot.pr)
 
     github._pulls = [make_pull(make_snapshot(head_sha=OTHER_HEAD_SHA))]
+    queued = service.store.load_due_publications(now=service._now_iso())
     processed = service.flush_publications()
 
-    assert processed == 2
+    assert processed == len(queued)
     assert github.comment_calls == []
     assert github.status_calls == []
     assert service.store.load_due_publications(now="9999-12-31T23:59:59Z", limit=10) == ()

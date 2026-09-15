@@ -177,9 +177,14 @@ class FakeGitHub:
         }
         self.comment_calls: list[dict[str, object]] = []
         self.status_calls: list[dict[str, object]] = []
+        self.check_calls: list[dict[str, object]] = []
+        self.check_runs: dict[str, dict[str, object]] = {}
+        self.cancel_check_calls: list[dict[str, object]] = []
         self.dispatch_calls: list[str] = []
+        self.pr_card: dict[str, object] | None = None
         self.fail_comment = 0
         self.fail_status = 0
+        self.fail_check = 0
 
     def repository_info(self, user_token: str | None = None) -> dict[str, object]:
         self._require_token(user_token)
@@ -210,6 +215,93 @@ class FakeGitHub:
             "id": len(self.comment_calls),
             "html_url": f"https://example.com/comments/{len(self.comment_calls)}",
         }
+
+    def find_pr_card(self, pr: int) -> dict[str, object] | None:
+        if self.pr_card is None or self.pr_card["pr"] != pr:
+            return None
+        return dict(self.pr_card)
+
+    def ensure_pr_card(self, pr: int, body: str) -> dict[str, object]:
+        if self.fail_comment > 0:
+            self.fail_comment -= 1
+            raise GitHubError("card RAW_SECRET failed", status_code=502)
+        existing = self.find_pr_card(pr)
+        if existing is not None and existing["body"] == body:
+            return existing
+        card_id = 1 if self.pr_card is None else int(self.pr_card["id"])
+        self.pr_card = {
+            "id": card_id,
+            "pr": pr,
+            "body": body,
+            "html_url": f"https://example.com/comments/{card_id}",
+        }
+        self.comment_calls.append({"pr": pr, "body": body, "publication_id": "pr-card"})
+        return dict(self.pr_card)
+
+    def ensure_check_run(
+        self,
+        sha: str,
+        external_id: str,
+        *,
+        status: str,
+        conclusion: str | None,
+        title: str,
+        summary: str,
+        details_url: str,
+    ) -> dict[str, object]:
+        if self.fail_check > 0:
+            self.fail_check -= 1
+            raise GitHubError("check RAW_SECRET failed", status_code=403)
+        call = {
+            "sha": sha,
+            "external_id": external_id,
+            "status": status,
+            "conclusion": conclusion,
+            "title": title,
+            "summary": summary,
+            "details_url": details_url,
+        }
+        existing = self.check_runs.get(external_id)
+        if existing is not None and all(existing[key] == value for key, value in call.items()):
+            return dict(existing)
+        check_id = len(self.check_runs) + 1 if existing is None else existing["id"]
+        result = {"id": check_id, **call}
+        self.check_runs[external_id] = result
+        self.check_calls.append(call)
+        return dict(result)
+
+    def find_check_run(self, sha: str, external_id: str) -> dict[str, object] | None:
+        existing = self.check_runs.get(external_id)
+        if existing is None or existing["sha"] != sha:
+            return None
+        return dict(existing)
+
+    def cancel_check_run(
+        self,
+        check_run_id: int,
+        *,
+        sha: str,
+        external_id: str,
+        title: str,
+        summary: str,
+        details_url: str,
+    ) -> dict[str, object]:
+        existing = self.find_check_run(sha, external_id)
+        if existing is None or existing["id"] != check_run_id:
+            raise GitHubError("check run not found", status_code=404)
+        call = {
+            "id": check_run_id,
+            "sha": sha,
+            "external_id": external_id,
+            "title": title,
+            "summary": summary,
+            "details_url": details_url,
+            "status": "completed",
+            "conclusion": "cancelled",
+        }
+        self.cancel_check_calls.append(call)
+        self.check_runs[external_id] = call
+        return call
 
     def set_status(
         self,
@@ -283,7 +375,7 @@ class FakeVerifier:
             raise OIDCError("GitHub Actions OIDC token is invalid") from None
 
 
-def make_settings(tmp_path: Path) -> Settings:
+def make_settings(tmp_path: Path, *, checks_enabled: bool = False) -> Settings:
     key_file = tmp_path / "app.pem"
     key_file.write_text("not used", encoding="utf-8")
     return Settings(
@@ -303,6 +395,7 @@ def make_settings(tmp_path: Path) -> Settings:
         workflow="lasthuman-app.yml",
         workflow_ref="refs/heads/main",
         oidc_audience="hunhoon21/the-last-human",
+        checks_enabled=checks_enabled,
     )
 
 
@@ -437,9 +530,11 @@ def make_pull(
 
 def make_app(
     tmp_path: Path,
+    *,
+    checks_enabled: bool = False,
 ) -> tuple[FlaskClient, Any, BotService, FakeGitHub, Settings, FakeClock]:
     clock = FakeClock()
-    settings = make_settings(tmp_path)
+    settings = make_settings(tmp_path, checks_enabled=checks_enabled)
     snapshot = make_snapshot()
     github = FakeGitHub(settings, snapshot)
     store = Store(settings.database)
@@ -508,7 +603,7 @@ def test_full_http_runtime_flow_from_sync_to_verify_publish_merge_and_dashboard(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    client, app, service, github, settings, _clock = make_app(tmp_path)
+    client, app, service, github, settings, _clock = make_app(tmp_path, checks_enabled=True)
     snapshot = make_snapshot()
     schema_questions = [
         {
@@ -595,6 +690,10 @@ def test_full_http_runtime_flow_from_sync_to_verify_publish_merge_and_dashboard(
 
     assert len(github.comment_calls) == 1
     assert [call["state"] for call in github.status_calls] == ["pending"]
+    assert len(github.check_runs) == 1
+    assert github.check_calls[-1]["status"] == "in_progress"
+    assert github.check_calls[-1]["conclusion"] is None
+    assert "Human Verified" not in str(github.pr_card["body"])
 
     pr_page = client.get("/prs/7")
     assert pr_page.status_code == 200
@@ -635,6 +734,8 @@ def test_full_http_runtime_flow_from_sync_to_verify_publish_merge_and_dashboard(
     assert hold_result.get_json()["feedback"] == [
         {"id": "0", "hint": "inspect app/auth/token.py:L10"}
     ]
+    assert github.check_calls[-1]["conclusion"] is None
+    assert "first try" not in str(github.pr_card["body"])
 
     passed = client.post(
         "/api/prs/7/submissions",
@@ -662,6 +763,8 @@ def test_full_http_runtime_flow_from_sync_to_verify_publish_merge_and_dashboard(
     assert awaiting_payload["state"] == "awaiting_verification"
     receipt_id = awaiting_payload["receipt_id"]
     assert github.dispatch_calls == [receipt_id]
+    assert github.check_calls[-1]["status"] == "in_progress"
+    assert "Human Verified" not in str(github.pr_card["body"])
 
     receipt_binding = client.get(
         f"/api/actions/receipts/{receipt_id}",
@@ -693,7 +796,12 @@ def test_full_http_runtime_flow_from_sync_to_verify_publish_merge_and_dashboard(
     assert verify_done.get_json()["state"] == "completed"
     assert verify_done.get_json()["result"]["state"] == "verified"
     assert [call["state"] for call in github.status_calls] == ["pending", "success"]
-    assert len(github.comment_calls) == 2
+    assert len(github.comment_calls) == 3
+    assert len(github.check_runs) == 1
+    assert github.check_calls[-1]["conclusion"] == "success"
+    assert github.check_calls[-1]["sha"] == HEAD_SHA
+    assert "Human Verified" in str(github.pr_card["body"])
+    assert "returns refresh(token)" not in str(github.pr_card["body"])
 
     verified = client.get(
         f"/api/submissions/{pass_job_id}",
@@ -756,6 +864,9 @@ def test_full_http_runtime_flow_from_sync_to_verify_publish_merge_and_dashboard(
     assert merged_done.status_code == 200
     assert merged_done.get_json()["state"] == "completed"
     assert merged_done.get_json()["result"]["state"] == "merged"
+    assert len(github.check_runs) == 1
+    assert github.check_calls[-1]["conclusion"] == "success"
+    assert "Human Verified" in str(github.pr_card["body"])
 
     dashboard_api = client.get(
         "/api/dashboard",
