@@ -56,7 +56,7 @@ def test_presentation_settings_accept_explicit_values(
     [
         ({"TLH_CHECK_RUNS": "True"}, "TLH_CHECK_RUNS"),
         ({"TLH_CHECK_RUNS": "1"}, "TLH_CHECK_RUNS"),
-        ({"TLH_CHECK_NAME": "comprehension-gate-dev"}, "differ"),
+        ({"TLH_CHECK_NAME": "last-human/human-verified-dev"}, "differ"),
         ({"TLH_CHECK_NAME": ""}, "TLH_CHECK_NAME"),
         ({"TLH_CHECK_NAME": "x\nname"}, "single line"),
         ({"TLH_PRESENTATION_NAME": ""}, "TLH_PRESENTATION_NAME"),

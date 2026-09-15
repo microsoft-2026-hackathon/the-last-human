@@ -165,7 +165,8 @@ def test_phase_contract_has_four_truthful_stages_and_exact_check_map() -> None:
     for phase, (status, conclusion) in expected.items():
         rendered = _render(phase=phase)
         assert rendered.title == f"The Last Human · {catalog.phase[phase].label}"
-        assert f"## The Last Human · {catalog.phase[phase].label}" in rendered.body
+        # the markdown body escapes "-" (list-marker neutralisation); the check title does not
+        assert f"## The Last Human · {catalog.phase[phase].label.replace('-', '&#45;')}" in rendered.body
         assert rendered.check_status == status
         assert rendered.check_conclusion == conclusion
         stage_lines = _stage_lines(rendered.body)
@@ -177,8 +178,8 @@ def test_phase_contract_has_four_truthful_stages_and_exact_check_map() -> None:
             4 if phase == "verified" else {"preparing": 1, "awaiting_author": 2, "verifying": 3}.get(phase, 0)
         )
         if phase != "verified":
-            assert "Human Verified" not in rendered.body
-            assert "Human Verified" not in rendered.title
+            assert "Human&#45;verified" not in rendered.body
+            assert "Human-verified" not in rendered.title
 
     verified = _render(phase="verified", receipt_id="receipt-42")
     assert "이 변경에 대한 이해 확인을 완료했습니다." in verified.body
@@ -427,7 +428,7 @@ def test_english_copy_seam_and_stable_repeated_rendering() -> None:
     assert "**Stages**" in first.body
     assert "Risk score 55 / threshold 40" in first.body
     assert "중요 경로" in first.body
-    assert "Human Verified" not in first.body
+    assert "Human&#45;verified" not in first.body
 
     catalog = catalog_for_locale("en")
     replacement = replace(

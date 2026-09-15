@@ -1023,7 +1023,7 @@ class BotService:
                     pr=snapshot.pr,
                     snapshot_id=snapshot.snapshot_id,
                     payload={
-                        "description": "Comprehension check required",
+                        "description": "Awaiting author explanation",
                         "target_url": self._pr_url(snapshot.pr),
                     },
                 )
@@ -1036,7 +1036,7 @@ class BotService:
                     pr=snapshot.pr,
                     snapshot_id=snapshot.snapshot_id,
                     payload={
-                        "description": "Comprehension check not required",
+                        "description": "Not required — below risk threshold",
                         "target_url": self._pr_url(snapshot.pr),
                     },
                 )
@@ -1052,7 +1052,7 @@ class BotService:
                     snapshot_id=snapshot.snapshot_id,
                     receipt_id=receipt.receipt_id,
                     payload={
-                        "description": "Comprehension check verified",
+                        "description": "Human-verified",
                         "target_url": self._receipt_url(receipt.receipt_id),
                     },
                 )
@@ -1825,7 +1825,7 @@ class BotService:
                     snapshot_id=snapshot.snapshot_id,
                     receipt_id=receipt_id,
                     payload={
-                        "description": "Comprehension check verified",
+                        "description": "Human-verified",
                         "target_url": self._receipt_url(receipt_id),
                     },
                 )

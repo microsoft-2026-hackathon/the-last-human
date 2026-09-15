@@ -29,7 +29,7 @@ permissions:
 env:
   PYTHONIOENCODING: utf-8
   GH_TOKEN: ${{ github.token }}
-  STATUS_CONTEXT: comprehension-gate
+  STATUS_CONTEXT: last-human/human-verified
   # 이 날짜 이전의 머지는 게이트를 거치지 않았다. 미인증으로 세면
   # 숫자가 실제보다 나쁘게 보이므로 집계에서 뺀다.
   MEASURED_SINCE: "2026-09-02"

@@ -53,7 +53,7 @@ KO_CATALOG = PresentationCopyCatalog(
             cta="인증 상태 보기",
         ),
         "verified": PhaseCopy(
-            label="Human Verified",
+            label="Human-verified",
             heading="이 변경에 대한 이해 확인을 완료했습니다.",
             summary="작성자의 설명과 코드 근거를 확인하고 인증을 현재 커밋에 연결했습니다.",
             cta="내 확인 내역",
@@ -152,7 +152,7 @@ EN_CATALOG = PresentationCopyCatalog(
             cta="View verification status",
         ),
         "verified": PhaseCopy(
-            label="Human Verified",
+            label="Human-verified",
             heading="Understanding verification for this change is complete.",
             summary="The explanation and code evidence were verified and bound to the current commit.",
             cta="View my verification",

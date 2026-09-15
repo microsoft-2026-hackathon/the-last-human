@@ -149,7 +149,7 @@ def make_settings(tmp_path: Path) -> Settings:
         secret_key="k" * 32,
         database=tmp_path / "lasthuman.sqlite3",
         mode="live",
-        status_context="comprehension-gate",
+        status_context="last-human/human-verified",
         workflow="lasthuman-app.yml",
         workflow_ref="refs/heads/main",
         oidc_audience="hunhoon21/the-last-human",
@@ -1047,7 +1047,7 @@ def test_lasthuman_app_workflow_is_metadata_only_and_trusted() -> None:
         step for step in steps if step.get("name") == "Relay metadata-only event"
     )
 
-    assert workflow["name"] == "TLH App relay"
+    assert workflow["name"] == "Last Human · relay"
     assert permissions == {
         "contents": "read",
         "pull-requests": "read",

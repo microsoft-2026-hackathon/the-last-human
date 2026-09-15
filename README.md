@@ -75,7 +75,7 @@ python -m lasthuman.server flush
 
 `localhost` 개발 경로는 GitHub commit status 를 쓰지 않고, 필요하면 로컬 전용 안내 comment 만 남깁니다.
 trusted Actions relay 파일은 계속 `lasthuman-app.yml`이고, 권위 있는 최종 신호는 여전히 commit status
-context `comprehension-gate`입니다. 보조 App Check는 기본적으로 꺼져 있으며
+context `last-human/human-verified`입니다. 보조 App Check는 기본적으로 꺼져 있으며
 (`TLH_CHECK_RUNS=false`), 켜더라도 표시 이름 `TLH_CHECK_NAME` 기본값 `The Last Human`은
 필수 status context와 다릅니다. 예전 `.github/workflows/comprehension-gate.yml`을 지워도
 기존 Actions 실행 기록은 삭제되지 않습니다.
