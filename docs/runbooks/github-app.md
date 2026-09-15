@@ -250,7 +250,7 @@ python -m lasthuman.server flush
 4. snapshot 은 GitHub API와 `git fetch` 로 만든다. PR head를 checkout 해서 실행하지 않는다.
 5. snapshot 이 트리거 대상이 아니면 질문 없이 `neutral` 로 저장한다. 실사용 자동 경로에서는 성공 상태를 큐에 넣는다.
 6. snapshot 이 트리거 대상이면 시작 comment 를 큐에 넣고, 실사용 공개 origin 일 때만 pending 상태도 큐에 넣는다.
-7. 질문은 현재 3개를 기대한다. 작성자는 모든 질문에 정확히 한 번씩 답해야 한다.
+7. 질문 생성에는 제공된 앵커 목록을 enum으로 제한한 Structured Outputs를 사용한다. 응답의 `questions` 배열을 기존 질문 목록으로 변환하며, App은 여전히 정확히 3개를 요구한다. 작성자는 모든 질문에 정확히 한 번씩 답해야 한다.
 8. 답변이 보류되면 힌트만 메모리에 남고, raw answer 는 DB에 저장하지 않는다.
 9. 답변이 통과되면 receipt 와 successful answers 를 저장하고, receipt 검증용 `workflow_dispatch` 를 outbox 에 넣는다.
 10. 검증 단계는 receipt 의 binding 과 새로 읽은 snapshot binding 을 다시 비교한다. `repository_id`, `pr`, `head_sha`, `base_sha`, `policy_version`, `snapshot_id`, `score`, `triggered` 가 하나라도 달라지면 verified 로 바꾸지 않는다.
@@ -271,6 +271,8 @@ snapshot 은 아래 형태를 지원하지 않는다.
 - 순수 rename
 
 ## Actions wiring
+
+질문 생성 방식이 바뀌어도 Actions의 책임은 바뀌지 않는다. 아래 relay는 계속 trusted main에서 위험도와 인증 결속을 독립 검증하며, 모델 호출은 App 서버에서 수행한다. 새로운 CI 작업, Azure 자격 증명 전달, 자동 머지 조건은 추가하지 않는다.
 
 `LASTHUMAN_RUNTIME=app` 을 켜면 새 relay workflow 가 동작하고, 기존 `comprehension-gate.yml` 과 `dashboard.yml` 은 `vars.LASTHUMAN_RUNTIME != 'app'` 조건 때문에 멈춘다.
 
@@ -340,13 +342,15 @@ gunicorn --bind 0.0.0.0:8000 --workers 1 --threads 4 'lasthuman.server.app:creat
 | 로컬에서 comment 만 생기고 상태가 없음 | 정상이다. `localhost` 개발 경로는 상태를 쓰지 않는다 |
 | 질문 생성이 안 됨 | 모델 자격 증명과 endpoint 설정 확인 |
 | 질문 준비 중 개수·유형 오류 | 모델 응답의 형식 문제와 연결·인증 오류를 구분한다. [질문 생성 형식 오류](#질문-생성-형식-오류)를 참고한다. |
+| 질문 생성 요청이 HTTP 400으로 실패 | 모델·API 버전의 `response_format` / strict `json_schema` 지원 확인. 스키마를 제거해 자동 우회하지 않음 |
+| 모델 거절·불완전 종료 | 처리 오류로 중단. 거절 원문을 공개하지 않고 작성자의 보류나 통과로 기록하지 않음 |
 | Azure CLI 인증 실패 | 같은 OS 계정의 `az login`, tenant/subscription/scope, 터미널 PATH와 `.[bot]` 의존성 확인 |
 | 토큰 취득은 되는데 Azure 모델이 403 | 해당 리소스의 추론 RBAC와 endpoint를 확인. API 키 인증을 임의로 활성화하지 않음 |
 | snapshot 지원 불가 | merge queue, shared head, 과대 diff, binary, 순수 rename 여부 확인 |
 
 ### 질문 생성 형식 오류
 
-**대응:** 생성 응답을 검증하고, 유효한 전체 질문 묶음을 최대 한 번 다시 생성한다. 코드의 반영과 실제 배포·PR 재실행은 별개다. 두 번 모두 유효하지 않으면 처리 오류로 중단하며, 성공을 보장하거나 질문 수를 줄이지 않는다.
+**대응:** 질문 생성 요청의 strict JSON Schema에서 앵커를 제공된 목록으로 제한한다. 응답을 로컬에서도 검증하고, 내용 형식이 잘못된 전체 묶음은 최대 한 번 다시 생성한다. 코드 반영과 실제 배포·PR 재실행은 별개다. 두 번 모두 유효하지 않으면 처리 오류로 중단하며, 성공을 보장하거나 질문 수를 줄이지 않는다.
 
 2026-09-10 [Pylint 전용 PR #3](https://github.com/hunhoon21/the-last-human/pull/3)의
 [`TLH App relay` 실행](https://github.com/hunhoon21/the-last-human/actions/runs/34447656851)에서
@@ -364,16 +368,28 @@ relay job error: generated question type is invalid
 
 **현재 처리 경계**
 
-1. [`generate_questions`](../../src/lasthuman/interview.py)는 JSON 구조, 기존 허용 유형(`claim`, `consequence`, `rationale`, `structure`), 내용·기대 근거, 앵커와 유효한 질문 수를 확인한다.
-2. JSON 문법 오류와 응답 형식 오류가 **하나의 재시도 예산**을 공유한다. 정상 응답은 한 번 호출하며, 형식이 맞지 않을 때만 최대 두 번째 호출을 한다. 인증·네트워크·모델 API 오류는 이 파서에서 재시도하지 않는다.
-3. 형식 오류는 원래 프롬프트로 전체 묶음을 다시 생성한다. JSON 문법 오류에만 기존 JSON 안내 문구를 사용한다. 이전 부분 결과와 새 결과를 합치거나, 질문을 복제하거나, 허용되지 않은 앵커를 임의 치환하지 않는다.
+1. [`generate_questions`](../../src/lasthuman/interview.py)는 `risk.top_hunks`에 있는 앵커만 schema의 `anchor.enum`에 넣는다. 같은 앵커를 여러 질문이 선택할 수 있다. 주변 줄 번호로 범위를 넓히거나 임의의 코드 위치로 치환하지 않는다.
+2. 모델 응답은 `{"questions": [...]}`이며, 질문의 기존 필드는 그대로다. 로컬에서는 정확한 필드, 허용 유형(`claim`, `consequence`, `rationale`, `structure`), 내용·기대 근거, 앵커와 요청 문항 수를 확인한다. 잘못된 객관식 보기를 조용히 서술형으로 바꾸거나 빈 보기 제거로 정답 위치를 바꾸지 않는다.
+3. JSON 문법 오류와 응답 형식 오류가 **하나의 재시도 예산**을 공유한다. 정상 응답은 한 번 호출하며, 내용 형식이 맞지 않을 때만 **같은 프롬프트·같은 스키마로** 전체를 한 번 다시 생성한다. 과거의 `JSON 배열만` 보정 문구는 사용하지 않는다. 이전 부분 결과와 새 결과를 합치거나 질문을 복제하지 않는다.
 4. 재생성 후에도 조건을 충족하지 못하면 `ModelError`로 중단한다. App은 이를 모델 처리 오류로 표시한다. `model_error`에는 인증·API 오류도 포함되므로 그 코드만으로 형식 오류라고 단정하지 않는다.
 5. [`BotService._validated_questions`](../../src/lasthuman/server/service.py)의 개수·유형·앵커 검사는 별도의 안전장치로 유지된다. 생성기와 서비스가 같은 허용 유형 목록을 사용하지만 기준을 넓히지는 않는다.
 6. `BotService.sync`는 질문 생성 전에 pending snapshot과 시작 알림 작업을 저장한다. 준비가 실패해도 대기가 보일 수 있으며, 이는 작성자의 보류가 아니라 **변경 확인 시작 전의 시스템 처리 오류**다.
+7. HTTP/API 스키마 거부·인증·네트워크 오류, 모델 거절과 `finish_reason`이 `stop`이 아닌 불완전 종료는 내용 재생성으로 처리하지 않는다. 생성 요청에서 자유 형식 출력으로 조용히 fallback하지 않는다.
+
+**지원 조건과 외부 계약**
+
+- 현재 Azure `gpt-4.1-mini`의 Chat Completions와 기존 Entra 인증을 사용한다. 다른 모델/API를 사용한다면 strict `response_format` 지원을 확인한다. 인사 응답만 성공했다고 구조화된 질문 생성까지 지원한다고 보지 않는다.
+- Azure 지원 subset에 맞춰 root object, 필수 필드, `additionalProperties: false`와 enum을 사용한다. 문항 수의 `minItems/maxItems` 제약은 API에 보내지 않으며 정확히 N개인지는 코드로 계속 확인한다.
+- 생성기는 보수적인 Chat Completions 호환성 예산을 적용한다. 유형을 포함한 enum 값 합계 500개, 속성명·enum 문자열 합계 15,000자, 앵커 250개 초과 시 앵커 문자열 합계 7,500자를 넘으면 호출 전에 중단한다. 후보를 자르거나 넓히지 않으며, 공급자가 더 큰 스키마를 지원해도 이 경계는 그대로다.
+- `Question` 목록과 웹 API, 선택지 ID, 성공 기록·판정·SHA 결속 형식은 변경하지 않는다. 새 wrapper는 모델 전송/파싱 경계 안에서만 사용한다. 정답과 기대 근거는 기존처럼 서버 안에 둔다.
+- `call_model()`의 일반 호출과 답변 근거 판정은 생성용 스키마를 보내지 않는다. 명시적 dry-run도 그대로 유지하지만 실제 인증의 증거로 사용하지 않는다.
+- 스키마 builder는 policy fingerprint가 읽는 `interview.py`에 둔다. 소스 위치와 파일 변경 시 digest 변경을 회귀 시험으로 고정한다. 이는 fingerprint 범위 유지 장치이지 전체 실행 코드의 무결성을 증명하는 것은 아니다.
+- 모델이 허용된 ID를 반환한다는 것과 질문 내용이 올바르다는 것은 다르다. 질문 품질 고도화는 별도로 진행한다.
 
 **배포와 재개**
 
 - 수정이 trusted `main`에 반영된 뒤 터미널 C 서버를 중지하고 해당 worktree와 의존성을 갱신해 재시작한다. `interview.py` 변경은 policy fingerprint를 바꾸므로 Actions와 서버의 버전을 맞춘다.
+- 제한 재생성 수정 #7 위의 후속 변경도 PR 대상은 `main`으로 둔다. 현재 snapshot은 `main` 대상만 지원하므로 기능 브랜치를 PR base로 삼으면 relay가 거부한다. #7이 미머지 상태라면 해당 커밋도 diff에 포함됨을 명시하고, #7 머지 뒤에는 중복 변경이 없는지 확인한다. PR이 열렸다는 이유로 실행 중인 서버를 feature 코드로 바꾸지 않는다.
 - 필요한 경우 데모 PR도 최신 base에 맞춘 뒤 현재 head에 대한 이벤트를 발생시킨다. 이전 SHA의 인증을 재사용하지 않는다.
 - 기존 실패 실행을 재실행하거나 웹에서 다시 동기화하고, 실제 질문 3개가 준비됐는지 확인한다. 코드 반영만으로 이전 실패가 자동 복구되지는 않는다.
 - 이후 작성자의 변경 확인, 독립 검증, 현재 SHA의 App 상태 게시까지 완료해야 실제 흐름이 복구된 것이다. 원래 관측된 유형의 정확한 원문은 여전히 확인되지 않았으며, 모델이 항상 유효한 응답을 낸다고 보장하지 않는다.
@@ -404,5 +420,6 @@ python -m lasthuman.server --help
 - [AzureCliCredential](https://learn.microsoft.com/en-us/python/api/azure-identity/azure.identity.azureclicredential)
 - [Azure CLI 로그인](https://learn.microsoft.com/en-us/cli/azure/authenticate-azure-cli-interactively)
 - [MSAL 기반 Azure CLI와 캐시](https://learn.microsoft.com/en-us/cli/azure/msal-based-azure-cli)
+- [Azure Structured Outputs의 요청 형식과 지원 JSON Schema](https://learn.microsoft.com/en-us/azure/foundry/openai/how-to/structured-outputs)
 
 현재 구현의 자동화 시험은 GitHub/모델 대역을 사용한다. 실제 App·모델·공개 HTTPS의 일부 연결이 관측되어도, 위 9단계의 실제 PR·댓글·현재 커밋 상태·머지·대시보드 결과를 확보하기 전에는 원격 자동화 완주로 간주하지 않는다. 개인키·토큰·보류 원문은 그 증거에 포함하지 않는다.

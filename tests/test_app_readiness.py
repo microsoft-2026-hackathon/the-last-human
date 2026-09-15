@@ -97,7 +97,12 @@ def test_real_model_http_transport_generation_and_grading(monkeypatch: pytest.Mo
         for index in range(3)
     ]
     replies = [
-        {"choices": [{"message": {"content": json.dumps(questions)}}]},
+        {
+            "choices": [{
+                "finish_reason": "stop",
+                "message": {"content": json.dumps({"questions": questions})},
+            }],
+        },
         {"choices": [{"message": {"content": '{"verdict":"pass","hint":""}'}}]},
         {"choices": [{"message": {"content": '{"verdict":"hold","hint":"Inspect the return path."}'}}]},
         {"choices": [{"message": {"content": None}}]},
@@ -142,6 +147,12 @@ def test_real_model_http_transport_generation_and_grading(monkeypatch: pytest.Mo
         assert len(received) == 7
         assert all(header == "Bearer offline-model-key" for header, _ in received)
         assert all(body["model"] == "offline-model" for _, body in received)
+        assert received[0][1]["response_format"]["type"] == "json_schema"
+        assert received[0][1]["response_format"]["json_schema"]["name"] == "lasthuman_question_batch_v1"
+        assert received[0][1]["response_format"]["json_schema"]["schema"]["properties"]["questions"]["items"][
+            "properties"
+        ]["anchor"]["enum"] == [hunk.anchor]
+        assert all("response_format" not in body for _, body in received[1:])
     finally:
         server.shutdown()
         server.server_close()
