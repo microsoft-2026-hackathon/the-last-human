@@ -23,6 +23,15 @@ _CLIENT_ID_RE = re.compile(r"^[A-Za-z0-9._-]+$")
 _REPOSITORY_RE = re.compile(r"^[A-Za-z0-9._-]+/[A-Za-z0-9._-]+$")
 _WORKFLOW_RE = re.compile(r"^[A-Za-z0-9._-]+\.ya?ml$")
 _WORKFLOW_REF_RE = re.compile(r"^refs/heads/[A-Za-z0-9._/-]+$")
+_DEFAULT_PRESENTATION_NAME = "The Last Human"
+_DEFAULT_PRESENTATION_LOCALE = "ko"
+_DEFAULT_PRESENTATION_MAX_CHARS = 6000
+_DEFAULT_PRESENTATION_REASON_LIMIT = 3
+_DEFAULT_PRESENTATION_DETAIL_LIMIT = 10
+_DEFAULT_PRESENTATION_PATHS_PER_GROUP = 2
+_DISPLAY_NAME_MAX_CHARS = 100
+_PRESENTATION_MAX_CHARS_RANGE = (1000, 100_000)
+_PRESENTATION_LIMIT_RANGE = (1, 1000)
 
 
 class ConfigurationError(ValueError):
@@ -48,6 +57,14 @@ class Settings:
     workflow_ref: str
     oidc_audience: str
     question_count: int = 3
+    checks_enabled: bool = False
+    check_name: str = _DEFAULT_PRESENTATION_NAME
+    presentation_name: str = _DEFAULT_PRESENTATION_NAME
+    presentation_locale: Literal["ko", "en"] = "ko"
+    presentation_max_chars: int = _DEFAULT_PRESENTATION_MAX_CHARS
+    presentation_reason_limit: int = _DEFAULT_PRESENTATION_REASON_LIMIT
+    presentation_detail_limit: int = _DEFAULT_PRESENTATION_DETAIL_LIMIT
+    presentation_paths_per_group: int = _DEFAULT_PRESENTATION_PATHS_PER_GROUP
 
     session_ttl: ClassVar[timedelta] = timedelta(minutes=30)
 
@@ -85,6 +102,13 @@ class Settings:
         if mode == "live" and status_context.endswith("-dev"):
             raise ConfigurationError("live mode must use a live status context")
 
+        check_name = _validate_display_name(
+            os.environ.get("TLH_CHECK_NAME", _DEFAULT_PRESENTATION_NAME),
+            "TLH_CHECK_NAME",
+        )
+        if check_name.casefold() == status_context.casefold():
+            raise ConfigurationError("TLH_CHECK_NAME must differ from TLH_STATUS_CONTEXT")
+
         private_key_file = _normalize_path(_require_env("TLH_PRIVATE_KEY_FILE"))
         if private_key_file.is_symlink():
             raise ConfigurationError("TLH_PRIVATE_KEY_FILE must not be a symlink")
@@ -111,6 +135,42 @@ class Settings:
             workflow=workflow,
             workflow_ref=workflow_ref,
             oidc_audience=os.environ.get("TLH_OIDC_AUDIENCE", repository).strip() or repository,
+            checks_enabled=_parse_strict_bool(
+                os.environ.get("TLH_CHECK_RUNS", "false"),
+                "TLH_CHECK_RUNS",
+            ),
+            check_name=check_name,
+            presentation_name=_validate_display_name(
+                os.environ.get("TLH_PRESENTATION_NAME", _DEFAULT_PRESENTATION_NAME),
+                "TLH_PRESENTATION_NAME",
+            ),
+            presentation_locale=_parse_locale(
+                os.environ.get("TLH_PRESENTATION_LOCALE", _DEFAULT_PRESENTATION_LOCALE)
+            ),
+            presentation_max_chars=_require_bounded_int(
+                "TLH_PRESENTATION_MAX_CHARS",
+                os.environ.get("TLH_PRESENTATION_MAX_CHARS"),
+                default=_DEFAULT_PRESENTATION_MAX_CHARS,
+                bounds=_PRESENTATION_MAX_CHARS_RANGE,
+            ),
+            presentation_reason_limit=_require_bounded_int(
+                "TLH_PRESENTATION_REASON_LIMIT",
+                os.environ.get("TLH_PRESENTATION_REASON_LIMIT"),
+                default=_DEFAULT_PRESENTATION_REASON_LIMIT,
+                bounds=_PRESENTATION_LIMIT_RANGE,
+            ),
+            presentation_detail_limit=_require_bounded_int(
+                "TLH_PRESENTATION_DETAIL_LIMIT",
+                os.environ.get("TLH_PRESENTATION_DETAIL_LIMIT"),
+                default=_DEFAULT_PRESENTATION_DETAIL_LIMIT,
+                bounds=_PRESENTATION_LIMIT_RANGE,
+            ),
+            presentation_paths_per_group=_require_bounded_int(
+                "TLH_PRESENTATION_PATHS_PER_GROUP",
+                os.environ.get("TLH_PRESENTATION_PATHS_PER_GROUP"),
+                default=_DEFAULT_PRESENTATION_PATHS_PER_GROUP,
+                bounds=_PRESENTATION_LIMIT_RANGE,
+            ),
         )
 
 
@@ -142,6 +202,52 @@ def _require_secret(name: str) -> str:
     value = _require_env(name)
     if len(value) < 32:
         raise ConfigurationError(f"{name} must be at least 32 characters long")
+    return value
+
+
+def _parse_strict_bool(raw: str, name: str) -> bool:
+    value = raw.strip()
+    if value == "true":
+        return True
+    if value == "false":
+        return False
+    raise ConfigurationError(f"{name} must be exactly true or false")
+
+
+def _parse_locale(raw: str) -> Literal["ko", "en"]:
+    value = raw.strip()
+    if value in {"ko", "en"}:
+        return value
+    raise ConfigurationError("TLH_PRESENTATION_LOCALE must be ko or en")
+
+
+def _validate_display_name(raw: str, name: str) -> str:
+    value = raw.strip()
+    if not value:
+        raise ConfigurationError(f"{name} must not be empty")
+    if len(value) > _DISPLAY_NAME_MAX_CHARS:
+        raise ConfigurationError(f"{name} must be at most {_DISPLAY_NAME_MAX_CHARS} characters")
+    if any(character in value for character in "\r\n"):
+        raise ConfigurationError(f"{name} must be a single line")
+    return value
+
+
+def _require_bounded_int(
+    name: str,
+    raw: str | None,
+    *,
+    default: int,
+    bounds: tuple[int, int],
+) -> int:
+    if raw is None:
+        return default
+    value_text = raw.strip()
+    if not value_text.isdigit():
+        raise ConfigurationError(f"{name} must be an integer")
+    value = int(value_text)
+    lower, upper = bounds
+    if value < lower or value > upper:
+        raise ConfigurationError(f"{name} must be between {lower} and {upper}")
     return value
 
 

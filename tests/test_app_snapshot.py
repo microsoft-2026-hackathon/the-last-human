@@ -305,6 +305,21 @@ def make_reader(tmp_path: Path, client: FakeGitHubClient, runner: FakeGitRunner)
     return SnapshotReader(client, tmp_path / ".work", runner=runner)
 
 
+@pytest.mark.parametrize("changed_source", ["risk.py", "interview.py"])
+def test_policy_version_covers_question_schema_source(tmp_path: Path, changed_source: str) -> None:
+    settings = make_settings(tmp_path)
+    client = FakeGitHubClient(settings, pulls=[make_pull(settings)], files_payload=make_files())
+    for name in ("risk.py", "interview.py"):
+        (tmp_path / name).write_bytes(f"original {name}".encode())
+    reader = SnapshotReader(client, tmp_path / ".work", runner=FakeGitRunner(), source_root=tmp_path)
+    original = reader._policy_version(BASE_CONFIG.encode())
+    assert original == reader._policy_version(BASE_CONFIG.encode())
+
+    (tmp_path / changed_source).write_bytes(b"changed schema or risk policy")
+
+    assert original != reader._policy_version(BASE_CONFIG.encode())
+
+
 def test_snapshot_reader_matches_core_diff_and_risk_and_uses_base_policy(tmp_path: Path):
     settings = make_settings(tmp_path)
     tree_entries, blobs = make_tree()

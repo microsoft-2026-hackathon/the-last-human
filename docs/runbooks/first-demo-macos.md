@@ -39,6 +39,7 @@ GitHub PR
 
 - 고정 질문지를 쓰지 않는다. 모델을 호출하지 않는 `risk.py`가 먼저 위험도와 이유를 계산한다.
 - 서버가 위험 상위 diff hunk, PR 제목·본문, 호출자·임포터 등 구조 사실을 모델에 전달한다.
+- 생성 요청의 strict JSON Schema는 실제 제공된 앵커만 선택하도록 제한한다. 응답은 `{"questions": [...]}`로 받고 기존 질문 목록으로 변환한다. 앵커 생성 규칙이나 인증 형식은 바꾸지 않는다.
 - App 경로는 질문 3개를 요구한다. 현재 프롬프트는 4지선다와 판단 근거 한 줄을 요구하며, 구조 정보가 있으면 구조 질문도 포함하도록 지시한다.
 - 선택지의 정답 여부는 코드로 비교하고, 작성자가 쓴 근거는 모델로 판정한다. 정답·기대 근거는 브라우저에 보내지 않는다.
 - 보완 피드백은 메모리에만 둔다. 성공한 답변만 private receipt에 저장한다.
@@ -417,9 +418,17 @@ TLH_SECRET_KEY='REPLACE_WITH_RANDOM_SECRET'
 TLH_DATABASE="$HOME/.local/share/the-last-human/demo/lasthuman.sqlite3"
 TLH_MODE='live'
 TLH_STATUS_CONTEXT='comprehension-gate'
+TLH_CHECK_RUNS='false'
+TLH_CHECK_NAME='The Last Human'
 TLH_WORKFLOW='lasthuman-app.yml'
 TLH_WORKFLOW_REF='refs/heads/main'
 TLH_OIDC_AUDIENCE='hunhoon21/the-last-human'
+TLH_PRESENTATION_NAME='The Last Human'
+TLH_PRESENTATION_LOCALE='ko'
+TLH_PRESENTATION_MAX_CHARS='6000'
+TLH_PRESENTATION_REASON_LIMIT='3'
+TLH_PRESENTATION_DETAIL_LIMIT='10'
+TLH_PRESENTATION_PATHS_PER_GROUP='2'
 
 LASTHUMAN_PROVIDER='azure'
 LASTHUMAN_AUTH_MODE='azure-cli'
@@ -431,7 +440,7 @@ AZURE_OPENAI_SCOPE='REPLACE_WITH_PORTAL_SCOPE'
 unset LASTHUMAN_API_KEY LASTHUMAN_TOKEN
 ```
 
-실제 배포 이름이 `gpt-4.1-mini`와 다르면 그 이름으로 바꾼다. Azure access token은 이 파일에 저장하지 않는다. 마지막 `unset`은 이전 수동 토큰/API 키를 현재 셸에서 제거하며, GitHub App의 `TLH_CLIENT_SECRET`이나 PEM에는 영향을 주지 않는다.
+실제 배포 이름이 `gpt-4.1-mini`와 다르면 그 이름으로 바꾼다. `TLH_CHECK_RUNS` 기본값은 `false`다. 보조 Check를 켜려면 먼저 GitHub App 권한과 설치 승인에 `Checks: Read and write` 를 추가한 뒤 trusted 서버를 재시작해야 하며, 표시 이름 `TLH_CHECK_NAME` 은 필수 status context `comprehension-gate` 와 다르게 유지한다. `TLH_PRESENTATION_*` 값은 공개 카드/보조 Check의 이름·locale·표시 예산만 바꾼다. Azure access token은 이 파일에 저장하지 않는다. 마지막 `unset`은 이전 수동 토큰/API 키를 현재 셸에서 제거하며, GitHub App의 `TLH_CLIENT_SECRET`이나 PEM에는 영향을 주지 않는다.
 
 `TLH_SECRET_KEY`는 32자 이상의 랜덤 값으로 만든다. Mac에서는 아래 명령으로 clipboard에 넣은 값을 환경 파일에 붙여 넣을 수 있다. 키를 터미널에 표시하지 않는다.
 
@@ -500,6 +509,8 @@ PY
 ```
 
 **기대 결과:** GitHub App 인증과 Azure 모델 호출이 각각 끝난다. 모델 호출 시 개인 토큰을 복사하거나 API 키를 활성화하지 않는다. 이 단계는 OAuth 사용자 로그인이나 질문 품질까지 확인하는 것은 아니다. 실제 질문 3개·근거 판정은 첫 PR에서 확인한다.
+
+이 인사 호출은 생성용 스키마를 보내지 않는다. 실제 질문 생성에는 strict `response_format`이 필요하므로, 첫 PR에서 제공된 앵커의 질문 3개가 준비되는지까지 별도로 확인한다. endpoint가 구조화 출력을 거부하면 모델/API 호환성을 해결하고 다시 진행하며 자유 형식으로 우회하지 않는다.
 
 **중단 조건:** CLI/선택 의존성 없음, 재로그인 필요, tenant/subscription/scope 불일치, 401/403/404, 배포 이름 불일치, 네트워크 차단, 요청 형식 오류. 원인을 고치기 전에는 runtime 전환이나 PR 변경 확인을 진행하지 않는다. 토큰 취득은 성공하고 모델 요청만 403이면 추론 RBAC·endpoint를 별도로 확인한다.
 
@@ -649,9 +660,11 @@ gh variable set LASTHUMAN_RUNTIME --repo "$TLH_REPO" --body app
 
 변수가 비어 있거나 앞 저장이 실패하면 App 전환은 실행되지 않는다. 값을 다시 로드하고 원인을 해결한 뒤 이 블록을 다시 실행한다. `LASTHUMAN_RUNTIME=app` 명령만 따로 실행하지 않는다.
 
-**실제 저장소 동작을 바꾸는 단계다.** `LASTHUMAN_RUNTIME=app`은 relay를 켜고 legacy gate/dashboard를 끈다. App 개인키·client secret·모델 키를 Actions secrets에 넣지 않는다.
+**실제 저장소 동작을 바꾸는 단계다.** `LASTHUMAN_RUNTIME=app`은 relay를 켜고 dashboard workflow를 끈다. 예전 `.github/workflows/comprehension-gate.yml` 파일은 이미 제거된 상태여야 하며, 그래도 권위 있는 최종 신호는 계속 `comprehension-gate` commit status다. App 개인키·client secret·모델 키를 Actions secrets에 넣지 않는다. 예전 Actions 실행 기록은 삭제되지 않는다.
 
 이번 가이드는 `comprehension-gate` context를 사용한다. 별도 staging 이름만 쓰면 기존 필수 context를 갱신할 writer가 없어질 수 있으므로, 그것을 병행 검증이라고 간주하지 않는다. 다음 단계의 App pending이 보이고 기대 발급자 설정을 마칠 때까지 관련 PR을 머지하지 않는다.
+
+보조 Check는 여기서 자동으로 켜지지 않는다. 필요하면 먼저 App owner가 `Checks: Read and write` 권한과 설치 업데이트를 승인하고, 터미널 C의 trusted `runtime.env`에 `TLH_CHECK_RUNS=true` 와 필요한 `TLH_CHECK_NAME`/`TLH_PRESENTATION_*` 값을 반영한 뒤 서버를 재시작한다. 이미 열려 있는 PR은 설정 변경만으로 다시 렌더링되지 않으므로 새 PR 이벤트를 만들거나 승인된 재동기화 절차를 실행한다.
 
 기존에 열린 PR이 변수 변경만으로 자동 재처리되는 것은 아니다. 아래에서 새 PR 이벤트를 만든다.
 
@@ -776,14 +789,14 @@ gh api "repos/$TLH_REPO/commits/$DEMO_HEAD/status" \
   --jq '.statuses[] | select(.context == "comprehension-gate") | {state,context,creator:.creator.login,description,target_url}'
 ```
 
-**기대 결과:** `TLH App relay`가 새 PR 이벤트를 처리하고, 제품 App 봇의 시작 댓글과 현재 SHA의 `comprehension-gate: pending`이 보인다. 면담 링크는 공개 터널 origin의 `/prs/<번호>`다.
+**기대 결과:** workflow 파일은 계속 `lasthuman-app.yml`이고, UI의 run title은 준비 단계에서 `Prepare PR #...`로 보인다. 제품 App 봇의 시작 댓글과 현재 SHA의 `comprehension-gate: pending`이 보인다. 면담 링크는 공개 터널 origin의 `/prs/<번호>`다.
 
 GitHub `Settings → Rules → Rulesets` 또는 `Branches`에서 `main`의 필수 상태를 확인한다.
 
 1. `comprehension-gate`를 필수로 지정한다.
 2. 기대 발급자를 **이번 제품 GitHub App**으로 지정한다. `Any source`나 `GitHub Actions`로 그대로 두지 않는다.
 3. 기존 CI·리뷰와 최신 base 반영 조건은 유지한다.
-4. `TLH App relay` 작업 이름만 필수로 지정하고 끝내지 않는다.
+4. `TLH App relay` 작업 이름이나 보조 Check 표시 이름 `The Last Human` 만 필수로 지정하고 끝내지 않는다.
 
 App이 상태를 한 번 보내기 전에는 선택 목록에 나타나지 않을 수 있다. 기존 규칙에서 발급자를 바꾸는 동안에는 머지 동결을 유지한다. UI에서 지정할 수 없거나 기존 규칙과 충돌하면 멈추고 관리자와 해결한다.
 
@@ -798,6 +811,8 @@ App이 상태를 한 번 보내기 전에는 선택 목록에 나타나지 않�
 5. 통과 후 성공 receipt가 저장되면 `awaiting_verification` 단계로 이동한다. 여기서 아직 최종 머지가 허용된 것은 아니다.
 6. App이 요청한 `workflow_dispatch` 실행이 receipt를 독립 검증하도록 기다린다.
 7. App의 성공 댓글과 현재 SHA의 `comprehension-gate: success`를 확인한다.
+
+`TLH_CHECK_RUNS=true`를 승인해 둔 환경이라면 같은 snapshot에 대해 보조 Check 하나가 더 보일 수 있다. 이 표시는 현재 SHA/base/policy 설명 보강용이며, 머지 조건의 권위는 계속 `comprehension-gate` status다. 권한/API 오류가 나면 보조 Check 쪽 운영 오류로 다루고, private 답변이나 보류 세부 내용은 공개하지 않는다.
 
 ```bash
 gh run list --repo "$TLH_REPO" --workflow lasthuman-app.yml --limit 10
@@ -891,9 +906,10 @@ gh pr create --repo "$TLH_REPO" --base main \
 | Azure CLI 미설치/인증 의존성 없음 | 4.1단계의 CLI와 프로젝트 `.[bot]` 설치 확인. 터미널 C의 PATH도 확인 |
 | Azure CLI 재로그인 필요 | 같은 OS 계정에서 4.2단계의 tenant 지정 `az login` 수행. 토큰을 수동 복사하지 않음 |
 | Azure 401/403 | Entra scope·tenant·추론 RBAC·endpoint·네트워크 확인. `disableLocalAuth=true`를 임의로 해제하지 않음 |
-| Azure 404/400 | resource endpoint와 배포 이름, API version, Chat Completions/temperature 지원 확인 |
+| Azure 404/400 | resource endpoint와 배포 이름, API version, Chat Completions/temperature 및 strict `response_format` 지원 확인 |
 | Azure 429/5xx | 할당량·장애 확인 후 제한적으로 재시도. 사람의 보류 기록으로 남기지 않음 |
 | workflow가 실행되지 않음 | trusted main의 workflow, Actions 설정, `LASTHUMAN_RUNTIME`, 새 PR 이벤트 확인 |
+| 질문 개수·유형 오류로 relay가 실패 | [제공 앵커 스키마와 제한 재생성](github-app.md#질문-생성-형식-오류) 및 서버 배포 버전을 확인. 질문 수·앵커·유형 기준을 낮추지 않음 |
 | OIDC 거부 | repo/owner ID, workflow 파일/ref, audience, Actions event 확인 |
 | 제출 stale/409 | 새 head/base/PR 메타 변경 여부 확인 후 웹에서 재동기화. 이전 receipt 재사용 금지 |
 | 보완 화면이 사라짐 | 30분 TTL 또는 재시작이면 다시 로그인·미완료 답변 재작성. 보류를 복구용 DB에 저장하지 않음 |
