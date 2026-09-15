@@ -113,7 +113,7 @@
     <h2>{{ copy.why_gated }}</h2>
     <ul>
     {% for reason in interview.reasons %}
-      <li>{{ reason }}</li>
+      <li>{{ reason|safe }}</li>
     {% endfor %}
     </ul>
   </div>

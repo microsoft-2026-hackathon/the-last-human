@@ -31,6 +31,7 @@ from lasthuman.server.presentation import (
     PresentationView,
     RenderedPresentation,
     presentation_revision,
+    reason_lines,
     render_presentation,
 )
 from lasthuman.server.snapshot import Snapshot, SnapshotError, UnsupportedSnapshot
@@ -301,7 +302,7 @@ class BotService:
                     }
                     for item in record.questions
                 ],
-                "reasons": list(record.snapshot.risk.reasons),
+                "reasons": list(reason_lines(record.snapshot, self.settings.presentation_locale)),
             }
             message = self._interview_message(state)
             if message is not None:

@@ -9,7 +9,12 @@ import pytest
 from lasthuman.config import Config
 from lasthuman.models import DiffResult, FileChange, Hunk, RiskResult
 from lasthuman.server.github import _append_marker_with_budget, _pr_card_marker
-from lasthuman.server.presentation import PresentationPhase, PresentationView, render_presentation
+from lasthuman.server.presentation import (
+    PresentationPhase,
+    PresentationView,
+    reason_lines,
+    render_presentation,
+)
 from lasthuman.server.presentation_copy import catalog_for_locale, format_copy
 from lasthuman.server.snapshot import Snapshot
 from lasthuman.structure import StructureContext
@@ -432,3 +437,19 @@ def test_english_copy_seam_and_stable_repeated_rendering() -> None:
     assert format_copy(replacement, "score_line", score=12, threshold=40) == (
         "score=12; threshold=40"
     )
+
+
+def test_interview_reason_lines_follow_the_locale_without_bullets_or_raw_scorer_text() -> None:
+    snapshot = _snapshot(file_count=2)
+
+    english = reason_lines(snapshot, "en")
+    assert english
+    assert all(not line.startswith("- ") for line in english)
+    assert english[0].startswith("Critical path <code>")
+    assert "matched file(s)" in english[0]
+    assert not any("중요 경로" in line for line in english)
+
+    korean = reason_lines(snapshot, "ko")
+    assert korean[0].startswith("중요 경로 <code>")
+    # 카드의 요약과 같은 묶음 순서를 따른다.
+    assert len(korean) == len(english)
