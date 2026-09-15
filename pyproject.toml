@@ -1,0 +1,28 @@
+[project]
+name = "lasthuman"
+version = "0.1.0"
+description = "Comprehension Gate for Agentic Merges — 머지 직전 이해 검증 게이트"
+requires-python = ">=3.11"
+dependencies = [
+    "PyYAML>=6.0",
+    "Jinja2>=3.1",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=8.0"]
+
+[project.scripts]
+lasthuman = "lasthuman.cli:main"
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+lasthuman = ["templates/*.j2"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

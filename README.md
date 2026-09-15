@@ -11,43 +11,33 @@ The Last Human은 사람에게 설명을 **요구**합니다.
 
 ## 구성
 
-| 패키지 | 역할 | 상태 |
+| 경로 | 역할 | 상태 |
 | --- | --- | --- |
-| `packages/core` | diff 파싱, 위험 점수, 인증 형식. 확장과 Action이 공유 | `diff.ts` 완료 |
-| `packages/extension` | VS Code 확장 — 면담 진행, 인증 생성 | 예정 9/3 |
-| `packages/action` | GitHub Action — 게이트. 재계산 후 검증 | 예정 9/10 |
-| `packages/ledger` | 모듈별 이해 커버리지 집계 | 예정 9/12 |
-| `demo-repo` | 시연용 주문 서비스. 게이트가 판정할 대상 코드 | PR 4개 완료 |
-
-구현 순서는 **core → extension → action**입니다. 순서를 바꾸면 위험 점수 로직이 두 벌로 갈라집니다.
+| `src/lasthuman/diff.py` | diff 파싱과 고정 앵커 생성 | 완료 |
+| `src/lasthuman/config.py` | `.lasthuman.yml` 로더 | 완료 |
+| `src/lasthuman/risk.py` | 위험 점수. 순수 함수, 모델을 부르지 않음 | 완료 |
+| `src/lasthuman/interview.py` | 질문 생성과 판정 | 예정 |
+| `src/lasthuman/webui.py` | 면담 웹 UI 생성 | 예정 |
+| `src/lasthuman/attest.py` | 인증 형식, 커밋 SHA 결속 | 예정 |
+| `.github/workflows/` | 게이트 워크플로 | 예정 |
+| `sample-app/` | 게이트가 판정할 샘플 워크로드 | 완료 |
 
 ## 시작하기
 
 ```bash
-npm install
-npm run build
+python -m pip install -e ".[dev]"
+python -m pytest
 ```
 
-### diff 파싱 확인
+### diff와 위험 점수 확인
 
 ```bash
-node packages/core/dist/cli/diff-cli.js --repo . --base main --head pr-1-auth-retry
+python -m lasthuman.cli score --base main --head pr-1-auth-retry
 ```
-
-```
-files 1  hunks 3  +31 -13
-  modified demo-repo/src/auth/token.js  +31 -13  hunks=3
-
-  demo-repo/src/auth/token.js:L1   +7 -1
-  demo-repo/src/auth/token.js:L22  +23 -11
-  demo-repo/src/auth/token.js:L67  +1 -1
-```
-
-`--json`을 붙이면 hunk 전문이 나옵니다.
 
 ## 시연
 
-`demo-repo/`는 게이트가 판정할 대상인 가짜 주문 서비스입니다.
+`sample-app/`은 게이트가 판정할 대상인 가짜 주문 서비스입니다.
 시연 PR 네 개가 이 저장소의 브랜치로 올라가 있고, 각각 다른 것을 증명합니다.
 
 | 브랜치 | 무엇을 증명하는가 |
@@ -59,7 +49,7 @@ files 1  hunks 3  +31 -13
 
 PR 본문과 심어둘 AI 리뷰 코멘트 원문은 [docs/demo-pr/](docs/demo-pr/)에 있습니다.
 
-게이트 설정은 루트의 [`.lasthuman.yml`](.lasthuman.yml) 하나이고, 시연 서비스와 게이트 자신의 코드를 함께 다룹니다.
+게이트 설정은 루트의 [`.lasthuman.yml`](.lasthuman.yml) 하나이고, 샘플 워크로드와 게이트 자신의 코드를 함께 다룹니다.
 개발 기간 동안 이 게이트를 이 저장소 자신의 PR에도 겁니다.
 
 ## 지켜야 할 선
