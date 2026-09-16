@@ -8,12 +8,12 @@
 
 | 파일 | 무엇 |
 | --- | --- |
-| [`index.html`](index.html) | **본 덱.** 12장 + 부록 1장. 브라우저로 열면 바로 발표 가능 |
+| [`index.html`](index.html) | **본 덱.** 본편 14장(210초) + Q&A 부록 3장. 브라우저로 열면 바로 발표 가능 |
 | [`architecture-simple.html`](architecture-simple.html) | 아키텍처 요약 — 슬라이드 08과 같은 SVG를 단독 페이지로 |
 | [`architecture-details.html`](architecture-details.html) | 아키텍처 상세 — 9단계 데이터 흐름 · 신뢰 경계 넷. **Q&A 전용** |
 | [`verify_claims.py`](verify_claims.py) | 슬라이드의 위험 점수를 실제 채점기로 재현 |
 | [`cases/`](cases/) | 재현에 쓰는 diff 3종 |
-| `demo.mp4` | **직접 넣으세요.** 있으면 데모 슬라이드에서 자동 재생, 없으면 큐 카드로 대체 |
+| `Demo_thelasthuman.mp4` | 데모 영상 **88.22초**. 데모 슬라이드에서 자동 재생 (git에는 올리지 않음) |
 
 ## 띄우기
 
@@ -31,7 +31,7 @@ open  docs/demo/presentation/index.html      # macOS
 | --- | --- |
 | `→` `Space` / `←` | 다음 / 이전 |
 | `F` | 전체화면 |
-| `A` | **부록(Q&A) 슬라이드로 점프** |
+| `A` | **부록으로 점프** — A1 아키텍처 상세 · A2 고객과 가치 · A3 배포·확장·Global |
 | `M` | 우측 상단 타이머 숨기기 — 화면 공유 전에 끄세요 |
 | `H` | 좌측 하단 안내 숨기기 |
 | `Home` / `End` | 처음 / 본편 마지막 |
@@ -40,11 +40,13 @@ open  docs/demo/presentation/index.html      # macOS
 
 ## 데모 영상
 
-`demo.mp4`를 이 폴더에 두면 데모 슬라이드에 도달할 때 자동 재생됩니다. 파일이 없으면 10개 큐가 적힌 카드가 대신 뜹니다 — 리허설에는 이 상태로도 충분합니다.
+`Demo_thelasthuman.mp4`가 이 폴더에 있으면 데모 슬라이드에 도달할 때 자동 재생됩니다. 파일이 없으면 10개 큐가 적힌 카드가 대신 뜹니다.
+
+**이 파일은 git에 올리지 않았습니다**(12.7MB). 팀원과 공유하려면 별도로 전달하거나 저장소에 추가하세요.
 
 **데모 중에는 말하지 않습니다.** 심사 배점에서 시연이 30점으로 가장 크고, 해설을 얹으면 "동작 결과물"이 아니라 "설명"으로 읽힙니다.
 
-영상이 88초가 아니면 `index.html`의 데모 섹션에서 `data-dur="88"`을 실제 길이로 바꾸세요. 타이머만 따라 바뀌고 다른 슬라이드는 그대로입니다.
+실측 길이는 **88.22초**로 덱의 `data-dur="88"`과 맞습니다. 영상을 교체하면 이 값을 실제 길이로 바꾸세요 — 타이머만 따라 바뀌고 다른 슬라이드는 그대로입니다.
 
 ## 발표 전 점검
 
@@ -57,7 +59,7 @@ PYTHONIOENCODING=utf-8 python docs/demo/presentation/verify_claims.py
 
 그 외:
 
-- [ ] 슬라이드 07의 "몇 번 막혔나"는 **GitHub status 이력을 조회해 실제 값으로** 채웠는가 — 확인 전에는 숫자를 넣지 않는다
+- [ ] 슬라이드 07의 게이트 이력(26 · 15 · 14 · 3)은 `hunhoon21/the-last-human`의 값이다 — 이관 사실을 물으면 `docs/migration/import.json`을 보여 준다
 - [ ] 외부 출처 4종의 링크가 살아 있는가 (Godot · 연구 · New Relic · GitHub 8·17 장애)
 - [ ] 대시보드 화면을 띄운다면 `Demo data` 칩이 보이는가
 - [ ] 타이머(`M`)와 안내(`H`)를 껐는가

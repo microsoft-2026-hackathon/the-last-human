@@ -140,7 +140,11 @@
 
   /* 아키텍처 슬라이드 */
   .arch { justify-content:flex-start; }
-  .arch svg { width:100%; height:auto; max-height:62vh; display:block; margin-top:clamp(.5rem,1.4vh,1rem); }
+  .arch svg { width:100%; height:auto; max-height:54vh; display:block; margin-top:clamp(.4rem,1.2vh,.85rem); }
+  .stack { display:grid; grid-template-columns:repeat(4,1fr); gap:clamp(.7rem,1.8vw,1.5rem); margin-top:clamp(.6rem,1.6vh,1.1rem); }
+  .stack .c { border-left:3px solid var(--cool); padding-left:clamp(.5rem,1vw,.8rem); }
+  .stack .k { font-family:"JetBrains Mono",monospace; font-size:clamp(.62rem,1.35vh,.78rem); letter-spacing:.12em; color:var(--cool); text-transform:uppercase; }
+  .stack .v { font-size:clamp(.8rem,1.8vh,1.02rem); color:var(--neutral); margin-top:.2rem; line-height:1.38; }
   .box{fill:var(--panel);stroke:var(--rule);stroke-width:1.3}
   .box-hot{fill:var(--panel);stroke:var(--amber);stroke-width:2}
   .box-model{fill:none;stroke:var(--dim);stroke-width:1.4;stroke-dasharray:7 5}
@@ -229,7 +233,7 @@
       </ul>
     </div>
   </div>
-  <p class="lede">누가 운영하는지 · 누가 장애를 복구하는지 · 6개월 뒤에도 이 구조를 이해할 사람이 있는지.</p>
+  <p class="lede"><strong>복잡성이 책임성과 충돌하는 순간, 그대로 기술부채가 됩니다.</strong> 누가 운영하는지 · 누가 장애를 복구하는지 · 6개월 뒤에도 이 구조를 이해할 사람이 있는지.</p>
 </section>
 
 <!-- ============ 02 · 문제의 위치 ============ -->
@@ -238,9 +242,10 @@
   <h2>승인은 기록된다.<br><span class="hl">이해는 기록되지 않는다.</span></h2>
   <p class="lede">누가 승인 버튼을 눌렀는지는 시스템에 남습니다. 그 사람이 실제로 이해했는지는 어디에도 남지 않습니다.</p>
   <div class="src">
-    <div class="t">"human control"은 선언이 아니라 <strong>설계 목표</strong>다. 설계 목표라면, 시스템 어딘가에 그것을 강제하는 지점이 있어야 한다.</div>
-    <div class="m">MCP를 호출하고 · Context를 주입하고 · Agent를 만들고 · Loop를 돌린 결과물이 UI로 동작하는데,<br>그 내부 코드를 실제로 읽는 사람이 얼마나 될까</div>
+    <div class="t">"First, we need to be clear about <strong>the design goal</strong>. As I shared, <strong>AI has to remain under human control</strong> and broadly benefit society."</div>
+    <div class="m">Satya Nadella</div>
   </div>
+  <p class="lede"><strong>설계 목표라면, 시스템 어딘가에 그것을 강제하는 지점이 있어야 합니다.</strong> 우리는 그 지점을 <span class="hl">머지 직전</span>에 두었습니다.</p>
 </section>
 
 <!-- ============ 03 · 외부 근거 ============ -->
@@ -344,7 +349,7 @@
 
 <!-- ============ DEMO · 88초 ============ -->
 <section class="slide demo" data-dur="88" data-demo="1">
-  <video id="demoVideo" src="demo.mp4" preload="auto" playsinline></video>
+  <video id="demoVideo" src="Demo_thelasthuman.mp4" preload="auto" playsinline></video>
   <div class="demo-card" id="demoFallback" hidden>
     <div class="big">DEMO · 88s</div>
     <div class="cue">
@@ -358,40 +363,42 @@
       <b>8</b> <span style="color:var(--green)">Human-verified</span> → <b>사람이</b> 머지 ·
       <b>9</b> 저위험 문서 PR은 그냥 통과 ·
       <b>10</b> 대시보드 <span style="color:var(--amber)">Can answer 0 → 1</span>
-      <br><br>demo.mp4 를 이 폴더에 두면 자동 재생됩니다
+      <br><br>Demo_thelasthuman.mp4 를 이 폴더에 두면 자동 재생됩니다
     </div>
   </div>
 </section>
 
 <!-- ============ 07 · 체계적 구체화 ============ -->
 <section class="slide" data-dur="12">
-  <p class="eyebrow">07 · What we did</p>
-  <h2>이 게이트를 <span class="hl">우리 저장소 자신의 PR에</span> 걸었다</h2>
+  <p class="eyebrow">07 · What we did — 가설 · 실험 · 측정</p>
+  <h2>이 게이트를 <span class="hl">우리 PR에 걸었고,</span> 우리가 멈췄다</h2>
+  <div class="nums">
+    <div><span class="n" style="color:var(--amber)">26</span><span class="k">게이트가 발동한 PR</span></div>
+    <div><span class="n" style="color:var(--amber)">15</span><span class="k">설명 대기로 <strong>멈춘</strong> PR</span></div>
+    <div><span class="n">14</span><span class="k">통과 기록이 남은 PR</span></div>
+    <div><span class="n">3</span><span class="k">멈췄다가 통과</span></div>
+  </div>
   <div class="vs">
     <div class="col hot">
       <div class="k">가설 → 실험</div>
-      <div class="h">판단이 들어가는 파일일수록 막힌다</div>
+      <div class="h">판단이 들어가는 파일일수록 멈춘다</div>
       <ul>
         <li class="mono">risk.py · interview.py · attest.py → 각 <strong>+30</strong></li>
-        <li>우리가 그 셋을 고칠 때마다 우리 PR이 막혔다</li>
-        <li>몇 번 막혔는지가 발표 자료가 된다 — 처음부터 그렇게 설계했다</li>
+        <li>그 셋을 고칠 때마다 우리 PR이 설명을 요구받았다</li>
       </ul>
     </div>
     <div class="col">
       <div class="k">측정 → 학습</div>
       <div class="h">그래서 못 잡는 것도 찾았다</div>
       <ul>
-        <li>인증 경로 <strong>삭제형</strong> 변경이 임계값을 넘지 못함</li>
-        <li>스토리보드 v1 → v2 → v4 → v5로 서사를 네 번 다시 씀</li>
-        <li>다음 슬라이드에서 그 한계를 그대로 보여 준다</li>
+        <li>인증 경로 <strong>삭제형</strong> 변경이 임계값을 넘지 못함 → 다음 슬라이드</li>
+        <li>대기 상태로 머지된 PR 12개 — 필수 체크를 <strong>계속 걸어 두지 않은</strong> 개발 기간이었다</li>
       </ul>
     </div>
   </div>
-  <div class="nums">
-    <div><span class="n">109</span><span class="k">커밋</span></div>
-    <div><span class="n">35</span><span class="k">머지된 PR</span></div>
-    <div><span class="n">519</span><span class="k">테스트</span></div>
-    <div><span class="n">4</span><span class="k">동작 중인 워크플로</span></div>
+  <div class="src">
+    <div class="t">커밋 <strong>109</strong> · PR <strong>36</strong> · 테스트 <strong>519</strong> · 동작 중인 워크플로 <strong>4</strong></div>
+    <div class="m">개발 저장소 hunhoon21/the-last-human · 2026-09-15 microsoft-2026-hackathon으로 이관<br>당시 status context는 comprehension-gate — 이후 last-human/human-verified로 개명</div>
   </div>
 </section>
 
@@ -464,6 +471,12 @@
     <line class="edge-dash" x1="1060" y1="306" x2="1060" y2="374" marker-end="url(#k-a)"/>
     <text class="elab" x="1074" y="346">②′</text>
   </svg>
+  <div class="stack">
+    <div class="c"><div class="k">GitHub App</div><div class="v">저장소에 한정된 installation 권한. 상태·카드·Check 발행</div></div>
+    <div class="c"><div class="k">GitHub Actions · OIDC</div><div class="v">저장소에 묶인 단기 신원. 사전 공유 시크릿 없음</div></div>
+    <div class="c"><div class="k">Azure OpenAI · Entra ID</div><div class="v">API 키 없이 <strong>Entra 토큰</strong>으로 호출 (AzureCliCredential)</div></div>
+    <div class="c"><div class="k">결과</div><div class="v"><strong>장기 시크릿 0개</strong>로 경계를 넘는다</div></div>
+  </div>
 </section>
 
 <!-- ============ 09 · Quick start ============ -->
@@ -615,6 +628,91 @@
   </div>
 </section>
 
+<!-- ============ A2 · 고객과 가치 (Q&A 전용 · 예산 외) ============ -->
+<section class="slide appx" data-dur="0" data-appendix="1">
+  <p class="eyebrow">부록 · Q&amp;A — 고객과 가치</p>
+  <h2>누가 쓰고, <span class="hl">무엇이 달라지나</span></h2>
+  <div class="three">
+    <div class="c">
+      <div class="h">누가</div>
+      <div class="d">에이전트를 이미 도입한 <strong>엔지니어링 조직.</strong> 특히 장애가 비싸고 감사 대응이 필요한 곳 — 금융·의료·인프라.</div>
+      <div class="m">개인 개발자가 아니라 조직이 고객</div>
+    </div>
+    <div class="c">
+      <div class="h">무엇이</div>
+      <div class="d"><strong>승인 기록만 있던 자리에 이해 기록이 생긴다.</strong> 누가 눌렀는지가 아니라, 어느 모듈에 답할 수 있는 사람이 몇 명인지를 조직이 미리 안다.</div>
+      <div class="m">머지 전 · 커밋 SHA에 결속</div>
+    </div>
+    <div class="c">
+      <div class="h">얼마에</div>
+      <div class="d">서버 1대와 <strong>파일 3개.</strong> 기존 CI·리뷰·브랜치 보호를 바꾸지 않고 체크 한 줄을 더한다. 롤백은 변수 한 줄.</div>
+      <div class="m">작성자 부담은 PR당 두 문항</div>
+    </div>
+  </div>
+  <div class="vs" style="margin-top:1rem">
+    <div class="col">
+      <div class="k">지금 조직이 치르는 비용</div>
+      <ul>
+        <li>장애 복구 때 <strong>"이 코드 누가 아나요"</strong>를 그 자리에서 찾는 시간</li>
+        <li>담당자가 CODEOWNERS에 적혀 있지만 <strong>그 코드를 이해한 사람은 아닌</strong> 격차</li>
+        <li>리뷰에서는 94%가 낫다고 했는데 배포 뒤 78%가 장애 — 검토와 결과의 괴리</li>
+      </ul>
+    </div>
+    <div class="col hot">
+      <div class="k">우리가 약속하는 것 / 아닌 것</div>
+      <ul>
+        <li><strong>약속:</strong> 위험한 변경은 사람의 설명 없이 머지되지 않는다</li>
+        <li><strong>약속:</strong> 그 기록은 커밋에 묶이고 새 커밋엔 재사용되지 않는다</li>
+        <li><strong>아님:</strong> 버그를 찾아 주지 않는다. 코드 품질을 보증하지 않는다. 사람을 평가하지 않는다</li>
+      </ul>
+    </div>
+  </div>
+</section>
+
+<!-- ============ A3 · 확장과 Global (Q&A 전용 · 예산 외) ============ -->
+<section class="slide appx" data-dur="0" data-appendix="1">
+  <p class="eyebrow">부록 · Q&amp;A — 배포 · 확장 · Global</p>
+  <h2>지금 어디까지 되고, <span class="hl">다음은 무엇인가</span></h2>
+  <div class="vs">
+    <div class="col">
+      <div class="k">현재 제약 — 숨기지 않는다</div>
+      <ul>
+        <li>서버 1대 = <strong>저장소 1개</strong> 바인딩</li>
+        <li>구조 분석은 <strong>Python 중심</strong></li>
+        <li>게이트가 status와 보조 Check <strong>두 줄</strong>로 보임 (권위는 status)</li>
+        <li>Relay가 대상 저장소에 TLH 소스를 설치해 재계산 — 소스가 없는 저장소엔 별도 verifier 필요</li>
+        <li>작성자 세션 메모리 30분 · 서버 재시작 시 재로그인</li>
+      </ul>
+    </div>
+    <div class="col hot">
+      <div class="k">다음 수 — 우선순위 순</div>
+      <ul>
+        <li><strong>무조건 발동 경로</strong> — 삭제형 고위험을 잡는다 (슬라이드 10의 C안)</li>
+        <li><strong>버전 고정 verifier 패키지</strong> — 소스 없는 저장소에 설치 템플릿으로</li>
+        <li>다중 저장소 바인딩 · 한 줄 통합 체크</li>
+        <li>구조 분석 언어 확장</li>
+      </ul>
+    </div>
+  </div>
+  <div class="three" style="margin-top:1rem">
+    <div class="c">
+      <div class="h">배포</div>
+      <div class="d">한 프로세스 + SQLite. 공개 HTTPS origin이면 바로, 사내망이면 <strong>self-hosted 러너 + 사내 접속</strong>으로. GitHub 웹훅 수신자가 아니라 가능하다.</div>
+      <div class="m">대가: 러너 기동 20–40초</div>
+    </div>
+    <div class="c">
+      <div class="h">보안</div>
+      <div class="d">App 키·client secret·모델 자격은 서버에만. 경계를 넘는 것은 <strong>단기 OIDC</strong>와 메타데이터. Azure OpenAI는 Entra 토큰으로 <strong>키 없이</strong> 호출.</div>
+      <div class="m">장기 시크릿 0개</div>
+    </div>
+    <div class="c">
+      <div class="h">Global</div>
+      <div class="d">GitHub PR 워크플로 위에서만 동작해 <strong>지역·언어 종속이 없다.</strong> 정책은 저장소의 <span class="mono">.lasthuman.yml</span> 한 파일, 모델은 조직이 고른 Azure 리전.</div>
+      <div class="m">규제가 강한 조직일수록 수요가 크다</div>
+    </div>
+  </div>
+</section>
+
 <div id="meta"></div>
 <div id="hud">
   <b>← →</b> 슬라이드 &nbsp; <b>H</b> 이 안내 &nbsp; <b>M</b> 우측 타이머<br>
@@ -637,7 +735,7 @@
   timed.forEach(function (s) { starts.push(acc); acc += Number(s.dataset.dur || 0); });
   var appendixIndex = slides.findIndex(function (s) { return s.dataset.appendix; });
 
-  // demo.mp4 가 없으면 큐 카드로 대체한다.
+  // 영상 파일이 없으면 큐 카드로 대체한다.
   if (video) {
     video.addEventListener("error", function () {
       video.hidden = true;
@@ -687,7 +785,9 @@
   });
 
   show(0);
-  hud.innerHTML += "<br>본편 <b>" + fmt(acc) + "</b> · 슬라이드 " + timed.length + " (+부록 1)";
+  var appendixCount = slides.length - timed.length;
+  hud.innerHTML += "<br>본편 <b>" + fmt(acc) + "</b> · 슬라이드 " + timed.length +
+                   " (+부록 " + appendixCount + ")";
 })();
 </script>
 </body>
