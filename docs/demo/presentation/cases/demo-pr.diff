@@ -1,0 +1,12 @@
+diff --git sample-app/app/auth/token.py sample-app/app/auth/token.py
+--- sample-app/app/auth/token.py
++++ sample-app/app/auth/token.py
+@@ -30,6 +30,14 @@ async def refresh(transport: Transport, token: TokenSet) -> TokenSet:
++    for attempt in range(MAX_RETRIES):
++        try:
++            body = await post_json(transport, TOKEN_ENDPOINT, payload)
++            break
++        except HttpError:
++            await asyncio.sleep(backoff_for(attempt))
++    else:
++        return token

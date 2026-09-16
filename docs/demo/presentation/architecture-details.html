@@ -1,0 +1,283 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>아키텍처 — details · The Last Human</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@500;600;700&family=Source+Serif+4:opsz,wght@8..60,300;8..60,400&family=JetBrains+Mono:wght@400;500&display=swap">
+<style>
+  :root {
+    --ground:#0a0c10; --panel:#141922; --band:#101520;
+    --type:#f2f5f8; --dim:#929cab; --rule:#2a313c;
+    --neutral:#d6dce4; --green:#4ac264; --amber:#e0aa42; --cool:#6fb7ee; --red:#f0736a;
+  }
+  * { box-sizing:border-box; margin:0; padding:0; }
+  body {
+    background:var(--ground); color:var(--type);
+    font-family:"Source Serif 4",Georgia,serif;
+    word-break:keep-all; overflow-wrap:normal;
+    padding:clamp(1.2rem,3.4vh,2.4rem) clamp(1.2rem,3.4vw,3rem);
+  }
+  .eyebrow {
+    font-family:"JetBrains Mono",monospace; font-size:clamp(.7rem,1.6vh,.92rem);
+    letter-spacing:.2em; text-transform:uppercase; color:var(--dim); margin-bottom:.55rem;
+  }
+  h1 {
+    font-family:"Archivo",Helvetica,sans-serif; font-weight:600;
+    font-size:clamp(1.5rem,4vh,2.6rem); letter-spacing:-.022em; line-height:1.2;
+  }
+  .lede {
+    font-size:clamp(.95rem,2.1vh,1.28rem); font-weight:300; color:var(--neutral);
+    max-width:76ch; line-height:1.5; margin-top:.55rem;
+  }
+  figure { margin:clamp(.8rem,2.2vh,1.5rem) 0 0; }
+  svg { width:100%; height:auto; display:block; }
+
+  .box       { fill:var(--panel); stroke:var(--rule); stroke-width:1.2; }
+  .box-hot   { fill:var(--panel); stroke:var(--amber); stroke-width:1.8; }
+  .box-model { fill:none; stroke:var(--dim); stroke-width:1.3; stroke-dasharray:7 5; }
+  .zone      { fill:none; stroke:#39414f; stroke-width:1.1; stroke-dasharray:5 6; }
+  .trust     { stroke:var(--amber); stroke-width:1.6; stroke-dasharray:9 7; opacity:.75; }
+
+  .lab   { fill:var(--type); font-family:"Archivo",Helvetica,sans-serif; font-size:18px; font-weight:600; }
+  .lab-s { fill:var(--type); font-family:"Archivo",Helvetica,sans-serif; font-size:16px; font-weight:600; }
+  .sub   { fill:var(--dim);  font-family:"JetBrains Mono",monospace; font-size:12.5px; }
+  .ok    { fill:var(--green);font-family:"JetBrains Mono",monospace; font-size:12.5px; }
+  .no    { fill:var(--red);  font-family:"JetBrains Mono",monospace; font-size:12.5px; }
+  .zlab  { fill:var(--dim);  font-family:"JetBrains Mono",monospace; font-size:12.5px; letter-spacing:.18em; }
+  .elab  { fill:var(--dim);  font-family:"JetBrains Mono",monospace; font-size:13px; }
+  .ehot  { fill:var(--amber);font-family:"JetBrains Mono",monospace; font-size:13.5px; font-weight:500; }
+
+  .edge      { stroke:var(--dim); fill:none; stroke-width:1.5; }
+  .edge-hot  { stroke:var(--amber); fill:none; stroke-width:2.4; }
+  .edge-dash { stroke:var(--dim); fill:none; stroke-width:1.4; stroke-dasharray:6 5; }
+
+  h2 {
+    font-family:"Archivo",Helvetica,sans-serif; font-weight:600;
+    font-size:clamp(1.05rem,2.4vh,1.45rem); margin-top:clamp(1.1rem,2.8vh,1.9rem);
+  }
+  table { width:100%; border-collapse:collapse; font-size:clamp(.82rem,1.85vh,1.02rem); margin-top:.7rem; }
+  th, td { padding:.42rem .55rem; border-bottom:1px solid var(--rule); text-align:left; vertical-align:top; }
+  th {
+    font-family:"JetBrains Mono",monospace; font-size:clamp(.62rem,1.4vh,.78rem);
+    letter-spacing:.1em; color:var(--dim); text-transform:uppercase; font-weight:400;
+  }
+  td.n { font-family:"JetBrains Mono",monospace; color:var(--amber); white-space:nowrap; }
+  td.f { font-family:"JetBrains Mono",monospace; color:var(--neutral); font-size:.92em; white-space:nowrap; }
+  tbody tr:last-child td { border-bottom:0; }
+  .mono { font-family:"JetBrains Mono",monospace; }
+  .cols { display:grid; grid-template-columns:1fr 1fr; gap:clamp(1rem,2.4vw,2.2rem); }
+
+  footer {
+    margin-top:clamp(1rem,2.4vh,1.7rem); padding-top:.75rem; border-top:1px solid var(--rule);
+    font-family:"JetBrains Mono",monospace; font-size:clamp(.64rem,1.4vh,.8rem);
+    color:var(--dim); display:flex; justify-content:space-between; gap:1rem; flex-wrap:wrap;
+  }
+  a { color:var(--cool); }
+</style>
+</head>
+<body>
+
+<p class="eyebrow">Architecture · details — 부록 · Q&amp;A 전용 (발표 3:30 예산에 포함하지 않음)</p>
+<h1>왜 그 상태를 <span style="color:var(--amber)">믿을 수 있나</span></h1>
+<p class="lede">게이트가 열리려면 서버의 영수증과 <strong>Actions가 따로 계산한 값</strong>이 맞아야 한다. 비밀은 서버에만 있고, 경계를 넘는 것은 단기 OIDC 신원과 메타데이터뿐이다.</p>
+
+<figure>
+<svg viewBox="0 0 1400 840" role="img"
+     aria-label="GitHub 영역에는 저장소, 풀 리퀘스트 체크, GitHub Actions가 있고, 서버 영역에는 게이트 로직, 영수증, 발행기, 대시보드, 검증, 저장소, 정책이 있다. 둘 사이에 신뢰 경계가 세로 점선으로 그려져 있고, 경계를 넘는 화살표는 OIDC 신원과 메타데이터만 나른다. 모델은 점선 상자로 GitHub 쓰기 권한이 없으며, 커밋 상태를 쓰는 화살표는 서버에서 풀 리퀘스트로 향하는 하나뿐이다.">
+  <defs>
+    <marker id="d-a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto-start-reverse">
+      <path d="M0 0 L10 5 L0 10 z" fill="#929cab"/>
+    </marker>
+    <marker id="d-hot" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+      <path d="M0 0 L10 5 L0 10 z" fill="#e0aa42"/>
+    </marker>
+  </defs>
+
+  <!-- 신뢰 경계 -->
+  <line class="trust" x1="700" y1="52" x2="700" y2="812"/>
+  <text class="ehot" x="700" y="42" text-anchor="middle">신뢰 경계 — 넘어가는 것은 메타데이터와 단기 OIDC 신원뿐</text>
+
+  <!-- ⑥ 상태 발행: GitHub을 향하는 유일한 쓰기 -->
+  <path class="edge-hot" d="M1070 66 L1070 20 L480 20 L480 102" marker-end="url(#d-hot)"/>
+  <text class="ehot" x="775" y="13" text-anchor="middle">⑥ 상태 · 카드 · (선택) Check — GitHub에 쓰는 것은 이 하나</text>
+
+  <!-- ===== GITHUB ZONE ===== -->
+  <rect class="zone" x="40" y="70" width="600" height="474" rx="10"/>
+  <text class="zlab" x="46" y="62">GITHUB</text>
+
+  <rect class="box" x="70" y="106" width="250" height="78" rx="6"/>
+  <text class="lab-s" x="88" y="136">Repository</text>
+  <text class="sub"   x="88" y="160">code · CODEOWNERS · .lasthuman.yml</text>
+
+  <rect class="box" x="350" y="106" width="262" height="196" rx="6"/>
+  <text class="lab-s" x="368" y="136">Pull request — Checks</text>
+  <text class="ok"    x="368" y="162">✓ build · tests · lint · review</text>
+  <text class="sub"   x="368" y="186" fill="#e0aa42">● last-human/human-verified</text>
+  <text class="sub"   x="382" y="207">Awaiting → Human-verified</text>
+  <text class="sub"   x="382" y="228">/ Not required</text>
+  <text class="sub"   x="368" y="254">✓ Last Human · relay</text>
+  <text class="sub"   x="368" y="284" fill="#4ac264">⑧ 머지는 사람이 누른다</text>
+
+  <rect class="box" x="70" y="330" width="542" height="182" rx="6"/>
+  <text class="zlab"  x="70" y="322">GITHUB ACTIONS — 러너</text>
+  <text class="lab-s" x="88" y="358">Relay · Verify · Observe</text>
+  <text class="sub"   x="88" y="382">PR을 읽고 snapshot · 위험도를 스스로 재계산</text>
+  <text class="sub"   x="88" y="404">영수증의 binding과 대조</text>
+  <text class="sub"   x="88" y="426">현재 SHA의 최신 gate status를 직접 확인</text>
+  <text class="ok"    x="88" y="454">보유: 단기 workflow · OIDC 토큰</text>
+  <text class="no"    x="88" y="476">없음: App 개인키 · 모델 자격</text>
+  <text class="no"    x="88" y="498">못 함: 게이트 · 카드 · Check 게시, 답변 재채점</text>
+
+  <!-- ① PR → Actions -->
+  <line class="edge" x1="470" y1="304" x2="470" y2="326" marker-end="url(#d-a)"/>
+  <text class="elab" x="484" y="320">①</text>
+  <!-- ⑥′ Actions → PR -->
+  <line class="edge-dash" x1="556" y1="326" x2="556" y2="306" marker-end="url(#d-a)"/>
+  <text class="elab" x="568" y="320">⑥′</text>
+
+  <!-- ===== SERVER ZONE ===== -->
+  <rect class="zone" x="780" y="70" width="580" height="474" rx="10"/>
+  <text class="zlab" x="786" y="62">TLH SERVER (BOT) — 조직이 두는 곳 · GitHub 웹훅 수신자가 아님</text>
+
+  <rect class="box-hot" x="810" y="106" width="520" height="62" rx="6"/>
+  <text class="lab-s" x="828" y="132">Gate logic</text>
+  <text class="sub"   x="828" y="154">diff → 위험 점수(순수 함수) → 구조 사실 → 질문 → 채점</text>
+
+  <rect class="box" x="810" y="184" width="250" height="62" rx="6"/>
+  <text class="lab-s" x="828" y="210">④ Receipts</text>
+  <text class="sub"   x="828" y="232">head SHA 결속 · 새 커밋이면 무효</text>
+
+  <rect class="box" x="1080" y="184" width="250" height="62" rx="6"/>
+  <text class="lab-s" x="1098" y="210">Publisher</text>
+  <text class="sub"   x="1098" y="232">상태 · 카드 · 보조 Check</text>
+
+  <rect class="box" x="810" y="262" width="250" height="62" rx="6"/>
+  <text class="lab-s" x="828" y="288">⑦ Dashboard</text>
+  <text class="sub"   x="828" y="310">구역별 커버리지 · 이름 없이 수만</text>
+
+  <rect class="box" x="1080" y="262" width="250" height="62" rx="6"/>
+  <text class="lab-s" x="1098" y="288">Verify</text>
+  <text class="sub"   x="1098" y="310">영수증 ↔ 현재 PR ↔ binding</text>
+
+  <rect class="box" x="810" y="340" width="250" height="62" rx="6"/>
+  <text class="lab-s" x="828" y="366">Store</text>
+  <text class="sub"   x="828" y="388">snapshot · 질문 · 영수증 · 머지</text>
+
+  <rect class="box" x="1080" y="340" width="250" height="62" rx="6"/>
+  <text class="lab-s" x="1098" y="366">Policy</text>
+  <text class="sub"   x="1098" y="388">위험 규칙 · 프롬프트 (사람 승인)</text>
+
+  <text class="ok"  x="810" y="440">보유: App 개인키 · client secret · 모델 자격 — 여기에만</text>
+  <text class="sub" x="810" y="462">면담 세션은 메모리 30분 · 보류 답변은 임시, 성공 근거만 영구</text>
+  <text class="sub" x="810" y="484">서버 1대 = 저장소 1개 바인딩 (현재 제약)</text>
+
+  <!-- ② Actions → Server -->
+  <line class="edge" x1="614" y1="360" x2="806" y2="360" marker-end="url(#d-a)"/>
+  <text class="elab" x="710" y="350" text-anchor="middle">② 메타데이터 + binding</text>
+  <text class="ehot" x="710" y="334" text-anchor="middle">OIDC</text>
+
+  <!-- ⑤ Server → Actions -->
+  <line class="edge" x1="806" y1="410" x2="614" y2="410" marker-end="url(#d-a)"/>
+  <text class="elab" x="710" y="402" text-anchor="middle">⑤ verify dispatch</text>
+
+  <!-- ⑤′ Actions → Server -->
+  <line class="edge" x1="614" y1="460" x2="806" y2="460" marker-end="url(#d-a)"/>
+  <text class="elab" x="710" y="452" text-anchor="middle">⑤′ 재계산 binding</text>
+
+  <!-- ===== PEOPLE ZONE ===== -->
+  <rect class="zone" x="40" y="596" width="600" height="216" rx="10"/>
+  <text class="zlab" x="46" y="588">사람 — 브라우저</text>
+
+  <rect class="box" x="70" y="630" width="284" height="150" rx="6"/>
+  <text class="lab-s" x="88" y="660">작성자</text>
+  <text class="sub"   x="88" y="684">같은 App으로 OAuth 로그인</text>
+  <text class="sub"   x="88" y="706">두 문항 — 보기 + 근거 한 줄</text>
+  <text class="sub"   x="88" y="728" fill="#e0aa42">Accepted / Hold + 근거 발췌</text>
+  <text class="sub"   x="88" y="756">원문은 공개 PR에 남기지 않음</text>
+
+  <rect class="box" x="380" y="630" width="230" height="150" rx="6"/>
+  <text class="lab-s" x="398" y="660">조직 · 리드</text>
+  <text class="sub"   x="398" y="684">대시보드 열람</text>
+  <text class="sub"   x="398" y="706">구역별 수치만</text>
+  <text class="no"    x="398" y="734">개인 이력 조회 없음</text>
+  <text class="no"    x="398" y="756">이름 집계 없음</text>
+
+  <!-- ③ 작성자 → 서버 -->
+  <path class="edge" d="M356 672 L740 672 L740 512 L804 512" marker-end="url(#d-a)"/>
+  <text class="elab" x="548" y="662" text-anchor="middle">③ 설명과 근거 ↔ 판정</text>
+
+  <!-- ⑨ 조직 → 서버 -->
+  <path class="edge" d="M612 744 L764 744 L764 534 L804 534" marker-end="url(#d-a)"/>
+  <text class="elab" x="688" y="736" text-anchor="middle">⑨ 열람</text>
+
+  <!-- ===== MODEL ZONE ===== -->
+  <rect class="box-model" x="780" y="612" width="580" height="140" rx="10"/>
+  <text class="zlab"  x="786" y="604">MODEL — AZURE OPENAI</text>
+  <text class="lab-s" x="810" y="650" fill="#929cab">보조 수단</text>
+  <text class="sub"   x="810" y="676">질문 두 개를 쓰고, 근거 한 줄을 대조한다</text>
+  <text class="no"    x="810" y="702">GitHub 게시 · 머지 권한 없음 · TLH 기록을 직접 바꾸지 못함</text>
+  <text class="sub"   x="810" y="728">코드와 근거가 전달됨 — 보관 정책은 서비스 계약을 따름</text>
+
+  <!-- ②′ Server ↔ Model -->
+  <line class="edge-dash" x1="1070" y1="548" x2="1070" y2="606" marker-end="url(#d-a)"/>
+  <text class="elab" x="1084" y="582">②′</text>
+</svg>
+</figure>
+
+<div class="cols">
+<div>
+<h2>데이터 흐름</h2>
+<table>
+  <thead><tr><th>#</th><th>구간</th><th>무엇이 움직이나</th></tr></thead>
+  <tbody>
+    <tr><td class="n">①</td><td class="f">GitHub → Actions</td><td>PR 열림 / 새 커밋이 Relay를 시작. <strong>웹훅 수신자가 필요 없다</strong></td></tr>
+    <tr><td class="n">②</td><td class="f">Relay → Server</td><td>PR 메타데이터 · 재계산한 snapshot binding + <strong>OIDC 신원</strong>(repo · workflow · repo id)</td></tr>
+    <tr><td class="n">②′</td><td class="f">Server ↔ Model</td><td>diff 사실 → 질문 두 개 · 근거 한 줄 → 평가. GitHub 게시·머지 권한은 없다</td></tr>
+    <tr><td class="n">③</td><td class="f">작성자 ↔ Server</td><td>보기 + 근거 한 줄 → Accepted / Hold + 근거 발췌. 원문은 공개 PR에 남기지 않는다</td></tr>
+    <tr><td class="n">④</td><td class="f">Server</td><td>head SHA 등 현재 리비전에 묶인 성공 영수증. 새 커밋에 재사용하지 않는다</td></tr>
+    <tr><td class="n">⑤</td><td class="f">Server → Actions</td><td>Verify dispatch — 신뢰된 runtime이 대상 PR을 읽어 <strong>snapshot·위험도를 재계산</strong>해 binding과 비교</td></tr>
+    <tr><td class="n">⑤′</td><td class="f">Actions → Server</td><td>재계산한 binding + OIDC로 검증 요청. 서버도 영수증·현재 PR·새 snapshot을 대조</td></tr>
+    <tr><td class="n">⑥</td><td class="f">Server → GitHub</td><td>상태 Awaiting → <strong>Human-verified</strong> / Not required · 카드 · 보조 Check</td></tr>
+    <tr><td class="n">⑥′</td><td class="f">Actions → GitHub</td><td>현재 SHA의 최신 gate status를 읽어 실제 성공 게시를 확인. 서버 응답만으로 끝내지 않는다</td></tr>
+    <tr><td class="n">⑦</td><td class="f">Store + CODEOWNERS</td><td>구역별 머지 전 확인 비율 · 답할 수 있는 사람 수 · 예외 · 근거 PR. <strong>이름 없이 수만</strong></td></tr>
+    <tr><td class="n">⑧</td><td class="f">사람 → GitHub</td><td>Merge. 봇은 절대 아니다</td></tr>
+    <tr><td class="n">⑨</td><td class="f">조직 → Server</td><td>대시보드 열람 — 다음에 에이전트를 어디까지 열지 판단</td></tr>
+  </tbody>
+</table>
+</div>
+
+<div>
+<h2>신뢰 경계 넷</h2>
+<table>
+  <thead><tr><th>경계</th><th>무엇으로 증명하나</th></tr></thead>
+  <tbody>
+    <tr><td class="f">App installation ↔ Server</td><td>선택 저장소에 한정된 installation token. App 개인키는 서버에만</td></tr>
+    <tr><td class="f">GitHub ↔ Actions</td><td>워크플로 실행 신원. <span class="mono">pull_request_target</span>이라 main의 정의만 실행된다</td></tr>
+    <tr><td class="f">Actions ↔ Server</td><td><strong>OIDC</strong> + binding 대조. 사전 공유한 장기 시크릿을 쓰지 않는다</td></tr>
+    <tr><td class="f">사람 ↔ Server</td><td>같은 App의 OAuth 로그인과 작성자 인가. 세션은 메모리 30분</td></tr>
+  </tbody>
+</table>
+
+<h2>정직하게 말할 것</h2>
+<table>
+  <tbody>
+    <tr><td>Actions에도 <strong>단기 GitHub·OIDC 자격은 있다.</strong> "비밀이 전혀 없다"고 말하지 않는다</td></tr>
+    <tr><td>코드와 설명 근거는 모델에 전달된다. 민감정보 유입 방지와 모델 서비스의 보관 정책은 <strong>별도로</strong> 다룬다</td></tr>
+    <tr><td>영수증의 결속은 head SHA뿐 아니라 repo/PR · base SHA · 정책 · snapshot · 위험도 · 작성자 · installation · 질문 버전을 포함한다</td></tr>
+    <tr><td><span class="mono">Human-verified · sha</span>는 화면 표현이다. SHA를 status 식별자에 붙이지 않는다</td></tr>
+    <tr><td>Relay의 대가 — 러너 기동 지연 20–40초 · Actions 분 사용 · 체크 목록에 한 줄 더</td></tr>
+  </tbody>
+</table>
+</div>
+</div>
+
+<footer>
+  <span>필수 status <b style="color:var(--amber)">last-human/human-verified</b> · 저위험은 commit status <b>success</b> · 보조 Check <b>neutral</b> · Required 적용은 저장소 보호 규칙</span>
+  <span>요약본: <a href="architecture-simple.html">architecture-simple.html</a> · 출처: <a href="../storyboard-v4.md">storyboard-v4.md §7</a></span>
+</footer>
+
+</body>
+</html>

@@ -1,0 +1,8 @@
+diff --git sample-app/app/auth/session.py sample-app/app/auth/session.py
+--- sample-app/app/auth/session.py
++++ sample-app/app/auth/session.py
+@@ -10,8 +10,6 @@ def authorize(user, scope):
+     session = load(user)
+-    if scope not in session.scopes:
+-        raise PermissionError(scope)
+     return session

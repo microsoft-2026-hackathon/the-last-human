@@ -1,0 +1,185 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>아키텍처 — simple · The Last Human</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@500;600;700&family=Source+Serif+4:opsz,wght@8..60,300;8..60,400&family=JetBrains+Mono:wght@400;500&display=swap">
+<style>
+  :root {
+    --ground:#0a0c10; --panel:#141922; --band:#101520;
+    --type:#f2f5f8; --dim:#929cab; --rule:#2a313c;
+    --neutral:#d6dce4; --green:#4ac264; --amber:#e0aa42; --cool:#6fb7ee; --red:#f0736a;
+  }
+  * { box-sizing:border-box; margin:0; padding:0; }
+  body {
+    background:var(--ground); color:var(--type);
+    font-family:"Source Serif 4",Georgia,serif;
+    word-break:keep-all; overflow-wrap:normal;
+    padding:clamp(1.4rem,4vh,2.6rem) clamp(1.4rem,4vw,3.4rem);
+  }
+  .eyebrow {
+    font-family:"JetBrains Mono",monospace; font-size:clamp(.7rem,1.6vh,.95rem);
+    letter-spacing:.2em; text-transform:uppercase; color:var(--dim); margin-bottom:.6rem;
+  }
+  h1 {
+    font-family:"Archivo",Helvetica,sans-serif; font-weight:600;
+    font-size:clamp(1.6rem,4.4vh,2.9rem); letter-spacing:-.022em; line-height:1.2;
+  }
+  .lede {
+    font-size:clamp(.98rem,2.2vh,1.35rem); font-weight:300; color:var(--neutral);
+    max-width:62ch; line-height:1.5; margin-top:.6rem;
+  }
+  figure { margin:clamp(.8rem,2.4vh,1.6rem) 0 0; }
+  svg { width:100%; height:auto; max-height:64vh; display:block; }
+
+  /* 도형 */
+  .box   { fill:var(--panel); stroke:var(--rule); stroke-width:1.3; }
+  .box-gh{ fill:var(--panel); stroke:#3b4453; stroke-width:1.3; }
+  .box-hot { fill:var(--panel); stroke:var(--amber); stroke-width:2; }
+  .box-model { fill:none; stroke:var(--dim); stroke-width:1.4; stroke-dasharray:7 5; }
+  .zone  { fill:none; stroke:var(--rule); stroke-width:1.1; stroke-dasharray:5 6; }
+
+  /* 글자 */
+  .lab   { fill:var(--type); font-family:"Archivo",Helvetica,sans-serif; font-size:21px; font-weight:600; }
+  .sub   { fill:var(--dim);  font-family:"JetBrains Mono",monospace; font-size:14px; letter-spacing:.02em; }
+  .subok { fill:var(--green);font-family:"JetBrains Mono",monospace; font-size:14px; }
+  .zlab  { fill:var(--dim);  font-family:"JetBrains Mono",monospace; font-size:13px; letter-spacing:.18em; }
+  .elab  { fill:var(--dim);  font-family:"JetBrains Mono",monospace; font-size:14px; }
+  .elab-hot { fill:var(--amber); font-family:"JetBrains Mono",monospace; font-size:15px; font-weight:500; }
+  .num   { fill:var(--type); font-family:"JetBrains Mono",monospace; font-size:13px; font-weight:500; }
+
+  /* 선 */
+  .edge     { stroke:var(--dim); fill:none; stroke-width:1.5; }
+  .edge-hot { stroke:var(--amber); fill:none; stroke-width:2.6; }
+  .edge-dash{ stroke:var(--dim); fill:none; stroke-width:1.5; stroke-dasharray:7 5; }
+
+  .claims { display:grid; grid-template-columns:repeat(3,1fr); gap:clamp(.8rem,2vw,1.6rem); margin-top:clamp(1rem,2.6vh,1.8rem); }
+  .claim { border-top:3px solid var(--amber); padding-top:.7rem; }
+  .claim .h { font-family:"Archivo",Helvetica,sans-serif; font-weight:600; font-size:clamp(1rem,2.3vh,1.3rem); }
+  .claim .d { font-size:clamp(.88rem,1.95vh,1.1rem); color:var(--neutral); margin-top:.35rem; line-height:1.45; }
+  .claim .m { font-family:"JetBrains Mono",monospace; font-size:clamp(.68rem,1.5vh,.85rem); color:var(--dim); margin-top:.4rem; }
+
+  footer {
+    margin-top:clamp(1rem,2.6vh,1.8rem); padding-top:.8rem; border-top:1px solid var(--rule);
+    font-family:"JetBrains Mono",monospace; font-size:clamp(.66rem,1.45vh,.82rem);
+    color:var(--dim); display:flex; justify-content:space-between; gap:1rem; flex-wrap:wrap;
+  }
+  a { color:var(--cool); }
+</style>
+</head>
+<body>
+
+<p class="eyebrow">Architecture · simple — 발표 슬라이드 08 · 12초</p>
+<h1>쓰기 주체는 <span style="color:var(--amber)">서버 하나</span>뿐이다</h1>
+<p class="lede">Actions는 이벤트를 전달하고 <strong>독립적으로 다시 계산</strong>해 대조한다. 모델은 질문을 쓰고 근거를 대조할 뿐, GitHub 상태를 바꾸거나 머지를 승인하지 않는다.</p>
+
+<figure>
+<svg viewBox="0 0 1240 560" role="img"
+     aria-label="GitHub의 PR 이벤트가 Actions로 가고, Actions는 메타데이터와 OIDC 신원만 서버로 보낸다. 작성자는 브라우저로 서버에 답한다. 서버는 모델에 질문 생성과 대조를 요청한다. 커밋 상태를 쓰는 화살표는 서버에서 GitHub으로 향하는 하나뿐이고, 머지는 사람이 누른다.">
+  <defs>
+    <marker id="s-a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto-start-reverse">
+      <path d="M0 0 L10 5 L0 10 z" fill="#929cab"/>
+    </marker>
+    <marker id="s-hot" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+      <path d="M0 0 L10 5 L0 10 z" fill="#e0aa42"/>
+    </marker>
+  </defs>
+
+  <!-- ⑥ 상태 발행 — 이 그림에서 유일하게 GitHub을 향하는 쓰기 -->
+  <path class="edge-hot" d="M980 60 L980 30 L195 30 L195 88" marker-end="url(#s-hot)"/>
+  <text class="elab-hot" x="587" y="22" text-anchor="middle">상태 · PR 카드 · (선택) Check — GitHub에 쓰는 것은 여기 하나뿐</text>
+
+  <!-- GitHub -->
+  <rect class="box-gh" x="50" y="90" width="300" height="168" rx="8"/>
+  <text class="zlab" x="50" y="80">GITHUB</text>
+  <text class="lab"  x="72" y="126">Pull request</text>
+  <text class="subok" x="72" y="154">✓ build · tests · lint · review</text>
+  <text class="sub"  x="72" y="178" fill="#e0aa42">● last-human/human-verified</text>
+  <text class="sub"  x="86" y="198">required · 발급자 = 서버</text>
+  <text class="sub"  x="72" y="230">⑧ 머지는 사람이 누른다</text>
+
+  <!-- ① -->
+  <line class="edge" x1="352" y1="174" x2="424" y2="174" marker-end="url(#s-a)"/>
+  <text class="elab" x="388" y="160" text-anchor="middle">①</text>
+  <text class="elab" x="388" y="200" text-anchor="middle">PR · 새 커밋</text>
+
+  <!-- Actions -->
+  <rect class="box" x="430" y="90" width="300" height="168" rx="8"/>
+  <text class="zlab" x="430" y="80">GITHUB ACTIONS</text>
+  <text class="lab"  x="452" y="126">Relay / Verify</text>
+  <text class="sub"  x="452" y="154">스냅샷 · 위험도 재계산</text>
+  <text class="sub"  x="452" y="178">단기 OIDC 신원만 보유</text>
+  <text class="sub"  x="452" y="202" fill="#f0736a">App 키 · 모델 자격 없음</text>
+  <text class="sub"  x="452" y="230" fill="#f0736a">게이트에 쓰지 않음</text>
+
+  <!-- ②⑤ -->
+  <line class="edge" x1="732" y1="150" x2="804" y2="150" marker-end="url(#s-a)"/>
+  <text class="elab" x="768" y="136" text-anchor="middle">②</text>
+  <text class="elab-hot" x="768" y="120" text-anchor="middle">OIDC</text>
+  <line class="edge" x1="804" y1="198" x2="732" y2="198" marker-end="url(#s-a)"/>
+  <text class="elab" x="768" y="222" text-anchor="middle">⑤ 검증 요청</text>
+
+  <!-- Server -->
+  <rect class="box-hot" x="810" y="60" width="380" height="238" rx="8"/>
+  <text class="zlab" x="810" y="50">TLH SERVER — 조직이 두는 곳</text>
+  <text class="lab"  x="834" y="98">Bot — 유일한 쓰기 주체</text>
+  <text class="sub"  x="834" y="130">위험도 → 구조 사실 → 질문 → 채점</text>
+  <text class="sub"  x="834" y="154">④ 영수증 — head SHA에 결속</text>
+  <text class="sub"  x="834" y="178">⑥ 상태 · 카드 발행</text>
+  <text class="sub"  x="834" y="202">⑦ 구역별 커버리지 대시보드</text>
+  <text class="sub"  x="834" y="238" fill="#4ac264">App 키 · client secret · 모델 자격</text>
+  <text class="sub"  x="834" y="262" fill="#4ac264">전부 여기에만 있음</text>
+
+  <!-- Author -->
+  <rect class="box" x="430" y="360" width="300" height="140" rx="8"/>
+  <text class="zlab" x="430" y="350">작성자 (브라우저)</text>
+  <text class="lab"  x="452" y="398">두 문항에 답한다</text>
+  <text class="sub"  x="452" y="426">보기 + 근거 한 줄</text>
+  <text class="sub"  x="452" y="450">같은 App으로 OAuth 로그인</text>
+  <text class="sub"  x="452" y="478" fill="#e0aa42">Accepted / Hold</text>
+
+  <!-- ③ Author → Server -->
+  <path class="edge" d="M732 400 L900 400 L900 306" marker-end="url(#s-a)"/>
+  <text class="elab" x="812" y="388" text-anchor="middle">③ 설명과 근거</text>
+
+  <!-- Model -->
+  <rect class="box-model" x="810" y="380" width="380" height="120" rx="8"/>
+  <text class="zlab" x="810" y="370">MODEL — AZURE OPENAI</text>
+  <text class="lab"  x="834" y="418" fill="#929cab">보조 수단</text>
+  <text class="sub"  x="834" y="446">질문을 쓰고 근거 한 줄을 대조</text>
+  <text class="sub"  x="834" y="472" fill="#f0736a">GitHub 쓰기 · 머지 권한 없음</text>
+
+  <!-- Server ↔ Model -->
+  <line class="edge-dash" x1="1060" y1="306" x2="1060" y2="374" marker-end="url(#s-a)"/>
+  <text class="elab" x="1074" y="346">②′</text>
+</svg>
+</figure>
+
+<div class="claims">
+  <div class="claim">
+    <div class="h">봇이 자기를 통과시키지 않는다</div>
+    <div class="d">Actions가 대상 PR의 스냅샷과 위험도를 <strong>독립적으로 다시 계산</strong>해 서버의 영수증과 대조한다. 어긋나면 게이트가 열리지 않는다.</div>
+    <div class="m">⑤ · lasthuman-app.yml — 5단계</div>
+  </div>
+  <div class="claim">
+    <div class="h">비밀은 서버에만 있다</div>
+    <div class="d">App 개인키·client secret·모델 자격은 Actions로 넘기지 않는다. Actions는 <strong>단기 OIDC</strong>만 들고 저장소에 묶인 신원을 증명한다.</div>
+    <div class="m">② · 사전 공유 장기 시크릿 없음</div>
+  </div>
+  <div class="claim">
+    <div class="h">모델은 판정하지 않는다</div>
+    <div class="d">질문 생성과 근거 대조를 돕는다. 위험 점수는 <strong>순수 함수</strong>라 같은 입력이면 같은 출력이 나오고, 모델은 GitHub 상태를 바꾸지 못한다.</div>
+    <div class="m">②′ · risk.py — 모델 호출 없음</div>
+  </div>
+</div>
+
+<footer>
+  <span>필수 status <b style="color:var(--amber)">last-human/human-verified</b> · 보조 Check "The Last Human"은 <b>TLH_CHECK_RUNS=true</b>일 때만</span>
+  <span>상세: <a href="architecture-details.html">architecture-details.html</a> · 출처: <a href="../storyboard-v4.md">storyboard-v4.md §7</a></span>
+</footer>
+
+</body>
+</html>
