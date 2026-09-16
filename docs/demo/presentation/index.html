@@ -13,7 +13,7 @@
   :root {
     --ground:#0b0e13; --panel:#161c26; --band:#111722; --line:#252d3a;
     --type:#f4f7fa; --dim:#8e99a8; --neutral:#ccd4de;
-    --green:#4ac264; --amber:#e8b155; --cool:#6fb7ee; --red:#f0736a;
+    --green:#4ac264; --amber:#e8b155; --cool:#6fb7ee; --red:#f0736a; --violet:#b39ae8;
     --ko:"Pretendard","Pretendard Variable",-apple-system,"Apple SD Gothic Neo","Malgun Gothic",sans-serif;
     --mono:"JetBrains Mono",ui-monospace,Consolas,monospace;
     --ease:cubic-bezier(.22,.7,.3,1);
@@ -63,8 +63,18 @@
   }
 
   /* 타이포 */
-  .eyebrow { font-family:var(--mono); font-size:clamp(.68rem,1.55vh,.94rem); letter-spacing:.18em;
-             text-transform:uppercase; color:var(--dim); margin-bottom:clamp(.5rem,1.4vh,.95rem); }
+  .eyebrow { font-family:var(--mono); font-size:clamp(.74rem,1.68vh,1rem); letter-spacing:.1em;
+             color:var(--neutral); margin-bottom:clamp(.5rem,1.4vh,.95rem);
+             display:flex; align-items:center; gap:.6rem; flex-wrap:wrap; }
+  /* 심사 항목 배지 — 이 슬라이드가 어느 배점을 받는지 */
+  .crit { display:inline-flex; align-items:center; gap:.35rem; padding:.2rem .55rem; border-radius:4px;
+          font-size:.92em; letter-spacing:.04em; font-weight:500; white-space:nowrap; }
+  .crit .p { font-weight:500; opacity:.75; }
+  .crit.c1 { background:rgba(111,183,238,.16); color:var(--cool); }
+  .crit.c2 { background:rgba(74,194,100,.16);  color:var(--green); }
+  .crit.c3 { background:rgba(232,177,85,.16);  color:var(--amber); }
+  .crit.c4 { background:rgba(240,115,106,.18); color:var(--red); }
+  .crit.c5 { background:rgba(179,154,232,.18); color:var(--violet); }
   h2 { font-weight:700; font-size:clamp(1.65rem,4.6vh,3rem); letter-spacing:-.03em; line-height:1.24; text-wrap:balance; }
   h3 { font-weight:600; font-size:clamp(1rem,2.4vh,1.42rem); letter-spacing:-.02em; line-height:1.3; }
   .lede { font-size:clamp(.95rem,2.2vh,1.36rem); font-weight:400; color:var(--neutral);
@@ -154,21 +164,22 @@
   .arch svg { width:100%; height:auto; max-height:52vh; display:block; margin-top:clamp(.4rem,1.1vh,.8rem); }
   .lane-bg   { fill:rgba(22,28,38,.55); }
   .lane-bg2  { fill:rgba(22,28,38,.28); }
-  .lane-name { fill:var(--dim); font-family:var(--mono); font-size:13px; letter-spacing:.14em; }
-  .nbox   { fill:rgba(22,28,38,.96); stroke:var(--line); stroke-width:1.3; }
+  .lane-name { fill:var(--neutral); font-family:var(--mono); font-size:15px; font-weight:500; letter-spacing:.12em; }
+  .lane-sub  { fill:var(--dim); font-family:var(--mono); font-size:12px; letter-spacing:.06em; }
+  .nbox   { fill:rgba(22,28,38,.96); stroke:#39424f; stroke-width:1.4; }
   .nbox-s { fill:rgba(22,28,38,.96); stroke:var(--amber); stroke-width:2; }
   .nbox-m { fill:none; stroke:var(--dim); stroke-width:1.3; stroke-dasharray:6 5; }
-  .ntitle { fill:var(--type); font-family:var(--ko); font-size:16px; font-weight:700; }
-  .ntext  { fill:var(--dim); font-family:var(--mono); font-size:12.5px; }
-  .nok    { fill:var(--green); font-family:var(--mono); font-size:12.5px; }
-  .nno    { fill:var(--red); font-family:var(--mono); font-size:12.5px; }
+  .ntitle { fill:var(--type); font-family:var(--ko); font-size:17px; font-weight:700; }
+  .ntext  { fill:#aab4c2; font-family:var(--mono); font-size:13px; }
+  .nok    { fill:var(--green); font-family:var(--mono); font-size:13px; }
+  .nno    { fill:var(--red); font-family:var(--mono); font-size:13px; }
   .nnum   { fill:var(--ground); font-family:var(--mono); font-size:13px; font-weight:500; }
   .ncirc  { fill:var(--amber); }
-  .nedge  { stroke:var(--dim); fill:none; stroke-width:1.6; }
-  .nedge-s{ stroke:var(--amber); fill:none; stroke-width:2.4; }
-  .nedge-d{ stroke:var(--dim); fill:none; stroke-width:1.4; stroke-dasharray:6 5; }
-  .nlab   { fill:var(--dim); font-family:var(--mono); font-size:12.5px; }
-  .nlab-s { fill:var(--amber); font-family:var(--mono); font-size:13px; font-weight:500; }
+  .nedge  { stroke:#7e8a99; fill:none; stroke-width:1.7; }
+  .nedge-s{ stroke:var(--amber); fill:none; stroke-width:2.6; }
+  .nedge-d{ stroke:#7e8a99; fill:none; stroke-width:1.5; stroke-dasharray:6 5; }
+  .nlab   { fill:#aab4c2; font-family:var(--mono); font-size:13px; }
+  .nlab-s { fill:var(--amber); font-family:var(--mono); font-size:13.5px; font-weight:500; }
   #gateArrow { stroke-dasharray:900; stroke-dashoffset:900; }
   #gateArrow.draw { animation:draw 1s var(--ease) forwards; }
   @keyframes draw { to { stroke-dashoffset:0; } }
@@ -178,8 +189,13 @@
   .cta .a { font-weight:800; font-size:clamp(1.2rem,3.2vh,2.1rem); color:var(--amber); letter-spacing:-.025em; }
   .cta .b { font-family:var(--mono); font-size:clamp(.78rem,1.8vh,1.08rem); color:var(--neutral); margin-top:.28rem; }
   .cta .c { font-family:var(--mono); font-size:clamp(.64rem,1.45vh,.85rem); color:var(--dim); margin-top:.22rem; }
-  .tag { text-align:center; align-items:center; justify-content:center; }
-  .tag h2 { font-family:var(--mono); font-weight:400; font-size:clamp(1.1rem,3vh,1.95rem); letter-spacing:.03em; }
+  .endnote { border-left:3px solid var(--red); padding-left:clamp(.85rem,1.9vw,1.3rem);
+             margin-top:clamp(.8rem,2.1vh,1.4rem); }
+  .endnote .q { font-size:clamp(1rem,2.5vh,1.6rem); line-height:1.45; font-weight:500; }
+  .endnote .s { font-family:var(--mono); color:var(--dim); font-size:clamp(.62rem,1.4vh,.82rem); margin-top:.35rem; }
+  .tag { text-align:center; align-items:center; justify-content:center; gap:clamp(.9rem,2.5vh,1.8rem); }
+  .tag h2 { font-family:var(--mono); font-weight:400; font-size:clamp(1.2rem,3.4vh,2.3rem); letter-spacing:.03em; }
+  .tag .sub { font-size:clamp(.85rem,2vh,1.2rem); color:var(--dim); }
 
   /* 부록 */
   .appx table { width:100%; border-collapse:collapse; font-size:clamp(.72rem,1.58vh,.93rem); }
@@ -223,7 +239,7 @@
 
 <!-- ══════ 01 · 설계 목표 (backdata_1) ══════ -->
 <section class="slide top" data-dur="12">
-  <p class="eyebrow rise" style="--d:0">01 · The mandate</p>
+  <p class="eyebrow rise" style="--d:0"><span class="crit c1">고객·문제 및 비즈니스 가치 <span class="p">20점</span></span> 01 · 설계 목표는 이미 정해져 있습니다</p>
   <h2 class="rise" style="--d:1">설계 목표는 이미 정해져 있습니다</h2>
   <div class="ev l">
     <div>
@@ -249,7 +265,7 @@
 
 <!-- ══════ 02 · 관측되지 않는 한 층 ══════ -->
 <section class="slide" data-dur="12">
-  <p class="eyebrow rise" style="--d:0">02 · The missing layer</p>
+  <p class="eyebrow rise" style="--d:0"><span class="crit c1">고객·문제 및 비즈니스 가치 <span class="p">20점</span></span> 02 · 관측되지 않는 한 층</p>
   <h2 class="rise" style="--d:1">stack의 모든 층을 관측합니다.<br><span class="hl">한 층만 빼고.</span></h2>
   <div class="layers">
     <div class="row frag" data-frag="1"><span class="m">✓</span><span class="txt">코드가 빌드됩니다</span><span class="s">CI</span></div>
@@ -265,7 +281,7 @@
 
 <!-- ══════ 03 · 직관은 틀렸습니다 (backdata_2) ══════ -->
 <section class="slide top" data-dur="10">
-  <p class="eyebrow rise" style="--d:0">03 · Evidence</p>
+  <p class="eyebrow rise" style="--d:0"><span class="crit c1">근거 — 측정된 사실 <span class="p">20점</span></span> 03 · 우리 감은 틀렸습니다</p>
   <h2 class="rise" style="--d:1">우리는 이 층을 <span class="hl">감으로 판단해 왔습니다.</span> 그 감은 틀렸습니다</h2>
   <div class="shot rise" style="--d:2;margin-top:.7rem;max-width:min(100%,76vw);align-self:center">
     <img src="backdata_2.png" alt="METR 무작위 대조 실험 결과. 경제학 전문가 -38%, ML 전문가 -40%, 개발자 사전 예측 -24%, 실험 후 자기보고 -20%로 모두 speedup을 예측했으나 실제 관측값은 +19% slowdown이었습니다." style="max-height:52vh;object-fit:contain">
@@ -278,7 +294,7 @@
 
 <!-- ══════ 04 · 이름이 붙은 공백 (backdata_4) ══════ -->
 <section class="slide top" data-dur="14">
-  <p class="eyebrow rise" style="--d:0">04 · Evidence — 핵심</p>
+  <p class="eyebrow rise" style="--d:0"><span class="crit c1">근거 — 측정된 사실 <span class="p">20점</span></span> 04 · 공백은 이미 이름이 붙어 있습니다</p>
   <h2 class="rise" style="--d:1">AI가 쓴 PR 설명은 <span class="hl">코드와 어긋납니다.</span> 이미 측정되었습니다</h2>
   <div class="ev r">
     <div class="shot rise" style="--d:2">
@@ -307,7 +323,7 @@
 
 <!-- ══════ 05 · 금지가 아니라 확인 (backdata_3) ══════ -->
 <section class="slide top" data-dur="10">
-  <p class="eyebrow rise" style="--d:0">05 · Positioning</p>
+  <p class="eyebrow rise" style="--d:0"><span class="crit c2">AI 시대의 새로운 시도 <span class="p">15점</span></span> 05 · 금지가 아니라 확인</p>
   <h2 class="rise" style="--d:1">업계의 답은 <span class="rd">금지</span>였습니다. 우리의 답은 <span class="gr">확인</span>입니다</h2>
   <div class="ev l" style="align-items:start">
     <div>
@@ -331,8 +347,8 @@
 </section>
 
 <!-- ══════ 06 · 어떻게 동작합니까 ══════ -->
-<section class="slide" data-dur="12">
-  <p class="eyebrow rise" style="--d:0">06 · How it works</p>
+<section class="slide" data-dur="10">
+  <p class="eyebrow rise" style="--d:0"><span class="crit c2">사람–AI 역할 설계 <span class="p">15점</span></span><span class="crit c4">구현 완성도 및 시연 <span class="p">30점</span> → 다음 88초</span> 06 · 어떻게 동작합니까</p>
   <h2 class="rise" style="--d:1">방향을 뒤집었습니다 — <span class="hl">사람이 모델에게 답합니다</span></h2>
   <p class="lede rise" style="--d:2">다른 AI 리뷰 도구는 사람에게 설명을 <strong>전달합니다.</strong> The Last Human은 사람에게 설명을 <strong>요구합니다.</strong></p>
   <div class="grid g4">
@@ -364,6 +380,7 @@
   <video id="demoVideo" src="Demo_thelasthuman.mp4" preload="auto" playsinline></video>
   <div class="demo-card" id="demoFallback" hidden>
     <div class="big">DEMO · 88s</div>
+    <div class="cue" style="color:var(--red)">구현 완성도 및 시연 · 30점</div>
     <div class="cue">
       <b>1</b> token refresh PR — 초록 체크는 전부 통과, gate만 대기 ·
       <b>2</b> 두 문항 제시 ·
@@ -382,7 +399,7 @@
 
 <!-- ══════ 07 · 우리 PR에 먼저 걸었습니다 ══════ -->
 <section class="slide" data-dur="14">
-  <p class="eyebrow rise" style="--d:0">07 · 가설 · 실험 · 측정 · 학습</p>
+  <p class="eyebrow rise" style="--d:0"><span class="crit c3">체계적 구체화 과정 <span class="p">15점</span></span> 07 · 가설 · 실험 · 측정 · 학습</p>
   <h2 class="rise" style="--d:1">이 gate를 <span class="hl">우리 PR에 먼저 걸었고,</span> 우리가 멈췄습니다</h2>
   <div class="figs">
     <div class="fig frag" data-frag="1"><span class="n hl count" data-to="26">0</span><span class="k">gate가 발동한 PR</span></div>
@@ -416,9 +433,9 @@
 
 <!-- ══════ 08 · 아키텍처 ══════ -->
 <section class="slide top arch" data-dur="14">
-  <p class="eyebrow rise" style="--d:0">08 · Architecture — PR 하나가 지나가는 길</p>
+  <p class="eyebrow rise" style="--d:0"><span class="crit c5">배포·확장성·보안 <span class="p">20점</span></span> 08 · Architecture — PR 하나가 지나가는 길</p>
   <h2 class="rise" style="--d:1">gate를 여는 주체는 <span class="hl">서버 하나</span>, 검증하는 주체는 <span class="hl">Actions</span>입니다</h2>
-  <svg viewBox="0 0 1460 620" role="img"
+  <svg viewBox="0 0 1460 640" role="img"
        aria-label="PR 하나가 지나가는 길을 네 개의 lane으로 그린 순서도입니다. GitHub lane에서 PR이 열리면 Actions lane의 Relay가 snapshot과 위험도를 재계산해 OIDC 신원과 함께 서버로 보냅니다. 서버 lane에서 위험도를 판정하고 임계값 미달이면 Not required로 바로 merge로 갑니다. 임계값을 넘으면 질문을 생성하고 Awaiting 상태를 발행합니다. 사람 lane에서 작성자가 설명을 제출하면 서버가 receipt를 head SHA에 묶어 저장하고, Actions가 독립적으로 재계산해 receipt와 대조한 뒤에야 서버가 Human-verified를 발행하며 사람이 merge합니다. 모델은 점선 상자로 질문 생성과 채점만 돕고 GitHub 쓰기 권한이 없습니다.">
     <defs>
       <marker id="ar" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#8e99a8"/></marker>
@@ -428,49 +445,48 @@
 
     <!-- lane 배경 -->
     <g class="frag in" data-frag="0">
-      <rect class="lane-bg"  x="150" y="60"  width="1290" height="96" rx="6"/>
-      <rect class="lane-bg2" x="150" y="166" width="1290" height="96" rx="6"/>
+      <rect class="lane-bg"  x="150" y="60"  width="1290" height="96"  rx="6"/>
+      <rect class="lane-bg2" x="150" y="166" width="1290" height="96"  rx="6"/>
       <rect class="lane-bg"  x="150" y="272" width="1290" height="116" rx="6"/>
-      <rect class="lane-bg2" x="150" y="398" width="1290" height="96" rx="6"/>
-      <text class="lane-name" x="16" y="104">GITHUB</text>
-      <text class="lane-name" x="16" y="122">저장소 · PR</text>
-      <text class="lane-name" x="16" y="210">GITHUB ACTIONS</text>
-      <text class="lane-name" x="16" y="228">단기 OIDC만 보유</text>
-      <text class="lane-name" x="16" y="326">TLH SERVER</text>
-      <text class="lane-name" x="16" y="344">유일한 쓰기 주체</text>
-      <text class="lane-name" x="16" y="442">사람 · 모델</text>
+      <rect class="lane-bg2" x="150" y="398" width="1290" height="116" rx="6"/>
+      <text class="lane-name" x="16" y="102">GITHUB</text>
+      <text class="lane-sub"  x="16" y="122">repo · PR</text>
+      <text class="lane-name" x="16" y="208">ACTIONS</text>
+      <text class="lane-sub"  x="16" y="228">OIDC only</text>
+      <text class="lane-name" x="16" y="324">TLH SERVER</text>
+      <text class="lane-sub"  x="16" y="344">only writer</text>
+      <text class="lane-name" x="16" y="450">AUTHOR</text>
+      <text class="lane-sub"  x="16" y="470">· MODEL</text>
     </g>
 
-    <!-- ① PR 열림 -->
+    <!-- ① PR -->
     <g class="frag" data-frag="1">
-      <rect class="nbox" x="170" y="76" width="176" height="64" rx="7"/>
+      <rect class="nbox" x="170" y="76" width="190" height="64" rx="7"/>
       <circle class="ncirc" cx="188" cy="94" r="11"/><text class="nnum" x="188" y="99" text-anchor="middle">1</text>
-      <text class="ntitle" x="206" y="99">PR · 새 commit</text>
-      <text class="ntext"  x="182" y="124">pull_request_target</text>
+      <text class="ntitle" x="206" y="100">PR · 새 commit</text>
+      <text class="ntext"  x="182" y="126">pull_request_target</text>
     </g>
 
     <!-- ② Relay -->
     <g class="frag" data-frag="2">
-      <path class="nedge" d="M258 144 L258 182" marker-end="url(#ar)"/>
+      <path class="nedge" d="M265 142 L265 162 L471 162 L471 178" marker-end="url(#ar)"/>
       <rect class="nbox" x="366" y="182" width="210" height="64" rx="7"/>
       <circle class="ncirc" cx="384" cy="200" r="11"/><text class="nnum" x="384" y="205" text-anchor="middle">2</text>
-      <text class="ntitle" x="402" y="205">Relay</text>
-      <text class="ntext"  x="378" y="230">snapshot · 위험도 재계산</text>
-      <path class="nedge" d="M348 108 L360 108 L360 210 L362 210" marker-end="url(#ar)"/>
-      <text class="nlab-s" x="470" y="172" text-anchor="middle">OIDC 신원 + metadata</text>
+      <text class="ntitle" x="402" y="206">Relay</text>
+      <text class="ntext"  x="378" y="232">snapshot · 위험도 재계산</text>
     </g>
 
-    <!-- ③ 위험도 판정 + 분기 -->
+    <!-- ③ 위험도 판정 + 미달 분기 -->
     <g class="frag" data-frag="3">
-      <path class="nedge" d="M471 248 L471 286" marker-end="url(#ar)"/>
+      <path class="nedge" d="M471 248 L471 282" marker-end="url(#ar)"/>
+      <text class="nlab-s" x="486" y="272">OIDC + metadata</text>
       <rect class="nbox" x="366" y="286" width="210" height="88" rx="7"/>
       <circle class="ncirc" cx="384" cy="304" r="11"/><text class="nnum" x="384" y="309" text-anchor="middle">3</text>
-      <text class="ntitle" x="402" y="309">위험도 판정</text>
-      <text class="ntext"  x="378" y="334">순수 함수 · 모델 없음</text>
-      <text class="ntext"  x="378" y="354">같은 입력이면 같은 결과</text>
-      <!-- 미달 분기 -->
-      <path class="nedge-d" d="M576 316 L640 316 L640 40 L1300 40 L1300 72" marker-end="url(#ar)"/>
-      <text class="nlab" x="970" y="32" text-anchor="middle">임계값 미달 → Not required · 확인 없이 그대로 merge</text>
+      <text class="ntitle" x="402" y="310">위험도 판정</text>
+      <text class="ntext"  x="378" y="336">순수 함수 · 모델 없음</text>
+      <text class="ntext"  x="378" y="356">같은 입력이면 같은 결과</text>
+      <path class="nedge-d" d="M578 306 L600 306 L600 40 L1300 40 L1300 72" marker-end="url(#ar)"/>
+      <text class="nlab" x="950" y="32" text-anchor="middle">임계값 미달 → Not required · 확인 없이 그대로 merge</text>
     </g>
 
     <!-- ④ 질문 생성 + Awaiting -->
@@ -478,61 +494,63 @@
       <path class="nedge" d="M578 330 L610 330" marker-end="url(#ar)"/>
       <rect class="nbox" x="614" y="286" width="210" height="88" rx="7"/>
       <circle class="ncirc" cx="632" cy="304" r="11"/><text class="nnum" x="632" y="309" text-anchor="middle">4</text>
-      <text class="ntitle" x="650" y="309">질문 2개 생성</text>
-      <text class="ntext"  x="626" y="334">hunk + 호출하는 파일</text>
-      <text class="ntext"  x="626" y="354" fill="#e8b155">status: Awaiting 발행</text>
-      <path class="nedge" d="M700 284 L700 150" marker-end="url(#ar)"/>
-      <rect class="nbox" x="620" y="76" width="200" height="64" rx="7"/>
-      <text class="ntitle" x="634" y="100">merge 잠김</text>
-      <text class="ntext"  x="634" y="124">Awaiting author explanation</text>
+      <text class="ntitle" x="650" y="310">질문 2개 생성</text>
+      <text class="ntext"  x="626" y="336">hunk + 호출하는 파일</text>
+      <text class="ntext"  x="626" y="356" fill="#e8b155">status: Awaiting</text>
+      <path class="nedge" d="M700 284 L700 146" marker-end="url(#ar)"/>
+      <rect class="nbox" x="620" y="76" width="240" height="64" rx="7"/>
+      <text class="ntitle" x="634" y="100">merge 불가</text>
+      <text class="ntext"  x="634" y="126">Awaiting author explanation</text>
     </g>
 
-    <!-- ⑤ 작성자 설명 + 모델 -->
+    <!-- ⑤ 작성자 설명 + Model -->
     <g class="frag" data-frag="5">
-      <path class="nedge" d="M760 376 L760 412" marker-end="url(#ar)"/>
-      <rect class="nbox" x="614" y="412" width="210" height="68" rx="7"/>
+      <path class="nedge" d="M760 376 L760 408" marker-end="url(#ar)"/>
+      <rect class="nbox" x="614" y="412" width="230" height="88" rx="7"/>
       <circle class="ncirc" cx="632" cy="430" r="11"/><text class="nnum" x="632" y="435" text-anchor="middle">5</text>
-      <text class="ntitle" x="650" y="435">작성자가 설명</text>
-      <text class="ntext"  x="626" y="460">보기 + 근거 한 줄 → Accepted / Hold</text>
-      <rect class="nbox-m" x="170" y="412" width="230" height="68" rx="7"/>
-      <text class="ntitle" x="184" y="436" fill="#8e99a8">Model — 보조</text>
-      <text class="nno"    x="184" y="460">GitHub 쓰기 · merge 권한 없음</text>
-      <path class="nedge-d" d="M610 446 L406 446" marker-end="url(#ar)"/>
-      <text class="nlab" x="508" y="500" text-anchor="middle">질문 생성 · 근거 대조만</text>
+      <text class="ntitle" x="650" y="436">작성자가 설명</text>
+      <text class="ntext"  x="626" y="462">보기 + 근거 한 줄 제출</text>
+      <text class="ntext"  x="626" y="482" fill="#e8b155">→ Accepted / Hold</text>
+      <rect class="nbox-m" x="170" y="412" width="270" height="88" rx="7"/>
+      <text class="ntitle" x="184" y="436" fill="#aab4c2">Model — assist only</text>
+      <text class="ntext"  x="184" y="462">질문 생성 · 근거 대조</text>
+      <text class="nno"    x="184" y="482">no GitHub write · no merge</text>
+      <path class="nedge-d" d="M610 446 L446 446" marker-end="url(#ar)"/>
+      <text class="nlab" x="528" y="438" text-anchor="middle">보조 요청</text>
     </g>
 
     <!-- ⑥ receipt -->
     <g class="frag" data-frag="6">
-      <path class="nedge" d="M828 446 L864 446 L864 330 L888 330" marker-end="url(#ar)"/>
+      <path class="nedge" d="M848 446 L868 446 L868 330 L888 330" marker-end="url(#ar)"/>
       <rect class="nbox" x="892" y="286" width="210" height="88" rx="7"/>
       <circle class="ncirc" cx="910" cy="304" r="11"/><text class="nnum" x="910" y="309" text-anchor="middle">6</text>
-      <text class="ntitle" x="928" y="309">receipt 저장</text>
-      <text class="ntext"  x="904" y="334">head SHA에 결속</text>
-      <text class="ntext"  x="904" y="354">새 commit이면 무효</text>
+      <text class="ntitle" x="928" y="310">receipt 저장</text>
+      <text class="ntext"  x="904" y="336">head SHA에 결속</text>
+      <text class="ntext"  x="904" y="356">새 commit이면 무효</text>
     </g>
 
     <!-- ⑦ Verify -->
     <g class="frag" data-frag="7">
       <path class="nedge" d="M997 284 L997 250" marker-end="url(#ar)"/>
-      <rect class="nbox-s" x="892" y="182" width="210" height="64" rx="7"/>
+      <rect class="nbox-s" x="892" y="182" width="220" height="64" rx="7"/>
       <circle class="ncirc" cx="910" cy="200" r="11"/><text class="nnum" x="910" y="205" text-anchor="middle">7</text>
-      <text class="ntitle" x="928" y="205">Verify</text>
-      <text class="ntext"  x="904" y="230">독립 재계산 → receipt 대조</text>
-      <path class="nedge" d="M1104 214 L1160 214 L1160 316 L1186 316" marker-end="url(#ar)"/>
-      <text class="nlab-s" x="1180" y="264" text-anchor="middle">일치할 때만</text>
+      <text class="ntitle" x="928" y="206">Verify</text>
+      <text class="ntext"  x="904" y="232">독립 재계산 → receipt 대조</text>
+      <path class="nedge" d="M1114 214 L1160 214 L1160 316 L1186 316" marker-end="url(#ar)"/>
+      <text class="nlab-s" x="1155" y="268" text-anchor="end">일치할 때만</text>
     </g>
 
     <!-- ⑧ Human-verified → merge -->
     <g class="frag" data-frag="8">
       <rect class="nbox-s" x="1190" y="286" width="230" height="88" rx="7"/>
       <circle class="ncirc" cx="1208" cy="304" r="11"/><text class="nnum" x="1208" y="309" text-anchor="middle">8</text>
-      <text class="ntitle" x="1226" y="309">Human-verified 발행</text>
-      <text class="nok"    x="1202" y="334">last-human/human-verified</text>
-      <text class="ntext"  x="1202" y="354">GitHub에 쓰는 것은 서버뿐</text>
-      <path id="gateArrow" class="nedge-s" d="M1305 284 L1305 150" marker-end="url(#as)"/>
+      <text class="ntitle" x="1226" y="310">gate 통과</text>
+      <text class="nok"    x="1202" y="336">last-human/human-verified</text>
+      <text class="ntext"  x="1202" y="356">발행 주체는 서버뿐</text>
+      <path id="gateArrow" class="nedge-s" d="M1305 284 L1305 146" marker-end="url(#as)"/>
       <rect class="nbox-s" x="1190" y="76" width="230" height="64" rx="7"/>
       <text class="ntitle" x="1204" y="100">사람이 merge</text>
-      <text class="nok"    x="1204" y="124">bot이 아닙니다</text>
+      <text class="nok"    x="1204" y="126">not the bot</text>
     </g>
   </svg>
   <div class="grid g3 frag" data-frag="9" style="margin-top:.5rem">
@@ -544,7 +562,7 @@
 
 <!-- ══════ 09 · 배포 · 보안 · 확장 ══════ -->
 <section class="slide" data-dur="10">
-  <p class="eyebrow rise" style="--d:0">09 · Deploy · Security · Scale</p>
+  <p class="eyebrow rise" style="--d:0"><span class="crit c5">배포·확장성·보안·Global <span class="p">20점</span></span> 09 · 어떻게 배포하고 확장합니까</p>
   <h2 class="rise" style="--d:1">Microsoft stack 위에서 <span class="hl">장기 시크릿 없이</span> 동작합니다</h2>
   <div class="grid g4">
     <div class="card frag" data-frag="1"><div class="t">GitHub App</div><div class="h">저장소 한정 권한</div>
@@ -579,15 +597,18 @@
 </section>
 
 <!-- ══════ 10 · Closing ══════ -->
-<section class="slide" data-dur="8">
-  <p class="eyebrow rise" style="--d:0">10 · Closing</p>
-  <h2 class="rise" style="--d:1">stack의 마지막 한 층에도 <span class="hl">기록을 남겼습니다</span></h2>
-  <p class="lede rise" style="--d:2">
-    장애가 났을 때 가장 먼저 나오는 질문은 <span class="hl">"이 코드, 누가 압니까?"</span> 입니다.
-    그때 찾기 시작하면 이미 늦습니다. 조직은 <strong>어느 모듈에 답할 수 있는 사람이 몇 명인지</strong> 미리 알아야 합니다.
-    이름이 아니라 <strong>수</strong>입니다.
+<section class="slide" data-dur="10">
+  <p class="eyebrow rise" style="--d:0"><span class="crit c1">고객·문제 및 비즈니스 가치 <span class="p">20점</span></span> 10 · 마무리</p>
+  <h2 class="rise" style="--d:1">AI는 책임질 수 없습니다.<br>사람은 질 수 있습니다.<br><span class="hl">그러려면 이해가 기록되어야 합니다.</span></h2>
+  <div class="endnote frag" data-frag="1">
+    <div class="q">If not you will anyway <span class="rd">lose permission to operate.</span></div>
+    <div class="s">Satya Nadella — 첫 장에서 인용한 그 문장입니다</div>
+  </div>
+  <p class="lede frag" data-frag="2">
+    권한을 지키는 방법은 <strong>속도를 줄이는 것이 아닙니다.</strong>
+    stack의 마지막 한 층에 기록을 남기는 것입니다. The Last Human이 그 한 층입니다.
   </p>
-  <div class="cta frag" data-frag="1">
+  <div class="cta frag" data-frag="3">
     <svg class="mark" width="140" height="86" viewBox="0 0 120 74" aria-hidden="true">
       <rect class="f" x="0" y="0"  width="86" height="8" rx="4"/>
       <rect class="f" x="0" y="13" width="72" height="8" rx="4"/>
@@ -602,13 +623,19 @@
       <div class="c">required status <span class="hl">last-human/human-verified</span> · 정책은 .lasthuman.yml 한 파일</div>
     </div>
   </div>
-  <p class="kicker frag" data-frag="2" style="margin-top:.9rem">
-    <strong>observability at every layer of stack.</strong> 마지막 한 층은 사람이 이해했는지입니다. 그 층을 만들었습니다.
-  </p>
 </section>
 
 <section class="slide tag" data-dur="0">
-  <h2 class="rise" style="--d:0">AI-generated code. Human-owned decisions.</h2>
+  <svg class="mark rise" style="--d:0" width="168" height="104" viewBox="0 0 120 74" aria-hidden="true">
+    <rect class="f" x="0" y="0"  width="86" height="8" rx="4"/>
+    <rect class="f" x="0" y="13" width="72" height="8" rx="4"/>
+    <rect class="f" x="0" y="26" width="94" height="8" rx="4"/>
+    <rect class="f" x="0" y="39" width="64" height="8" rx="4"/>
+    <rect class="f" x="0" y="52" width="80" height="8" rx="4"/>
+    <rect class="e" x="1.5" y="64.5" width="117" height="8" rx="4"/>
+  </svg>
+  <h2 class="rise" style="--d:6">AI-generated code. Human-owned decisions.</h2>
+  <p class="sub rise" style="--d:7">다섯 줄은 기계가 채웁니다. 여섯째 줄은 사람이 채웁니다.</p>
 </section>
 
 <!-- ══════ A1 · 데이터 흐름 상세 ══════ -->
