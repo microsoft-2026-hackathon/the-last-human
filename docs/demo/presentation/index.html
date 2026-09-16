@@ -4,287 +4,209 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>The Last Human — 3분 30초 발표</title>
+<link rel="preconnect" href="https://cdn.jsdelivr.net">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@500;600;700;800&family=Source+Serif+4:opsz,wght@8..60,300;8..60,400&family=JetBrains+Mono:wght@400;500&display=swap">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.css">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500&display=swap">
 <style>
   :root {
-    --ground:#0a0c10; --panel:#141922; --band:#101520;
-    --type:#f2f5f8; --dim:#929cab; --rule:#2a313c;
-    --neutral:#d6dce4; --green:#4ac264; --amber:#e0aa42; --cool:#6fb7ee; --red:#f0736a;
+    --ground:#0b0e13; --panel:#161c26; --band:#111722; --line:#252d3a;
+    --type:#f4f7fa; --dim:#8e99a8; --neutral:#ccd4de;
+    --green:#4ac264; --amber:#e8b155; --cool:#6fb7ee; --red:#f0736a;
+    --ko:"Pretendard","Pretendard Variable",-apple-system,"Apple SD Gothic Neo","Malgun Gothic",sans-serif;
+    --mono:"JetBrains Mono",ui-monospace,Consolas,monospace;
     --ease:cubic-bezier(.22,.7,.3,1);
   }
   * { box-sizing:border-box; margin:0; padding:0; }
   html, body { height:100%; overflow:hidden; }
   body {
     background:var(--ground); color:var(--type);
-    font-family:"Source Serif 4",Georgia,serif;
-    cursor:none; word-break:keep-all; overflow-wrap:normal;
+    font-family:var(--ko); font-weight:400;
+    word-break:keep-all; overflow-wrap:break-word;
+    -webkit-font-smoothing:antialiased; cursor:none;
   }
   body.idle { cursor:default; }
+  .mono { font-family:var(--mono); }
+  .hl { color:var(--amber); } .gr { color:var(--green); } .rd { color:var(--red); }
 
-  /* ===== 흐르는 배경 — 우승작의 오로라를 다크로 옮김 ===== */
-  .aurora { position:fixed; inset:0; z-index:0; overflow:hidden; pointer-events:none;
-            transition:opacity .6s var(--ease); }
-  .aurora i { position:absolute; display:block; border-radius:50%; filter:blur(90px); opacity:.20; }
-  .aurora .a1 { width:52vw; height:52vw; left:-12vw; top:-16vw;  background:#2b5f8f; animation:drift1 26s ease-in-out infinite alternate; }
-  .aurora .a2 { width:44vw; height:44vw; right:-10vw; top:18vh;  background:#8a6320; animation:drift2 32s ease-in-out infinite alternate; }
-  .aurora .a3 { width:40vw; height:40vw; left:28vw; bottom:-18vw; background:#1f5a44; animation:drift3 29s ease-in-out infinite alternate; }
-  @keyframes drift1 { to { transform:translate3d(8vw,10vh,0) scale(1.18); } }
-  @keyframes drift2 { to { transform:translate3d(-10vw,-8vh,0) scale(1.12); } }
-  @keyframes drift3 { to { transform:translate3d(6vw,-12vh,0) scale(1.22); } }
+  /* 배경 */
+  .aurora { position:fixed; inset:0; z-index:0; overflow:hidden; pointer-events:none; transition:opacity .6s var(--ease); }
+  .aurora i { position:absolute; display:block; border-radius:50%; filter:blur(100px); opacity:.16; }
+  .aurora .a1 { width:54vw; height:54vw; left:-14vw; top:-18vw;  background:#2b5f8f; animation:d1 30s ease-in-out infinite alternate; }
+  .aurora .a2 { width:46vw; height:46vw; right:-12vw; top:16vh;  background:#8a6320; animation:d2 36s ease-in-out infinite alternate; }
+  .aurora .a3 { width:42vw; height:42vw; left:30vw; bottom:-20vw; background:#1f5a44; animation:d3 33s ease-in-out infinite alternate; }
+  @keyframes d1 { to { transform:translate3d(8vw,10vh,0) scale(1.18); } }
+  @keyframes d2 { to { transform:translate3d(-10vw,-8vh,0) scale(1.12); } }
+  @keyframes d3 { to { transform:translate3d(6vw,-12vh,0) scale(1.22); } }
   body.demo-on .aurora { opacity:0; }
 
-  /* ===== 슬라이드 · 크로스 디졸브 ===== */
+  /* 슬라이드 */
   .slide {
     position:absolute; inset:0; z-index:1;
-    padding:clamp(1.6rem,4.6vh,3.2rem) clamp(2rem,5.6vw,5.4rem);
+    padding:clamp(1.5rem,4.2vh,2.9rem) clamp(1.9rem,5.2vw,4.8rem);
     display:flex; flex-direction:column; justify-content:center;
-    opacity:0; visibility:hidden; transform:scale(.988);
-    transition:opacity .52s var(--ease), transform .52s var(--ease), visibility 0s .52s;
+    opacity:0; visibility:hidden; transform:scale(.99);
+    transition:opacity .5s var(--ease), transform .5s var(--ease), visibility 0s .5s;
   }
-  .slide.on { opacity:1; visibility:visible; transform:none; transition:opacity .52s var(--ease), transform .52s var(--ease), visibility 0s 0s; }
+  .slide.on { opacity:1; visibility:visible; transform:none; transition:opacity .5s var(--ease), transform .5s var(--ease), visibility 0s 0s; }
+  .slide.top { justify-content:flex-start; }
 
-  /* 등장 — .rise 를 단 요소는 슬라이드가 켜질 때 순차로 올라온다 */
-  .rise { opacity:0; transform:translateY(14px); }
-  .slide.on .rise { animation:rise .62s var(--ease) forwards; animation-delay:calc(var(--d,0) * 90ms); }
+  .rise { opacity:0; transform:translateY(12px); }
+  .slide.on .rise { animation:rise .55s var(--ease) forwards; animation-delay:calc(var(--d,0) * 85ms); }
   @keyframes rise { to { opacity:1; transform:none; } }
-
-  /* 빌드 단계 — 우승작의 6단계 누적 등장 */
-  .frag { opacity:0; transform:translateY(10px) scale(.99); transition:opacity .45s var(--ease), transform .45s var(--ease); }
+  .frag { opacity:0; transform:translateY(9px); transition:opacity .42s var(--ease), transform .42s var(--ease); }
   .frag.in { opacity:1; transform:none; }
-  .frag.dim { opacity:.26; }
-
   @media (prefers-reduced-motion: reduce) {
-    .slide, .frag, .rise { transition-duration:.01ms !important; animation-duration:.01ms !important; }
+    .slide,.frag,.rise { transition-duration:.01ms !important; animation-duration:.01ms !important; }
     .aurora i { animation:none; }
   }
 
-  .eyebrow {
-    font-family:"JetBrains Mono",monospace; font-size:clamp(.72rem,1.65vh,1rem);
-    letter-spacing:.2em; text-transform:uppercase; color:var(--dim);
-    margin-bottom:clamp(.6rem,1.6vh,1.1rem);
-  }
-  h2 {
-    font-family:"Archivo",Helvetica,sans-serif; font-weight:600;
-    font-size:clamp(1.8rem,5.1vh,3.3rem); letter-spacing:-.022em; line-height:1.2; text-wrap:balance;
-  }
-  .lede {
-    font-size:clamp(1rem,2.4vh,1.5rem); font-weight:300; color:var(--neutral);
-    max-width:56ch; line-height:1.5; margin-top:clamp(.6rem,1.6vh,1.1rem); text-wrap:pretty;
-  }
-  .mono { font-family:"JetBrains Mono",monospace; }
-  .hl { color:var(--amber); } .gr { color:var(--green); }
+  /* 타이포 */
+  .eyebrow { font-family:var(--mono); font-size:clamp(.68rem,1.55vh,.94rem); letter-spacing:.18em;
+             text-transform:uppercase; color:var(--dim); margin-bottom:clamp(.5rem,1.4vh,.95rem); }
+  h2 { font-weight:700; font-size:clamp(1.65rem,4.6vh,3rem); letter-spacing:-.03em; line-height:1.24; text-wrap:balance; }
+  h3 { font-weight:600; font-size:clamp(1rem,2.4vh,1.42rem); letter-spacing:-.02em; line-height:1.3; }
+  .lede { font-size:clamp(.95rem,2.2vh,1.36rem); font-weight:400; color:var(--neutral);
+          line-height:1.55; margin-top:clamp(.5rem,1.4vh,.95rem); max-width:62ch; }
+  .kicker { font-size:clamp(.88rem,2vh,1.2rem); color:var(--neutral); line-height:1.5; }
+  strong { font-weight:700; color:var(--type); }
 
-  .src {
-    border:1px solid var(--rule); border-left:3px solid var(--amber);
-    background:rgba(16,21,32,.82); border-radius:4px; backdrop-filter:blur(6px);
-    padding:clamp(.55rem,1.4vh,.9rem) clamp(.85rem,1.9vw,1.3rem);
-    margin-top:clamp(.7rem,1.8vh,1.3rem); align-self:flex-start; max-width:72ch;
-  }
-  .src .t { font-size:clamp(.85rem,1.9vh,1.1rem); color:var(--type); line-height:1.35; }
-  .src .m { font-family:"JetBrains Mono",monospace; color:var(--dim);
-            font-size:clamp(.64rem,1.4vh,.85rem); letter-spacing:.04em; margin-top:.3rem; line-height:1.5; }
+  /* 근거 카드 */
+  .cite { font-family:var(--mono); color:var(--dim); font-size:clamp(.62rem,1.38vh,.8rem); line-height:1.55; letter-spacing:.02em; }
+  .quote { border-left:3px solid var(--amber); padding-left:clamp(.8rem,1.8vw,1.2rem);
+           font-size:clamp(.95rem,2.2vh,1.38rem); line-height:1.5; color:var(--type); font-weight:500; }
 
-  /* ===== 브랜드 마크 — 다섯 줄은 차 있고 여섯째는 비어 있다 ===== */
-  .mark { display:block; }
-  .mark rect.f { fill:var(--green); }
-  .mark rect.e { fill:none; stroke:var(--amber); stroke-width:3; stroke-dasharray:4 4; }
-  .slide.on .mark rect.f { animation:barIn .5s var(--ease) backwards; }
-  .slide.on .mark rect.f:nth-of-type(1){animation-delay:.10s} .slide.on .mark rect.f:nth-of-type(2){animation-delay:.18s}
-  .slide.on .mark rect.f:nth-of-type(3){animation-delay:.26s} .slide.on .mark rect.f:nth-of-type(4){animation-delay:.34s}
-  .slide.on .mark rect.f:nth-of-type(5){animation-delay:.42s}
-  .slide.on .mark rect.e { animation:barIn .5s var(--ease) .56s backwards; }
-  @keyframes barIn { from { opacity:0; transform:translateX(-10px); } }
+  /* 이미지 근거 */
+  .shot { border:1px solid var(--line); border-radius:8px; overflow:hidden; background:#000;
+          box-shadow:0 12px 40px rgba(0,0,0,.45); }
+  .shot img { display:block; width:100%; height:auto; }
+  .ev { display:grid; gap:clamp(1rem,2.6vw,2.2rem); align-items:center; margin-top:clamp(.5rem,1.4vh,1rem); }
+  .ev.l { grid-template-columns:1fr 1.05fr; }
+  .ev.r { grid-template-columns:1.05fr 1fr; }
+  .ev .shot { max-height:62vh; }
+  .ev .shot img { max-height:62vh; object-fit:contain; object-position:top; }
+
+  /* 수치 */
+  .figs { display:flex; gap:clamp(1rem,3vw,2.4rem); flex-wrap:wrap; margin-top:clamp(.6rem,1.6vh,1.1rem); }
+  .fig .n { display:block; font-weight:800; font-size:clamp(1.7rem,6vh,3.2rem); line-height:1;
+            letter-spacing:-.035em; font-variant-numeric:tabular-nums; }
+  .fig .k { display:block; font-size:clamp(.78rem,1.75vh,1rem); color:var(--neutral); margin-top:.35rem; line-height:1.35; }
+
+  /* 카드 그리드 */
+  .grid { display:grid; gap:clamp(.7rem,1.9vw,1.5rem); margin-top:clamp(.6rem,1.7vh,1.2rem); }
+  .g2 { grid-template-columns:1fr 1fr; } .g3 { grid-template-columns:repeat(3,1fr); } .g4 { grid-template-columns:repeat(4,1fr); }
+  .card { border:1px solid var(--line); border-radius:8px; background:rgba(17,23,34,.72);
+          padding:clamp(.6rem,1.6vh,1rem) clamp(.75rem,1.6vw,1.1rem); }
+  .card.hot { border-color:var(--amber); }
+  .card .t { font-family:var(--mono); font-size:clamp(.6rem,1.35vh,.78rem); letter-spacing:.12em;
+             text-transform:uppercase; color:var(--dim); }
+  .card.hot .t { color:var(--amber); }
+  .card .h { font-weight:700; font-size:clamp(.95rem,2.2vh,1.3rem); margin-top:.22rem; letter-spacing:-.02em; }
+  .card .d { font-size:clamp(.8rem,1.8vh,1.02rem); color:var(--neutral); margin-top:.35rem; line-height:1.45; }
+  .card .m { font-family:var(--mono); font-size:clamp(.6rem,1.35vh,.78rem); color:var(--dim); margin-top:.4rem; }
+
+  ul.tight { list-style:none; margin-top:.45rem; }
+  ul.tight li { font-size:clamp(.82rem,1.85vh,1.06rem); color:var(--neutral); line-height:1.5;
+                padding:.16rem 0 .16rem .95rem; position:relative; }
+  ul.tight li::before { content:"·"; position:absolute; left:.15rem; color:var(--dim); }
+
+  /* 관측 가능 목록 */
+  .layers { margin-top:clamp(.6rem,1.7vh,1.2rem); max-width:70ch; }
+  .layers .row { display:flex; align-items:center; gap:.75rem; padding:clamp(.3rem,.85vh,.52rem) clamp(.7rem,1.5vw,1.05rem);
+                 border:1px solid var(--line); border-radius:6px; margin-bottom:.34rem;
+                 background:rgba(17,23,34,.78); font-size:clamp(.85rem,1.9vh,1.12rem); }
+  .layers .row .m { font-family:var(--mono); color:var(--green); flex:none; }
+  .layers .row .s { margin-left:auto; font-family:var(--mono); font-size:.8em; color:var(--dim); }
+  .layers .row.gap { border-color:var(--amber); border-style:dashed; background:transparent; }
+  .layers .row.gap .m,.layers .row.gap .txt,.layers .row.gap .s { color:var(--amber); }
+  .layers .row.gap.in { animation:pulse 2.4s ease-in-out .4s infinite; }
+  @keyframes pulse { 0%,100%{box-shadow:0 0 0 0 rgba(232,177,85,0)} 50%{box-shadow:0 0 0 7px rgba(232,177,85,.09)} }
 
   /* 타이틀 */
   .title-card { justify-content:center; align-items:flex-start; }
-  .title-card .venue { font-family:"JetBrains Mono",monospace; color:var(--dim);
-    font-size:clamp(.78rem,1.85vh,1.1rem); letter-spacing:.2em; text-transform:uppercase; }
-  .title-card h1 { font-family:"Archivo",Helvetica,sans-serif; font-weight:800;
-    font-size:clamp(3rem,12.5vh,8.5rem); line-height:.95; letter-spacing:-.035em; margin-top:clamp(.7rem,2vh,1.5rem); }
-  .title-card .rule { width:clamp(4rem,11vw,10rem); height:3px; background:var(--amber); margin:clamp(.9rem,2.4vh,1.7rem) 0; }
-  .title-card .tag-en { font-family:"JetBrains Mono",monospace; color:var(--amber); font-size:clamp(.85rem,2vh,1.25rem); letter-spacing:.1em; }
-  .title-card .tag-ko { font-size:clamp(1rem,2.4vh,1.55rem); color:var(--neutral); font-weight:300; margin-top:clamp(.4rem,1.1vh,.8rem); }
+  .title-card .venue { font-family:var(--mono); color:var(--dim); font-size:clamp(.74rem,1.75vh,1.05rem); letter-spacing:.2em; text-transform:uppercase; }
+  .title-card h1 { font-weight:800; font-size:clamp(2.8rem,11.5vh,7.6rem); line-height:.98; letter-spacing:-.045em; margin-top:clamp(.7rem,2vh,1.4rem); }
+  .title-card .bar { width:clamp(3.5rem,10vw,9rem); height:3px; background:var(--amber); margin:clamp(.9rem,2.3vh,1.6rem) 0; }
+  .title-card .en { font-family:var(--mono); color:var(--amber); font-size:clamp(.8rem,1.9vh,1.2rem); letter-spacing:.08em; }
+  .title-card .ko { font-size:clamp(.95rem,2.3vh,1.5rem); color:var(--neutral); margin-top:.45rem; }
 
-  /* ===== 고객의 질문 — 우승작의 육각형 질문판 ===== */
-  .qgrid { display:grid; grid-template-columns:1fr auto 1fr; gap:clamp(.8rem,2.2vw,2rem);
-           align-items:center; margin-top:clamp(.8rem,2.2vh,1.5rem); }
-  .qcol { display:flex; flex-direction:column; gap:clamp(.55rem,1.5vh,1rem); }
-  .qcol.r { text-align:right; }
-  .q {
-    border:1px solid var(--rule); border-radius:8px; background:rgba(20,25,34,.72);
-    padding:clamp(.5rem,1.3vh,.85rem) clamp(.7rem,1.5vw,1.1rem);
-    font-size:clamp(.86rem,1.95vh,1.16rem); color:var(--neutral); line-height:1.35;
-  }
-  .q b { color:var(--amber); font-weight:500; }
-  .qcore {
-    width:clamp(11rem,21vw,17rem); aspect-ratio:1; display:flex; flex-direction:column;
-    align-items:center; justify-content:center; text-align:center; gap:.5rem;
-    border:2px solid var(--amber); border-radius:50%;
-    background:radial-gradient(circle at 50% 40%, rgba(224,170,66,.14), transparent 68%);
-    padding:1rem;
-  }
-  .qcore .t { font-family:"Archivo",Helvetica,sans-serif; font-weight:700;
-              font-size:clamp(1rem,2.5vh,1.55rem); line-height:1.25; }
-  .qcore .s { font-family:"JetBrains Mono",monospace; font-size:clamp(.62rem,1.4vh,.8rem);
-              color:var(--dim); letter-spacing:.1em; }
-
-  /* 2열 대조 */
-  .vs { display:grid; grid-template-columns:1fr 1fr; gap:clamp(1rem,2.6vw,2.4rem); margin-top:clamp(.9rem,2.4vh,1.7rem); }
-  .vs .col { border-top:3px solid var(--rule); padding-top:clamp(.7rem,1.8vh,1.1rem); }
-  .vs .col.hot { border-top-color:var(--amber); }
-  .vs .k { font-family:"JetBrains Mono",monospace; font-size:clamp(.7rem,1.6vh,.92rem); color:var(--dim); letter-spacing:.14em; text-transform:uppercase; }
-  .vs .h { font-family:"Archivo",Helvetica,sans-serif; font-weight:600; font-size:clamp(1.1rem,2.7vh,1.7rem); margin-top:.3rem; }
-  .vs .col.hot .h { color:var(--amber); }
-  .vs ul { list-style:none; margin-top:.55rem; }
-  .vs li { font-size:clamp(.88rem,1.98vh,1.16rem); color:var(--neutral); line-height:1.5; padding:.2rem 0 .2rem 1.1rem; position:relative; }
-  .vs li::before { content:"·"; position:absolute; left:.25rem; color:var(--dim); }
-
-  /* 체크 목록 */
-  .checks { margin-top:clamp(.8rem,2.2vh,1.5rem); max-width:64ch; }
-  .checks .row {
-    display:flex; align-items:center; gap:.8rem;
-    padding:clamp(.35rem,.95vh,.6rem) clamp(.7rem,1.6vw,1.1rem);
-    border:1px solid var(--rule); border-radius:4px; margin-bottom:.4rem;
-    background:rgba(16,21,32,.8); font-size:clamp(.9rem,2vh,1.18rem);
-  }
-  .checks .row .m { font-family:"JetBrains Mono",monospace; color:var(--green); }
-  .checks .row.empty { border-color:var(--amber); border-style:dashed; background:transparent; }
-  .checks .row.empty .m, .checks .row.empty .txt { color:var(--amber); }
-  .checks .row.empty.in { animation:pulse 2.2s ease-in-out .5s infinite; }
-  @keyframes pulse { 0%,100%{box-shadow:0 0 0 0 rgba(224,170,66,0)} 50%{box-shadow:0 0 0 6px rgba(224,170,66,.10)} }
-  .checks .note { font-family:"JetBrains Mono",monospace; color:var(--dim); font-size:clamp(.66rem,1.45vh,.85rem); margin-top:.5rem; }
-
-  /* 4단계 */
-  .steps { display:grid; grid-template-columns:repeat(4,1fr); gap:clamp(.6rem,1.5vw,1.2rem); margin-top:clamp(.7rem,2vh,1.3rem); }
-  .steps .c { border-top:3px solid var(--rule); padding-top:clamp(.55rem,1.5vh,.95rem); }
-  .steps .c:last-child { border-top-color:var(--amber); }
-  .steps .y { font-family:"JetBrains Mono",monospace; font-size:clamp(.64rem,1.45vh,.85rem); color:var(--dim); letter-spacing:.14em; }
-  .steps .h { font-family:"Archivo",Helvetica,sans-serif; font-weight:600; font-size:clamp(.98rem,2.3vh,1.4rem); margin-top:.2rem; }
-  .steps .c:last-child .h { color:var(--amber); }
-  .steps .d { font-size:clamp(.78rem,1.78vh,1.02rem); color:var(--neutral); margin-top:.35rem; line-height:1.4; }
-
-  /* 역량 매트릭스 — 우승작의 2열 8항목 */
-  .matrix { display:grid; grid-template-columns:1fr 1fr; gap:clamp(.8rem,2vw,1.6rem); margin-top:clamp(.7rem,2vh,1.3rem); }
-  .matrix .hd { font-family:"JetBrains Mono",monospace; font-size:clamp(.66rem,1.5vh,.86rem);
-    letter-spacing:.12em; text-transform:uppercase; padding:.4rem .7rem; border-radius:4px;
-    background:rgba(42,49,60,.8); color:var(--neutral); }
-  .matrix .hd.hot { background:rgba(224,170,66,.16); color:var(--amber); }
-  .matrix .it { display:flex; gap:.6rem; align-items:baseline; padding:.32rem .7rem;
-    font-size:clamp(.82rem,1.85vh,1.08rem); color:var(--neutral); line-height:1.4; }
-  .matrix .it .b { font-family:"JetBrains Mono",monospace; color:var(--dim); flex:none; }
-
-  /* 3분할 */
-  .three { display:grid; grid-template-columns:repeat(3,1fr); gap:clamp(.9rem,2.2vw,2rem); margin-top:clamp(.9rem,2.4vh,1.7rem); }
-  .three .c { border-top:3px solid var(--amber); padding-top:clamp(.6rem,1.7vh,1.1rem); }
-  .three .h { font-family:"Archivo",Helvetica,sans-serif; font-weight:600; font-size:clamp(1.05rem,2.5vh,1.55rem); }
-  .three .d { font-size:clamp(.86rem,1.95vh,1.12rem); color:var(--neutral); margin-top:.4rem; line-height:1.45; }
-  .three .m { font-family:"JetBrains Mono",monospace; font-size:clamp(.66rem,1.45vh,.83rem); color:var(--dim); margin-top:.45rem; }
-
-  /* 숫자 */
-  .nums { display:flex; gap:clamp(1.4rem,4.6vw,4rem); margin-top:clamp(.8rem,2.2vh,1.5rem); align-items:flex-end; flex-wrap:wrap; }
-  .nums .n { font-family:"Archivo",Helvetica,sans-serif; font-weight:800; font-size:clamp(2.2rem,8.6vh,4.8rem);
-             line-height:.9; letter-spacing:-.035em; color:var(--green); display:block; font-variant-numeric:tabular-nums; }
-  .nums .k { display:block; font-size:clamp(.84rem,1.9vh,1.12rem); color:var(--neutral); margin-top:.4rem; }
-
-  /* 점수판 */
-  .score { width:100%; border-collapse:collapse; margin-top:clamp(.7rem,1.8vh,1.2rem); font-size:clamp(.88rem,2vh,1.15rem); }
-  .score th, .score td { padding:clamp(.3rem,.85vh,.5rem) clamp(.4rem,1vw,.8rem); border-bottom:1px solid var(--rule); text-align:left; }
-  .score th { font-family:"JetBrains Mono",monospace; font-size:clamp(.6rem,1.35vh,.78rem); letter-spacing:.1em; color:var(--dim); text-transform:uppercase; font-weight:400; }
-  .score td.r, .score th.r { text-align:right; font-variant-numeric:tabular-nums; font-family:"JetBrains Mono",monospace; }
-  .score tbody tr:last-child td { border-bottom:0; }
-  .score .bad { color:var(--red); }
+  /* 마크 */
+  .mark rect.f { fill:var(--green); }
+  .mark rect.e { fill:none; stroke:var(--amber); stroke-width:3; stroke-dasharray:4 4; }
+  .slide.on .mark rect.f { animation:barIn .48s var(--ease) backwards; }
+  .slide.on .mark rect.f:nth-of-type(1){animation-delay:.08s} .slide.on .mark rect.f:nth-of-type(2){animation-delay:.16s}
+  .slide.on .mark rect.f:nth-of-type(3){animation-delay:.24s} .slide.on .mark rect.f:nth-of-type(4){animation-delay:.32s}
+  .slide.on .mark rect.f:nth-of-type(5){animation-delay:.40s}
+  .slide.on .mark rect.e { animation:barIn .48s var(--ease) .54s backwards; }
+  @keyframes barIn { from { opacity:0; transform:translateX(-10px); } }
 
   /* 데모 */
   .demo { justify-content:center; align-items:center; padding:0; background:#000; }
   .demo video { width:100%; height:100%; object-fit:contain; background:#000; }
   .demo-card { display:flex; flex-direction:column; justify-content:center; align-items:center; width:100%; height:100%;
-               gap:clamp(.8rem,2.2vh,1.6rem); padding:clamp(2rem,6vh,4rem); }
-  .demo-card .big { font-family:"JetBrains Mono",monospace; font-size:clamp(2rem,8vh,5rem); color:var(--amber); letter-spacing:.2em; }
-  .demo-card .cue { font-family:"JetBrains Mono",monospace; color:var(--dim); font-size:clamp(.78rem,1.75vh,1.02rem);
-                    line-height:1.9; text-align:center; max-width:74ch; }
+               gap:clamp(.8rem,2.2vh,1.5rem); padding:clamp(2rem,6vh,4rem); }
+  .demo-card .big { font-family:var(--mono); font-size:clamp(2rem,8vh,4.6rem); color:var(--amber); letter-spacing:.2em; }
+  .demo-card .cue { font-family:var(--mono); color:var(--dim); font-size:clamp(.76rem,1.7vh,1rem); line-height:1.95; text-align:center; max-width:76ch; }
   .demo-card .cue b { color:var(--neutral); font-weight:500; }
 
   /* 아키텍처 */
-  .arch { justify-content:flex-start; }
-  .arch svg { width:100%; height:auto; max-height:56vh; display:block; margin-top:clamp(.4rem,1.2vh,.85rem); }
-  .box{fill:rgba(20,25,34,.9);stroke:var(--rule);stroke-width:1.3}
-  .box-hot{fill:rgba(20,25,34,.9);stroke:var(--amber);stroke-width:2}
-  .box-model{fill:none;stroke:var(--dim);stroke-width:1.4;stroke-dasharray:7 5}
-  .lab{fill:var(--type);font-family:"Archivo",Helvetica,sans-serif;font-size:21px;font-weight:600}
-  .sub{fill:var(--dim);font-family:"JetBrains Mono",monospace;font-size:14px}
-  .subok{fill:var(--green);font-family:"JetBrains Mono",monospace;font-size:14px}
-  .zlab{fill:var(--dim);font-family:"JetBrains Mono",monospace;font-size:13px;letter-spacing:.18em}
-  .elab{fill:var(--dim);font-family:"JetBrains Mono",monospace;font-size:14px}
-  .ehot{fill:var(--amber);font-family:"JetBrains Mono",monospace;font-size:15px;font-weight:500}
-  .edge{stroke:var(--dim);fill:none;stroke-width:1.5}
-  .edge-hot{stroke:var(--amber);fill:none;stroke-width:2.6}
-  .edge-dash{stroke:var(--dim);fill:none;stroke-width:1.5;stroke-dasharray:7 5}
-  /* 상태 화살표는 마지막에 그려진다 */
-  #statusPath { stroke-dasharray:1400; stroke-dashoffset:1400; }
-  #statusPath.draw { animation:draw 1.1s var(--ease) forwards; }
+  .arch svg { width:100%; height:auto; max-height:52vh; display:block; margin-top:clamp(.4rem,1.1vh,.8rem); }
+  .lane-bg   { fill:rgba(22,28,38,.55); }
+  .lane-bg2  { fill:rgba(22,28,38,.28); }
+  .lane-name { fill:var(--dim); font-family:var(--mono); font-size:13px; letter-spacing:.14em; }
+  .nbox   { fill:rgba(22,28,38,.96); stroke:var(--line); stroke-width:1.3; }
+  .nbox-s { fill:rgba(22,28,38,.96); stroke:var(--amber); stroke-width:2; }
+  .nbox-m { fill:none; stroke:var(--dim); stroke-width:1.3; stroke-dasharray:6 5; }
+  .ntitle { fill:var(--type); font-family:var(--ko); font-size:16px; font-weight:700; }
+  .ntext  { fill:var(--dim); font-family:var(--mono); font-size:12.5px; }
+  .nok    { fill:var(--green); font-family:var(--mono); font-size:12.5px; }
+  .nno    { fill:var(--red); font-family:var(--mono); font-size:12.5px; }
+  .nnum   { fill:var(--ground); font-family:var(--mono); font-size:13px; font-weight:500; }
+  .ncirc  { fill:var(--amber); }
+  .nedge  { stroke:var(--dim); fill:none; stroke-width:1.6; }
+  .nedge-s{ stroke:var(--amber); fill:none; stroke-width:2.4; }
+  .nedge-d{ stroke:var(--dim); fill:none; stroke-width:1.4; stroke-dasharray:6 5; }
+  .nlab   { fill:var(--dim); font-family:var(--mono); font-size:12.5px; }
+  .nlab-s { fill:var(--amber); font-family:var(--mono); font-size:13px; font-weight:500; }
+  #gateArrow { stroke-dasharray:900; stroke-dashoffset:900; }
+  #gateArrow.draw { animation:draw 1s var(--ease) forwards; }
   @keyframes draw { to { stroke-dashoffset:0; } }
 
-  .stack { display:grid; grid-template-columns:repeat(4,1fr); gap:clamp(.7rem,1.8vw,1.5rem); margin-top:clamp(.5rem,1.4vh,1rem); }
-  .stack .c { border-left:3px solid var(--cool); padding-left:clamp(.5rem,1vw,.8rem); }
-  .stack .k { font-family:"JetBrains Mono",monospace; font-size:clamp(.6rem,1.3vh,.76rem); letter-spacing:.12em; color:var(--cool); text-transform:uppercase; }
-  .stack .v { font-size:clamp(.78rem,1.75vh,1rem); color:var(--neutral); margin-top:.18rem; line-height:1.36; }
-
-  /* Quick start */
-  .qs { display:grid; grid-template-columns:repeat(3,1fr); gap:clamp(.8rem,2vw,1.8rem); margin-top:clamp(.7rem,2vh,1.3rem); }
-  .qs .c { border:1px solid var(--rule); border-radius:5px; background:rgba(16,21,32,.8); padding:clamp(.65rem,1.7vh,1rem) clamp(.8rem,1.8vw,1.2rem); }
-  .qs .c.hot { border-color:var(--amber); }
-  .qs .who { font-family:"JetBrains Mono",monospace; font-size:clamp(.64rem,1.4vh,.82rem); letter-spacing:.12em; color:var(--dim); text-transform:uppercase; }
-  .qs .when { font-family:"Archivo",Helvetica,sans-serif; font-weight:600; font-size:clamp(.98rem,2.3vh,1.38rem); margin-top:.22rem; }
-  .qs .c.hot .when { color:var(--amber); }
-  .qs ol { margin:.5rem 0 0 1.1rem; }
-  .qs li { font-size:clamp(.8rem,1.8vh,1.02rem); color:var(--neutral); line-height:1.42; padding:.1rem 0; }
-  .qs .files { font-family:"JetBrains Mono",monospace; font-size:clamp(.66rem,1.45vh,.83rem); color:var(--dim); margin-top:.45rem; line-height:1.55; }
-
-  /* 클로징 CTA */
-  .close h2 { max-width:23ch; }
-  .close .q { color:var(--amber); }
-  .cta { display:flex; align-items:center; gap:clamp(1rem,3vw,2.4rem); margin-top:clamp(1rem,2.8vh,2rem); flex-wrap:wrap; }
-  .cta .txt .a { font-family:"Archivo",Helvetica,sans-serif; font-weight:700; font-size:clamp(1.3rem,3.6vh,2.4rem); color:var(--amber); }
-  .cta .txt .b { font-family:"JetBrains Mono",monospace; font-size:clamp(.82rem,1.9vh,1.15rem); color:var(--neutral); margin-top:.3rem; }
-  .cta .txt .c { font-family:"JetBrains Mono",monospace; font-size:clamp(.68rem,1.5vh,.88rem); color:var(--dim); margin-top:.25rem; }
-
+  /* CTA */
+  .cta { display:flex; align-items:center; gap:clamp(1rem,3vw,2.2rem); margin-top:clamp(.9rem,2.4vh,1.7rem); flex-wrap:wrap; }
+  .cta .a { font-weight:800; font-size:clamp(1.2rem,3.2vh,2.1rem); color:var(--amber); letter-spacing:-.025em; }
+  .cta .b { font-family:var(--mono); font-size:clamp(.78rem,1.8vh,1.08rem); color:var(--neutral); margin-top:.28rem; }
+  .cta .c { font-family:var(--mono); font-size:clamp(.64rem,1.45vh,.85rem); color:var(--dim); margin-top:.22rem; }
   .tag { text-align:center; align-items:center; justify-content:center; }
-  .tag h2 { font-family:"JetBrains Mono",monospace; font-weight:400; font-size:clamp(1.2rem,3.3vh,2.1rem); letter-spacing:.04em; }
+  .tag h2 { font-family:var(--mono); font-weight:400; font-size:clamp(1.1rem,3vh,1.95rem); letter-spacing:.03em; }
 
   /* 부록 */
-  .appx { justify-content:flex-start; }
-  .appx .cols { display:grid; grid-template-columns:1.25fr 1fr; gap:clamp(1rem,2.4vw,2.2rem); margin-top:clamp(.5rem,1.4vh,1rem); }
-  .appx table { width:100%; border-collapse:collapse; font-size:clamp(.74rem,1.62vh,.95rem); }
-  .appx th, .appx td { padding:.22rem .4rem; border-bottom:1px solid var(--rule); text-align:left; vertical-align:top; }
-  .appx th { font-family:"JetBrains Mono",monospace; font-size:clamp(.56rem,1.28vh,.72rem); letter-spacing:.1em; color:var(--dim); text-transform:uppercase; font-weight:400; }
-  .appx td.n { font-family:"JetBrains Mono",monospace; color:var(--amber); white-space:nowrap; }
-  .appx td.f { font-family:"JetBrains Mono",monospace; color:var(--neutral); font-size:.92em; white-space:nowrap; }
+  .appx table { width:100%; border-collapse:collapse; font-size:clamp(.72rem,1.58vh,.93rem); }
+  .appx th,.appx td { padding:.22rem .4rem; border-bottom:1px solid var(--line); text-align:left; vertical-align:top; }
+  .appx th { font-family:var(--mono); font-size:clamp(.55rem,1.25vh,.7rem); letter-spacing:.1em; color:var(--dim); text-transform:uppercase; font-weight:400; }
+  .appx td.n { font-family:var(--mono); color:var(--amber); white-space:nowrap; }
+  .appx td.f { font-family:var(--mono); color:var(--neutral); font-size:.92em; white-space:nowrap; }
   .appx a { color:var(--cool); }
 
   /* HUD */
-  #hud { position:fixed; inset:auto auto 1rem 1rem; z-index:9;
-    font-family:"JetBrains Mono",monospace; font-size:.7rem; color:var(--dim);
-    background:rgba(17,21,27,.92); border:1px solid var(--rule); border-radius:4px; padding:.5rem .7rem; line-height:1.7; }
+  #hud { position:fixed; inset:auto auto 1rem 1rem; z-index:9; font-family:var(--mono); font-size:.7rem; color:var(--dim);
+         background:rgba(17,23,34,.94); border:1px solid var(--line); border-radius:5px; padding:.5rem .7rem; line-height:1.7; }
   #hud b { color:var(--type); font-weight:500; }
-  #hud.hidden { display:none; }
-  #meta { position:fixed; top:1rem; right:1rem; z-index:9;
-    font-family:"JetBrains Mono",monospace; font-size:.74rem; color:var(--amber);
-    font-variant-numeric:tabular-nums; text-align:right; line-height:1.5; }
-  #meta.hidden { display:none; }
-  #dots { position:fixed; left:0; right:0; bottom:0; height:3px; z-index:9; background:rgba(42,49,60,.5); }
+  #hud.hidden, #meta.hidden, #dots.hidden { display:none; }
+  #meta { position:fixed; top:1rem; right:1rem; z-index:9; font-family:var(--mono); font-size:.74rem;
+          color:var(--amber); font-variant-numeric:tabular-nums; text-align:right; line-height:1.5; }
+  #dots { position:fixed; left:0; right:0; bottom:0; height:3px; z-index:9; background:rgba(37,45,58,.6); }
   #dots i { display:block; height:100%; background:var(--amber); width:0; transition:width .5s var(--ease); }
-  #dots.hidden { display:none; }
 </style>
 </head>
 <body>
 
 <div class="aurora" aria-hidden="true"><i class="a1"></i><i class="a2"></i><i class="a3"></i></div>
 
-<!-- ============ 00 · 타이틀 ============ -->
+<!-- ══════ 00 · 타이틀 ══════ -->
 <section class="slide title-card" data-dur="6">
-  <svg class="mark rise" style="--d:0" width="120" height="74" viewBox="0 0 120 74" aria-label="다섯 줄은 차 있고 여섯째는 비어 있는 마크">
+  <svg class="mark rise" style="--d:0" width="112" height="70" viewBox="0 0 120 74" aria-label="다섯 줄은 차 있고 여섯째 줄은 비어 있는 마크">
     <rect class="f" x="0" y="0"  width="86" height="8" rx="4"/>
     <rect class="f" x="0" y="13" width="72" height="8" rx="4"/>
     <rect class="f" x="0" y="26" width="94" height="8" rx="4"/>
@@ -292,348 +214,381 @@
     <rect class="f" x="0" y="52" width="80" height="8" rx="4"/>
     <rect class="e" x="1.5" y="64.5" width="117" height="8" rx="4"/>
   </svg>
-  <p class="venue rise" style="--d:1;margin-top:1.2rem">Microsoft Hackathon 2026 · Seoul</p>
+  <p class="venue rise" style="--d:1;margin-top:1.1rem">Microsoft Hackathon 2026 · Seoul</p>
   <h1 class="rise" style="--d:2">The Last Human</h1>
-  <div class="rule rise" style="--d:3"></div>
-  <p class="tag-en rise" style="--d:4">Comprehension Gate for Agentic Merges</p>
-  <p class="tag-ko rise" style="--d:5">머지 직전, 그 변경을 이해한 사람이 있는지 확인합니다</p>
+  <div class="bar rise" style="--d:3"></div>
+  <p class="en rise" style="--d:4">Comprehension Gate for Agentic Merges</p>
+  <p class="ko rise" style="--d:5">merge 직전, 그 변경을 이해한 사람이 있는지 확인합니다</p>
 </section>
 
-<!-- ============ 01 · 고객의 질문 ============ -->
-<section class="slide" data-dur="10">
-  <p class="eyebrow rise" style="--d:0">01 · Problem</p>
-  <h2 class="rise" style="--d:1">장애가 났을 때, <span class="hl">이 질문들에 답할 사람이 있습니까?</span></h2>
-  <div class="qgrid">
-    <div class="qcol">
-      <div class="q frag" data-frag="1">이 코드, <b>누가 아나요?</b></div>
-      <div class="q frag" data-frag="1">이 에이전트한테 <b>왜 이 권한</b>을 줬죠?</div>
-      <div class="q frag" data-frag="1">이 <b>Retry</b>가 왜 여기 들어갔나요?</div>
+<!-- ══════ 01 · 설계 목표 (backdata_1) ══════ -->
+<section class="slide top" data-dur="12">
+  <p class="eyebrow rise" style="--d:0">01 · The mandate</p>
+  <h2 class="rise" style="--d:1">설계 목표는 이미 정해져 있습니다</h2>
+  <div class="ev l">
+    <div>
+      <div class="quote frag" data-frag="1">
+        AI has to remain under <span class="hl">human control</span> and broadly benefit society.
+      </div>
+      <div class="quote frag" data-frag="2" style="margin-top:1rem">
+        As the stakes get higher, one should take all the time they need!<br>
+        If not you will anyway <span class="rd">lose permission to operate.</span>
+      </div>
+      <div class="quote frag" data-frag="3" style="margin-top:1rem">
+        We will approach this with all the work we are doing to ensure
+        <span class="hl">observability at every layer of stack</span> and use to enforce
+        <span class="hl">governance and containment.</span>
+      </div>
+      <p class="cite frag" data-frag="3" style="margin-top:.8rem">Satya Nadella · Employee News &amp; Events · 사내 공지</p>
     </div>
-    <div class="qcore frag" data-frag="2">
-      <div class="t">조직은<br>10배 빨리<br><span class="hl">이해할 수 없다</span></div>
-      <div class="s">개인은 10배 빨라졌다</div>
+    <div class="shot rise" style="--d:2">
+      <img src="backdata_1.png" alt="Satya Nadella의 사내 공지 원문. human control, lose permission to operate, observability at every layer of stack 문장에 형광 표시가 되어 있습니다.">
     </div>
-    <div class="qcol r">
-      <div class="q frag" data-frag="1"><b>6개월 뒤</b> 이거 누가 고치나요?</div>
-      <div class="q frag" data-frag="1">이 라이브러리 <b>왜 골랐나요?</b></div>
-      <div class="q frag" data-frag="1">이 데이터 <b>어디서 왔나요?</b></div>
-    </div>
-  </div>
-  <div class="src frag" data-frag="3">
-    <div class="t"><strong>복잡성은 AI에 넘길 수 있지만, 복잡성의 책임은 넘길 수 없습니다.</strong> 충돌하는 순간 그대로 기술부채가 됩니다.</div>
   </div>
 </section>
 
-<!-- ============ 02 · 승인 vs 이해 ============ -->
-<section class="slide" data-dur="10">
-  <p class="eyebrow rise" style="--d:0">02 · Problem</p>
-  <h2 class="rise" style="--d:1">승인은 기록된다.<br><span class="hl">이해는 기록되지 않는다.</span></h2>
-  <p class="lede rise" style="--d:2">누가 승인 버튼을 눌렀는지는 시스템에 남습니다. 그 사람이 실제로 이해했는지는 어디에도 남지 않습니다.</p>
-  <div class="src frag" data-frag="1">
-    <div class="t">"First, we need to be clear about <strong>the design goal</strong>. As I shared, <strong>AI has to remain under human control</strong> and broadly benefit society."</div>
-    <div class="m">Satya Nadella</div>
-  </div>
-  <p class="lede frag" data-frag="2"><strong>설계 목표라면, 시스템 어딘가에 그것을 강제하는 지점이 있어야 합니다.</strong> 우리는 그 지점을 <span class="hl">머지 직전</span>에 두었습니다.</p>
-</section>
-
-<!-- ============ 03 · 근거 ============ -->
+<!-- ══════ 02 · 관측되지 않는 한 층 ══════ -->
 <section class="slide" data-dur="12">
+  <p class="eyebrow rise" style="--d:0">02 · The missing layer</p>
+  <h2 class="rise" style="--d:1">stack의 모든 층을 관측합니다.<br><span class="hl">한 층만 빼고.</span></h2>
+  <div class="layers">
+    <div class="row frag" data-frag="1"><span class="m">✓</span><span class="txt">코드가 빌드됩니다</span><span class="s">CI</span></div>
+    <div class="row frag" data-frag="1"><span class="m">✓</span><span class="txt">테스트가 통과합니다</span><span class="s">CI</span></div>
+    <div class="row frag" data-frag="2"><span class="m">✓</span><span class="txt">규칙과 스타일을 지킵니다</span><span class="s">lint</span></div>
+    <div class="row frag" data-frag="2"><span class="m">✓</span><span class="txt">취약점이 없습니다</span><span class="s">scanner</span></div>
+    <div class="row frag" data-frag="3"><span class="m">✓</span><span class="txt">누가 승인했는지 남습니다</span><span class="s">review</span></div>
+    <div class="row frag" data-frag="3"><span class="m">✓</span><span class="txt">누가 merge했는지 남습니다</span><span class="s">audit log</span></div>
+    <div class="row gap frag" data-frag="4"><span class="m">?</span><span class="txt"><strong>그 사람이 이 변경을 이해했는지</strong></span><span class="s">기록 없음</span></div>
+  </div>
+  <p class="lede frag" data-frag="4">승인 버튼은 눌립니다. 누가 눌렀는지도 남습니다. <strong>이해했는지는 어디에도 남지 않습니다.</strong> governance가 강제되려면 이 층에도 기록이 있어야 합니다.</p>
+</section>
+
+<!-- ══════ 03 · 직관은 틀렸습니다 (backdata_2) ══════ -->
+<section class="slide top" data-dur="10">
   <p class="eyebrow rise" style="--d:0">03 · Evidence</p>
-  <h2 class="rise" style="--d:1">이건 예측이 아니라 <span class="hl">이미 벌어진 일</span>이다</h2>
-  <div class="vs">
-    <div class="col frag" data-frag="1">
-      <div class="k">현장 — 2026.06</div>
-      <div class="h">Godot은 금지로 답했다</div>
-      <ul>
-        <li>"AI cannot take responsibility, and we can't trust heavy users of AI to understand their code enough to fix it."</li>
-        <li class="mono" style="color:var(--dim)">godotengine.org · 기여 정책 2026</li>
-      </ul>
-    </div>
-    <div class="col hot frag" data-frag="2">
-      <div class="k">실험 — 학습 후속 평가</div>
-      <div class="h">만든 것을 17%p 덜 이해했다</div>
-      <ul>
-        <li>AI 지원 <strong>50%</strong> · 비지원 <strong>67%</strong></li>
-        <li>격차가 가장 큰 항목은 <strong>디버깅</strong> — AI가 쓴 코드를 검증하는 데 정확히 필요한 능력</li>
-      </ul>
-    </div>
+  <h2 class="rise" style="--d:1">우리는 이 층을 <span class="hl">감으로 판단해 왔습니다.</span> 그 감은 틀렸습니다</h2>
+  <div class="shot rise" style="--d:2;margin-top:.7rem;max-width:min(100%,76vw);align-self:center">
+    <img src="backdata_2.png" alt="METR 무작위 대조 실험 결과. 경제학 전문가 -38%, ML 전문가 -40%, 개발자 사전 예측 -24%, 실험 후 자기보고 -20%로 모두 speedup을 예측했으나 실제 관측값은 +19% slowdown이었습니다." style="max-height:52vh;object-fit:contain">
   </div>
-  <div class="src frag" data-frag="3">
-    <div class="t">리뷰에서는 <strong>94%</strong>가 "사람이 이 코드보다 품질이 낫다"고 답했지만, 배포 뒤에는 <strong>78%</strong>가 그 코드로 장애를 겪었다.</div>
-    <div class="m">New Relic · Hanover Research · 2026-06 · 기술 의사결정자 200명 (같은 응답자)</div>
-  </div>
+  <p class="lede frag" data-frag="1" style="text-align:center;max-width:none;align-self:center">
+    전문가도, 개발자 본인도 <strong>빨라진다</strong>고 예측했습니다. 실험이 끝난 뒤에도 20% 빨라졌다고 <strong>믿었습니다.</strong>
+    실제로는 <span class="rd">19% 느렸습니다.</span> 자기 보고는 근거가 되지 못합니다.
+  </p>
 </section>
 
-<!-- ============ 04 · 여섯째 줄 ============ -->
-<section class="slide" data-dur="12">
-  <p class="eyebrow rise" style="--d:0">04 · The gap</p>
-  <h2 class="rise" style="--d:1">체크는 다섯 줄이다.<br>여섯째 줄은 <span class="hl">비어 있다.</span></h2>
-  <div class="checks">
-    <div class="row frag" data-frag="1"><span class="m">✓</span><span class="txt">빌드된다</span></div>
-    <div class="row frag" data-frag="2"><span class="m">✓</span><span class="txt">테스트가 통과한다</span></div>
-    <div class="row frag" data-frag="3"><span class="m">✓</span><span class="txt">스타일 규칙을 지킨다</span></div>
-    <div class="row frag" data-frag="4"><span class="m">✓</span><span class="txt">사람이 승인했다</span></div>
-    <div class="row frag" data-frag="5"><span class="m">✓</span><span class="txt">충돌이 없다</span></div>
-    <div class="row empty frag" data-frag="6"><span class="m">?</span><span class="txt"><strong>사람이 이 변경을 이해했다</strong></span></div>
-    <div class="note frag" data-frag="6">어느 줄도 이해를 보증하지 않는다 → Merge는 기다린다</div>
-  </div>
-</section>
-
-<!-- ============ 05 · 방향 반전 + 역량 매트릭스 ============ -->
-<section class="slide" data-dur="12">
-  <p class="eyebrow rise" style="--d:0">05 · Solution</p>
-  <h2 class="rise" style="--d:1">방향을 뒤집는다 — <span class="hl">사람이 모델에게 답한다</span></h2>
-  <p class="lede rise" style="--d:2">모든 AI 리뷰 도구는 사람에게 설명을 <strong>전달</strong>합니다. 우리는 사람에게 설명을 <strong>요구</strong>합니다.</p>
-  <div class="steps">
-    <div class="c frag" data-frag="1"><div class="y">STEP 1</div><div class="h">위험도 판정</div>
-      <div class="d">중요 경로·변경량·위험 패턴을 <strong>순수 함수</strong>로. AI 작성 여부는 보지 않는다</div></div>
-    <div class="c frag" data-frag="1"><div class="y">STEP 2</div><div class="h">질문 생성</div>
-      <div class="d">그 hunk를 가리키는 질문. 오답도 <strong>저장소에 실재하는 것</strong>으로</div></div>
-    <div class="c frag" data-frag="1"><div class="y">STEP 3</div><div class="h">설명 · 근거</div>
-      <div class="d">고르는 데 그치지 않고 <strong>코드 어디가 근거인지</strong> 받는다</div></div>
-    <div class="c frag" data-frag="1"><div class="y">STEP 4</div><div class="h">커밋 결속</div>
-      <div class="d">기록을 <strong>커밋 SHA에</strong> 묶는다. 새 커밋엔 재사용되지 않는다</div></div>
-  </div>
-  <div class="matrix">
-    <div>
-      <div class="hd frag" data-frag="2">언제 발동하나</div>
-      <div class="it frag" data-frag="2"><span class="b">·</span><span>중요 경로 · 위험 패턴 · 변경량 · 테스트 삭제</span></div>
-      <div class="it frag" data-frag="2"><span class="b">·</span><span>이해 보유자 0명 모듈은 무조건</span></div>
-      <div class="it frag" data-frag="2"><span class="b">·</span><span>임계값 미달은 <strong>발동하지 않는다</strong></span></div>
+<!-- ══════ 04 · 이름이 붙은 공백 (backdata_4) ══════ -->
+<section class="slide top" data-dur="14">
+  <p class="eyebrow rise" style="--d:0">04 · Evidence — 핵심</p>
+  <h2 class="rise" style="--d:1">AI가 쓴 PR 설명은 <span class="hl">코드와 어긋납니다.</span> 이미 측정되었습니다</h2>
+  <div class="ev r">
+    <div class="shot rise" style="--d:2">
+      <img src="backdata_4.png" alt="AI 코딩 에이전트가 작성한 Pull Request의 message-code inconsistency를 분석한 논문. 23,247건의 agentic PR을 분석했습니다.">
     </div>
     <div>
-      <div class="hd hot frag" data-frag="3">무엇이 다른가</div>
-      <div class="it frag" data-frag="3"><span class="b">·</span><span>판정은 <strong>결정적 규칙</strong>, 모델은 보조</span></div>
-      <div class="it frag" data-frag="3"><span class="b">·</span><span>커밋 SHA 결속 — 새 커밋엔 무효</span></div>
-      <div class="it frag" data-frag="3"><span class="b">·</span><span>통과만 기록, <strong>감점은 남기지 않는다</strong></span></div>
+      <div class="figs">
+        <div class="fig frag" data-frag="1"><span class="n hl">45.4%</span><span class="k">가장 흔한 유형은<br><strong>구현되지 않은 변경을 설명이 주장</strong>하는 것</span></div>
+        <div class="fig frag" data-frag="2"><span class="n rd">28.3%</span><span class="k">불일치가 큰 PR의 승인율<br>(정상 PR은 80.0%)</span></div>
+        <div class="fig frag" data-frag="2"><span class="n rd">3.5×</span><span class="k">merge까지 걸린 시간<br>55.8시간 vs 16.0시간</span></div>
+      </div>
+      <div class="quote frag" data-frag="3" style="margin-top:1.1rem">
+        unreliable PR descriptions undermine trust in AI agents, highlighting the need for
+        <span class="hl">PR-MCI verification mechanisms</span>
+      </div>
+      <p class="cite frag" data-frag="3" style="margin-top:.7rem">
+        Gong, Pinna, Bian, Zhang · Analyzing Message-Code Inconsistency in AI Coding<br>
+        Agent-Authored Pull Requests · arXiv, 2026-01-26 · agentic PR 23,247건 분석
+      </p>
+      <p class="kicker frag" data-frag="4" style="margin-top:.8rem">
+        논문이 필요하다고 지목한 <strong>그 verification mechanism</strong>을 만들었습니다.
+      </p>
     </div>
   </div>
 </section>
 
-<!-- ============ 06 · 안 만드는 것 ============ -->
-<section class="slide" data-dur="8">
-  <p class="eyebrow rise" style="--d:0">06 · Principles</p>
-  <h2 class="rise" style="--d:1">요청받아도 <span class="hl">만들지 않는 것</span></h2>
-  <div class="three">
-    <div class="c frag" data-frag="1"><div class="h">개인 점수·순위</div>
-      <div class="d">팀 내 비교 화면, 리더보드, 팀장 조회. 만드는 순간 감시 도구가 된다.</div>
-      <div class="m">집계는 모듈 단위뿐</div></div>
-    <div class="c frag" data-frag="2"><div class="h">전수 적용</div>
-      <div class="d">임계값 미달 PR은 실패가 아니라 그냥 지나간다. 오타 수정에 확인을 요구하지 않는다.</div>
-      <div class="m">Not required</div></div>
-    <div class="c frag" data-frag="3"><div class="h">감점 기록</div>
-      <div class="d">보류는 남기지 않고 <strong>통과한 것만</strong> 쌓는다. "모르겠다"는 정직한 답변이다.</div>
-      <div class="m">Hold는 진행 상태일 뿐</div></div>
-  </div>
-  <div class="src frag" data-frag="4">
-    <div class="t"><strong>실패 방향에 일관성이 있다</strong> — 사람이 답을 빠뜨리면 막고, 모델·연동이 죽으면 통과시킨다.</div>
-    <div class="m">인프라 장애로 사람을 막지 않는다 · 미통과는 failure가 아니라 pending</div>
+<!-- ══════ 05 · 금지가 아니라 확인 (backdata_3) ══════ -->
+<section class="slide top" data-dur="10">
+  <p class="eyebrow rise" style="--d:0">05 · Positioning</p>
+  <h2 class="rise" style="--d:1">업계의 답은 <span class="rd">금지</span>였습니다. 우리의 답은 <span class="gr">확인</span>입니다</h2>
+  <div class="ev l" style="align-items:start">
+    <div>
+      <div class="card frag" data-frag="1" style="border-color:var(--red)">
+        <div class="t" style="color:var(--red)">Godot Engine · 기여 정책 2026</div>
+        <div class="h">AI cannot take responsibility</div>
+        <div class="d">사람이 책임질 수 있는 기여만 받겠다는 결정입니다. 이해하지 못한 기여는 받지 않습니다.</div>
+        <div class="m">금지는 명확합니다. 다만 AI의 생산성까지 함께 버립니다.</div>
+      </div>
+      <div class="card hot frag" data-frag="2" style="margin-top:.8rem">
+        <div class="t">The Last Human</div>
+        <div class="h">누가 썼는지가 아니라, 이해했는지를 봅니다</div>
+        <div class="d"><strong>AI 탐지에 의존하지 않습니다.</strong> 변경의 위험도로만 판단하고, 위험한 변경에 한해 작성자에게 코드에 근거한 설명을 요구합니다.</div>
+        <div class="m">금지도, 전수 검사도 아닙니다</div>
+      </div>
+    </div>
+    <div class="shot rise" style="--d:2">
+      <img src="backdata_3.png" alt="Godot 기여 정책 원문. AI는 책임질 수 없고, AI를 많이 쓰는 기여자가 자기 코드를 고칠 만큼 이해한다고 신뢰할 수 없다는 문단이 강조되어 있습니다.">
+    </div>
   </div>
 </section>
 
-<!-- ============ DEMO · 88초 ============ -->
+<!-- ══════ 06 · 어떻게 동작합니까 ══════ -->
+<section class="slide" data-dur="12">
+  <p class="eyebrow rise" style="--d:0">06 · How it works</p>
+  <h2 class="rise" style="--d:1">방향을 뒤집었습니다 — <span class="hl">사람이 모델에게 답합니다</span></h2>
+  <p class="lede rise" style="--d:2">다른 AI 리뷰 도구는 사람에게 설명을 <strong>전달합니다.</strong> The Last Human은 사람에게 설명을 <strong>요구합니다.</strong></p>
+  <div class="grid g4">
+    <div class="card frag" data-frag="1"><div class="t">Step 1</div><div class="h">위험도 판정</div>
+      <div class="d">중요 경로·변경량·위험 패턴을 <strong>순수 함수</strong>로 계산합니다. 같은 입력이면 항상 같은 결과입니다.</div>
+      <div class="m">모델을 부르지 않습니다</div></div>
+    <div class="card frag" data-frag="1"><div class="t">Step 2</div><div class="h">질문 생성</div>
+      <div class="d">그 hunk와 <strong>그 코드가 호출하는 다른 파일</strong>을 근거로 질문을 만듭니다. 오답도 저장소에 실재하는 것으로 채웁니다.</div>
+      <div class="m">설명문만 읽고는 답할 수 없습니다</div></div>
+    <div class="card frag" data-frag="1"><div class="t">Step 3</div><div class="h">설명과 근거</div>
+      <div class="d">보기를 고르는 데 그치지 않고 <strong>코드 어디가 근거인지</strong> 한 줄로 받습니다.</div>
+      <div class="m">Accepted / Hold</div></div>
+    <div class="card hot frag" data-frag="1"><div class="t">Step 4</div><div class="h">commit 결속</div>
+      <div class="d">확인 기록을 <strong>head SHA에</strong> 묶습니다. 새 commit이 오면 무효가 되고 다시 묻습니다.</div>
+      <div class="m">사람에게 자격을 주지 않습니다</div></div>
+  </div>
+  <div class="grid g3" style="margin-top:.8rem">
+    <div class="card frag" data-frag="2"><div class="t">만들지 않습니다</div><div class="h">개인 점수·순위</div>
+      <div class="d">리더보드도, 팀장 조회 기능도 만들지 않습니다. 집계는 <strong>모듈 단위</strong>뿐입니다.</div></div>
+    <div class="card frag" data-frag="3"><div class="t">만들지 않습니다</div><div class="h">전수 적용</div>
+      <div class="d">임계값 미달 PR은 <span class="mono">Not required</span>로 그냥 지나갑니다. 오타 수정에 확인을 요구하지 않습니다.</div></div>
+    <div class="card frag" data-frag="4"><div class="t">만들지 않습니다</div><div class="h">감점 기록</div>
+      <div class="d">Hold는 남기지 않고 <strong>통과한 것만</strong> 쌓습니다. "모르겠다"는 정직한 답변입니다.</div></div>
+  </div>
+</section>
+
+<!-- ══════ DEMO ══════ -->
 <section class="slide demo" data-dur="88" data-demo="1">
   <video id="demoVideo" src="Demo_thelasthuman.mp4" preload="auto" playsinline></video>
   <div class="demo-card" id="demoFallback" hidden>
     <div class="big">DEMO · 88s</div>
     <div class="cue">
-      <b>1</b> 토큰 갱신 PR — 초록 체크 다섯 줄, 게이트만 대기 ·
+      <b>1</b> token refresh PR — 초록 체크는 전부 통과, gate만 대기 ·
       <b>2</b> 두 문항 제시 ·
       <b>3</b> 첫째 <span style="color:var(--green)">Accepted</span> ·
-      <b>4</b> 둘째 <span style="color:var(--amber)">Hold</span> — "한 곳 더 보라" ·
-      <b>5</b> 옆 파일 <span style="color:var(--neutral)">http_client.py</span>에서 이미 있던 재시도 루프 발견 — <b>3 × 3 = 9</b> ·
-      <b>6</b> GitHub 8·17 장애 사후분석: 같은 종류의 루프 ·
-      <b>7</b> 수정 → 새 커밋이라 게이트가 <b>다시</b> 물음 ·
-      <b>8</b> <span style="color:var(--green)">Human-verified</span> → <b>사람이</b> 머지 ·
-      <b>9</b> 저위험 문서 PR은 그냥 통과 ·
-      <b>10</b> 대시보드 <span style="color:var(--amber)">Can answer 0 → 1</span>
+      <b>4</b> 둘째 <span style="color:var(--amber)">Hold</span> — "한 곳 더 보십시오" ·
+      <b>5</b> 옆 파일 <span style="color:var(--neutral)">http_client.py</span>에 이미 있던 retry loop 발견 — <b>3 × 3 = 9</b> ·
+      <b>6</b> GitHub 8·17 장애 사후분석: 같은 종류의 loop ·
+      <b>7</b> 수정 → 새 commit이라 gate가 <b>다시</b> 질문 ·
+      <b>8</b> <span style="color:var(--green)">Human-verified</span> → <b>사람이</b> merge ·
+      <b>9</b> 저위험 문서 PR은 그대로 통과 ·
+      <b>10</b> dashboard <span style="color:var(--amber)">Can answer 0 → 1</span>
       <br><br>Demo_thelasthuman.mp4 를 이 폴더에 두면 자동 재생됩니다
     </div>
   </div>
 </section>
 
-<!-- ============ 07 · 우리가 멈췄다 ============ -->
-<section class="slide" data-dur="12">
-  <p class="eyebrow rise" style="--d:0">07 · What we did — 가설 · 실험 · 측정</p>
-  <h2 class="rise" style="--d:1">이 게이트를 <span class="hl">우리 PR에 걸었고,</span> 우리가 멈췄다</h2>
-  <div class="nums">
-    <div class="frag" data-frag="1"><span class="n count" style="color:var(--amber)" data-to="26">0</span><span class="k">게이트가 발동한 PR</span></div>
-    <div class="frag" data-frag="1"><span class="n count" style="color:var(--amber)" data-to="15">0</span><span class="k">설명 대기로 <strong>멈춘</strong> PR</span></div>
-    <div class="frag" data-frag="1"><span class="n count" data-to="14">0</span><span class="k">통과 기록이 남은 PR</span></div>
-    <div class="frag" data-frag="1"><span class="n count" data-to="3">0</span><span class="k">멈췄다가 통과</span></div>
+<!-- ══════ 07 · 우리 PR에 먼저 걸었습니다 ══════ -->
+<section class="slide" data-dur="14">
+  <p class="eyebrow rise" style="--d:0">07 · 가설 · 실험 · 측정 · 학습</p>
+  <h2 class="rise" style="--d:1">이 gate를 <span class="hl">우리 PR에 먼저 걸었고,</span> 우리가 멈췄습니다</h2>
+  <div class="figs">
+    <div class="fig frag" data-frag="1"><span class="n hl count" data-to="26">0</span><span class="k">gate가 발동한 PR</span></div>
+    <div class="fig frag" data-frag="1"><span class="n hl count" data-to="15">0</span><span class="k">설명 대기로 <strong>멈춘</strong> PR</span></div>
+    <div class="fig frag" data-frag="1"><span class="n gr count" data-to="14">0</span><span class="k">통과 기록이 남은 PR</span></div>
+    <div class="fig frag" data-frag="1"><span class="n gr count" data-to="3">0</span><span class="k">멈췄다가 통과한 PR</span></div>
   </div>
-  <div class="vs">
-    <div class="col hot frag" data-frag="2">
-      <div class="k">가설 → 실험</div>
-      <div class="h">판단이 들어가는 파일일수록 멈춘다</div>
-      <ul>
+  <div class="grid g3">
+    <div class="card hot frag" data-frag="2"><div class="t">가설 → 실험</div><div class="h">판단이 들어간 파일일수록 멈춘다</div>
+      <ul class="tight">
         <li class="mono">risk.py · interview.py · attest.py → 각 <strong>+30</strong></li>
-        <li>그 셋을 고칠 때마다 우리 PR이 설명을 요구받았다</li>
-      </ul>
-    </div>
-    <div class="col frag" data-frag="3">
-      <div class="k">측정 → 학습</div>
-      <div class="h">그래서 못 잡는 것도 찾았다</div>
-      <ul>
-        <li>인증 경로 <strong>삭제형</strong> 변경이 임계값을 넘지 못함 → 슬라이드 10</li>
-        <li>대기 상태로 머지된 PR 12개 — 필수 체크를 <strong>계속 걸어 두지 않은</strong> 개발 기간이었다</li>
-      </ul>
-    </div>
+        <li>그 셋을 고칠 때마다 우리 PR이 설명을 요구받았습니다</li>
+      </ul></div>
+    <div class="card frag" data-frag="3"><div class="t">측정 → 학습 ①</div><div class="h">못 잡는 것을 찾았습니다</div>
+      <ul class="tight">
+        <li>인증 경로 <strong>삭제형</strong> 변경은 <span class="mono">30 / 40</span>으로 발동하지 않습니다</li>
+        <li>중요 경로 최고 가중치가 임계값보다 낮고, 위험 패턴은 <strong>추가된 줄</strong>에만 걸립니다</li>
+        <li>A 가중치 상향 · B 삭제 신호 · <span class="gr">C 무조건 발동 경로 ← 선택</span></li>
+      </ul></div>
+    <div class="card frag" data-frag="4"><div class="t">측정 → 학습 ②</div><div class="h">숨기지 않습니다</div>
+      <ul class="tight">
+        <li>대기 상태로 merge된 PR이 <strong>12건</strong> 있습니다</li>
+        <li>개발 기간이라 required check를 계속 걸어 두지 않았기 때문입니다</li>
+        <li>이 수치도 그대로 보고합니다</li>
+      </ul></div>
   </div>
-  <div class="src frag" data-frag="3">
-    <div class="t">커밋 <strong>109</strong> · PR <strong>36</strong> · 테스트 <strong>519</strong> · 동작 중인 워크플로 <strong>4</strong></div>
-    <div class="m">개발 저장소 hunhoon21/the-last-human · 2026-09-15 microsoft-2026-hackathon으로 이관<br>당시 status context는 comprehension-gate — 이후 last-human/human-verified로 개명</div>
-  </div>
+  <p class="cite frag" data-frag="4" style="margin-top:.7rem">
+    commit 109 · PR 36 · test 519 · workflow 4 &nbsp;|&nbsp; 개발 저장소 hunhoon21/the-last-human → 2026-09-15 microsoft-2026-hackathon으로 이관 · 당시 status context는 comprehension-gate
+  </p>
 </section>
 
-<!-- ============ 08 · 아키텍처 (빌드) ============ -->
-<section class="slide arch" data-dur="12">
-  <p class="eyebrow rise" style="--d:0">08 · Architecture</p>
-  <h2 class="rise" style="--d:1">쓰기 주체는 <span class="hl">서버 하나</span>뿐이다</h2>
-  <!-- 이 SVG의 원본은 architecture-simple.html. 한쪽을 고치면 다른 쪽도 맞춘다. -->
-  <svg viewBox="0 0 1240 560" role="img"
-       aria-label="GitHub의 PR 이벤트가 Actions로 가고, Actions는 메타데이터와 OIDC 신원만 서버로 보낸다. 작성자는 브라우저로 서버에 답한다. 서버는 모델에 질문 생성과 대조를 요청한다. 커밋 상태를 쓰는 화살표는 서버에서 GitHub으로 향하는 하나뿐이고, 머지는 사람이 누른다.">
+<!-- ══════ 08 · 아키텍처 ══════ -->
+<section class="slide top arch" data-dur="14">
+  <p class="eyebrow rise" style="--d:0">08 · Architecture — PR 하나가 지나가는 길</p>
+  <h2 class="rise" style="--d:1">gate를 여는 주체는 <span class="hl">서버 하나</span>, 검증하는 주체는 <span class="hl">Actions</span>입니다</h2>
+  <svg viewBox="0 0 1460 620" role="img"
+       aria-label="PR 하나가 지나가는 길을 네 개의 lane으로 그린 순서도입니다. GitHub lane에서 PR이 열리면 Actions lane의 Relay가 snapshot과 위험도를 재계산해 OIDC 신원과 함께 서버로 보냅니다. 서버 lane에서 위험도를 판정하고 임계값 미달이면 Not required로 바로 merge로 갑니다. 임계값을 넘으면 질문을 생성하고 Awaiting 상태를 발행합니다. 사람 lane에서 작성자가 설명을 제출하면 서버가 receipt를 head SHA에 묶어 저장하고, Actions가 독립적으로 재계산해 receipt와 대조한 뒤에야 서버가 Human-verified를 발행하며 사람이 merge합니다. 모델은 점선 상자로 질문 생성과 채점만 돕고 GitHub 쓰기 권한이 없습니다.">
     <defs>
-      <marker id="k-a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#929cab"/></marker>
-      <marker id="k-hot" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#e0aa42"/></marker>
+      <marker id="ar" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#8e99a8"/></marker>
+      <marker id="as" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#e8b155"/></marker>
+      <marker id="ag" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#4ac264"/></marker>
     </defs>
 
+    <!-- lane 배경 -->
+    <g class="frag in" data-frag="0">
+      <rect class="lane-bg"  x="150" y="60"  width="1290" height="96" rx="6"/>
+      <rect class="lane-bg2" x="150" y="166" width="1290" height="96" rx="6"/>
+      <rect class="lane-bg"  x="150" y="272" width="1290" height="116" rx="6"/>
+      <rect class="lane-bg2" x="150" y="398" width="1290" height="96" rx="6"/>
+      <text class="lane-name" x="16" y="104">GITHUB</text>
+      <text class="lane-name" x="16" y="122">저장소 · PR</text>
+      <text class="lane-name" x="16" y="210">GITHUB ACTIONS</text>
+      <text class="lane-name" x="16" y="228">단기 OIDC만 보유</text>
+      <text class="lane-name" x="16" y="326">TLH SERVER</text>
+      <text class="lane-name" x="16" y="344">유일한 쓰기 주체</text>
+      <text class="lane-name" x="16" y="442">사람 · 모델</text>
+    </g>
+
+    <!-- ① PR 열림 -->
     <g class="frag" data-frag="1">
-      <rect class="box" x="50" y="90" width="300" height="168" rx="8"/>
-      <text class="zlab" x="50" y="80">GITHUB</text>
-      <text class="lab"  x="72" y="126">Pull request</text>
-      <text class="subok" x="72" y="154">✓ build · tests · lint · review</text>
-      <text class="sub"  x="72" y="178" fill="#e0aa42">● last-human/human-verified</text>
-      <text class="sub"  x="86" y="198">required · 발급자 = 서버</text>
-      <text class="sub"  x="72" y="230">⑧ 머지는 사람이 누른다</text>
+      <rect class="nbox" x="170" y="76" width="176" height="64" rx="7"/>
+      <circle class="ncirc" cx="188" cy="94" r="11"/><text class="nnum" x="188" y="99" text-anchor="middle">1</text>
+      <text class="ntitle" x="206" y="99">PR · 새 commit</text>
+      <text class="ntext"  x="182" y="124">pull_request_target</text>
     </g>
 
+    <!-- ② Relay -->
     <g class="frag" data-frag="2">
-      <line class="edge" x1="352" y1="174" x2="424" y2="174" marker-end="url(#k-a)"/>
-      <text class="elab" x="388" y="160" text-anchor="middle">①</text>
-      <text class="elab" x="388" y="200" text-anchor="middle">PR · 새 커밋</text>
-      <rect class="box" x="430" y="90" width="300" height="168" rx="8"/>
-      <text class="zlab" x="430" y="80">GITHUB ACTIONS</text>
-      <text class="lab"  x="452" y="126">Relay / Verify</text>
-      <text class="sub"  x="452" y="154">스냅샷 · 위험도 재계산</text>
-      <text class="sub"  x="452" y="178">단기 OIDC 신원만 보유</text>
-      <text class="sub"  x="452" y="202" fill="#f0736a">App 키 · 모델 자격 없음</text>
-      <text class="sub"  x="452" y="230" fill="#f0736a">게이트에 쓰지 않음</text>
+      <path class="nedge" d="M258 144 L258 182" marker-end="url(#ar)"/>
+      <rect class="nbox" x="366" y="182" width="210" height="64" rx="7"/>
+      <circle class="ncirc" cx="384" cy="200" r="11"/><text class="nnum" x="384" y="205" text-anchor="middle">2</text>
+      <text class="ntitle" x="402" y="205">Relay</text>
+      <text class="ntext"  x="378" y="230">snapshot · 위험도 재계산</text>
+      <path class="nedge" d="M348 108 L360 108 L360 210 L362 210" marker-end="url(#ar)"/>
+      <text class="nlab-s" x="470" y="172" text-anchor="middle">OIDC 신원 + metadata</text>
     </g>
 
+    <!-- ③ 위험도 판정 + 분기 -->
     <g class="frag" data-frag="3">
-      <line class="edge" x1="732" y1="150" x2="804" y2="150" marker-end="url(#k-a)"/>
-      <text class="elab" x="768" y="136" text-anchor="middle">②</text>
-      <text class="ehot" x="768" y="120" text-anchor="middle">OIDC</text>
-      <line class="edge" x1="804" y1="198" x2="732" y2="198" marker-end="url(#k-a)"/>
-      <text class="elab" x="768" y="222" text-anchor="middle">⑤ 검증 요청</text>
-      <rect class="box-hot" x="810" y="60" width="380" height="238" rx="8"/>
-      <text class="zlab" x="810" y="50">TLH SERVER — 조직이 두는 곳</text>
-      <text class="lab"  x="834" y="98">Bot — 유일한 쓰기 주체</text>
-      <text class="sub"  x="834" y="130">위험도 → 구조 사실 → 질문 → 채점</text>
-      <text class="sub"  x="834" y="154">④ 영수증 — head SHA에 결속</text>
-      <text class="sub"  x="834" y="178">⑥ 상태 · 카드 발행</text>
-      <text class="sub"  x="834" y="202">⑦ 구역별 커버리지 대시보드</text>
-      <text class="sub"  x="834" y="238" fill="#4ac264">App 키 · client secret · 모델 자격</text>
-      <text class="sub"  x="834" y="262" fill="#4ac264">전부 여기에만 있음</text>
+      <path class="nedge" d="M471 248 L471 286" marker-end="url(#ar)"/>
+      <rect class="nbox" x="366" y="286" width="210" height="88" rx="7"/>
+      <circle class="ncirc" cx="384" cy="304" r="11"/><text class="nnum" x="384" y="309" text-anchor="middle">3</text>
+      <text class="ntitle" x="402" y="309">위험도 판정</text>
+      <text class="ntext"  x="378" y="334">순수 함수 · 모델 없음</text>
+      <text class="ntext"  x="378" y="354">같은 입력이면 같은 결과</text>
+      <!-- 미달 분기 -->
+      <path class="nedge-d" d="M576 316 L640 316 L640 40 L1300 40 L1300 72" marker-end="url(#ar)"/>
+      <text class="nlab" x="970" y="32" text-anchor="middle">임계값 미달 → Not required · 확인 없이 그대로 merge</text>
     </g>
 
+    <!-- ④ 질문 생성 + Awaiting -->
     <g class="frag" data-frag="4">
-      <rect class="box" x="430" y="360" width="300" height="140" rx="8"/>
-      <text class="zlab" x="430" y="350">작성자 (브라우저)</text>
-      <text class="lab"  x="452" y="398">두 문항에 답한다</text>
-      <text class="sub"  x="452" y="426">보기 + 근거 한 줄</text>
-      <text class="sub"  x="452" y="450">같은 App으로 OAuth 로그인</text>
-      <text class="sub"  x="452" y="478" fill="#e0aa42">Accepted / Hold</text>
-      <path class="edge" d="M732 400 L900 400 L900 306" marker-end="url(#k-a)"/>
-      <text class="elab" x="812" y="388" text-anchor="middle">③ 설명과 근거</text>
-      <rect class="box-model" x="810" y="380" width="380" height="120" rx="8"/>
-      <text class="zlab" x="810" y="370">MODEL — AZURE OPENAI</text>
-      <text class="lab"  x="834" y="418" fill="#929cab">보조 수단</text>
-      <text class="sub"  x="834" y="446">질문을 쓰고 근거 한 줄을 대조</text>
-      <text class="sub"  x="834" y="472" fill="#f0736a">GitHub 쓰기 · 머지 권한 없음</text>
-      <line class="edge-dash" x1="1060" y1="306" x2="1060" y2="374" marker-end="url(#k-a)"/>
-      <text class="elab" x="1074" y="346">②′</text>
+      <path class="nedge" d="M578 330 L610 330" marker-end="url(#ar)"/>
+      <rect class="nbox" x="614" y="286" width="210" height="88" rx="7"/>
+      <circle class="ncirc" cx="632" cy="304" r="11"/><text class="nnum" x="632" y="309" text-anchor="middle">4</text>
+      <text class="ntitle" x="650" y="309">질문 2개 생성</text>
+      <text class="ntext"  x="626" y="334">hunk + 호출하는 파일</text>
+      <text class="ntext"  x="626" y="354" fill="#e8b155">status: Awaiting 발행</text>
+      <path class="nedge" d="M700 284 L700 150" marker-end="url(#ar)"/>
+      <rect class="nbox" x="620" y="76" width="200" height="64" rx="7"/>
+      <text class="ntitle" x="634" y="100">merge 잠김</text>
+      <text class="ntext"  x="634" y="124">Awaiting author explanation</text>
     </g>
 
-    <!-- 마지막에 그려진다 — 이 그림의 결론 -->
+    <!-- ⑤ 작성자 설명 + 모델 -->
     <g class="frag" data-frag="5">
-      <path id="statusPath" class="edge-hot" d="M980 60 L980 30 L195 30 L195 88" marker-end="url(#k-hot)"/>
-      <text class="ehot" x="587" y="22" text-anchor="middle">상태 · PR 카드 · (선택) Check — GitHub에 쓰는 것은 여기 하나뿐</text>
+      <path class="nedge" d="M760 376 L760 412" marker-end="url(#ar)"/>
+      <rect class="nbox" x="614" y="412" width="210" height="68" rx="7"/>
+      <circle class="ncirc" cx="632" cy="430" r="11"/><text class="nnum" x="632" y="435" text-anchor="middle">5</text>
+      <text class="ntitle" x="650" y="435">작성자가 설명</text>
+      <text class="ntext"  x="626" y="460">보기 + 근거 한 줄 → Accepted / Hold</text>
+      <rect class="nbox-m" x="170" y="412" width="230" height="68" rx="7"/>
+      <text class="ntitle" x="184" y="436" fill="#8e99a8">Model — 보조</text>
+      <text class="nno"    x="184" y="460">GitHub 쓰기 · merge 권한 없음</text>
+      <path class="nedge-d" d="M610 446 L406 446" marker-end="url(#ar)"/>
+      <text class="nlab" x="508" y="500" text-anchor="middle">질문 생성 · 근거 대조만</text>
+    </g>
+
+    <!-- ⑥ receipt -->
+    <g class="frag" data-frag="6">
+      <path class="nedge" d="M828 446 L864 446 L864 330 L888 330" marker-end="url(#ar)"/>
+      <rect class="nbox" x="892" y="286" width="210" height="88" rx="7"/>
+      <circle class="ncirc" cx="910" cy="304" r="11"/><text class="nnum" x="910" y="309" text-anchor="middle">6</text>
+      <text class="ntitle" x="928" y="309">receipt 저장</text>
+      <text class="ntext"  x="904" y="334">head SHA에 결속</text>
+      <text class="ntext"  x="904" y="354">새 commit이면 무효</text>
+    </g>
+
+    <!-- ⑦ Verify -->
+    <g class="frag" data-frag="7">
+      <path class="nedge" d="M997 284 L997 250" marker-end="url(#ar)"/>
+      <rect class="nbox-s" x="892" y="182" width="210" height="64" rx="7"/>
+      <circle class="ncirc" cx="910" cy="200" r="11"/><text class="nnum" x="910" y="205" text-anchor="middle">7</text>
+      <text class="ntitle" x="928" y="205">Verify</text>
+      <text class="ntext"  x="904" y="230">독립 재계산 → receipt 대조</text>
+      <path class="nedge" d="M1104 214 L1160 214 L1160 316 L1186 316" marker-end="url(#ar)"/>
+      <text class="nlab-s" x="1180" y="264" text-anchor="middle">일치할 때만</text>
+    </g>
+
+    <!-- ⑧ Human-verified → merge -->
+    <g class="frag" data-frag="8">
+      <rect class="nbox-s" x="1190" y="286" width="230" height="88" rx="7"/>
+      <circle class="ncirc" cx="1208" cy="304" r="11"/><text class="nnum" x="1208" y="309" text-anchor="middle">8</text>
+      <text class="ntitle" x="1226" y="309">Human-verified 발행</text>
+      <text class="nok"    x="1202" y="334">last-human/human-verified</text>
+      <text class="ntext"  x="1202" y="354">GitHub에 쓰는 것은 서버뿐</text>
+      <path id="gateArrow" class="nedge-s" d="M1305 284 L1305 150" marker-end="url(#as)"/>
+      <rect class="nbox-s" x="1190" y="76" width="230" height="64" rx="7"/>
+      <text class="ntitle" x="1204" y="100">사람이 merge</text>
+      <text class="nok"    x="1204" y="124">bot이 아닙니다</text>
     </g>
   </svg>
-  <div class="stack">
-    <div class="c frag" data-frag="6"><div class="k">GitHub App</div><div class="v">저장소에 한정된 installation 권한</div></div>
-    <div class="c frag" data-frag="6"><div class="k">Actions · OIDC</div><div class="v">저장소에 묶인 단기 신원</div></div>
-    <div class="c frag" data-frag="6"><div class="k">Azure OpenAI · Entra ID</div><div class="v">API 키 없이 <strong>Entra 토큰</strong>으로 호출</div></div>
-    <div class="c frag" data-frag="6"><div class="k">결과</div><div class="v"><strong>장기 시크릿 0개</strong>로 경계를 넘는다</div></div>
+  <div class="grid g3 frag" data-frag="9" style="margin-top:.5rem">
+    <div class="card"><div class="t">왜 믿을 수 있습니까</div><div class="d">서버가 "통과"라고 말해도 gate는 열리지 않습니다. <strong>Actions가 대상 PR을 다시 읽어 위험도와 snapshot을 재계산</strong>하고 receipt와 대조한 뒤에야 열립니다.</div></div>
+    <div class="card"><div class="t">비밀은 어디에 있습니까</div><div class="d">App private key · client secret · 모델 자격은 <strong>서버에만</strong> 둡니다. 경계를 넘는 것은 단기 OIDC 신원과 metadata뿐입니다.</div></div>
+    <div class="card"><div class="t">모델의 권한은 무엇입니까</div><div class="d">질문을 쓰고 근거 한 줄을 대조할 뿐입니다. <strong>GitHub 상태를 바꾸거나 merge를 승인하지 못합니다.</strong> 위험 점수는 모델을 부르지 않습니다.</div></div>
   </div>
 </section>
 
-<!-- ============ 09 · Quick start ============ -->
-<section class="slide" data-dur="8">
-  <p class="eyebrow rise" style="--d:0">09 · Packaging — Quick start</p>
-  <h2 class="rise" style="--d:1">새 저장소에 거는 데 필요한 것 — <span class="hl">세 갈래</span></h2>
-  <div class="qs">
-    <div class="c frag" data-frag="1">
-      <div class="who">A · 운영자</div><div class="when">한 번만</div>
-      <ol><li>GitHub App 등록</li><li>서버 배포 (1 프로세스 + SQLite)</li><li><span class="mono">/healthz</span> · 모델 호출 확인</li></ol>
-      <div class="files">여기까지는 어떤 저장소에도 영향 없음</div>
-    </div>
-    <div class="c hot frag" data-frag="2">
-      <div class="who">B · 저장소 관리자</div><div class="when">저장소마다</div>
-      <ol><li>App 설치 → 서버에 바인딩</li><li><strong>파일 3종</strong>을 PR 하나로</li><li>저장소 변수 · 첫 PR로 발행 확인</li><li><strong>그다음에</strong> 필수 체크 지정</li></ol>
-      <div class="files">lasthuman-app.yml · .lasthuman.yml · CODEOWNERS</div>
-    </div>
-    <div class="c frag" data-frag="3">
-      <div class="who">C · 작성자</div><div class="when">PR마다</div>
-      <ol><li>카드 링크로 로그인 (최초 1회)</li><li>두 문항에 답</li><li>Human-verified → <strong>사람이</strong> 머지</li></ol>
-      <div class="files">평소 PR 흐름에서 벗어나지 않음</div>
-    </div>
-  </div>
-  <div class="src frag" data-frag="4">
-    <div class="t">순서를 바꿔 <strong>필수 체크를 먼저 걸면</strong> 발급자가 없어 머지가 영원히 막힌다. 롤백은 저장소 변수 한 줄.</div>
-    <div class="m">docs/runbooks/onboarding.md · 현재 제약: 서버 1대 = 저장소 1개 바인딩</div>
-  </div>
-</section>
-
-<!-- ============ 10 · 한계 ============ -->
+<!-- ══════ 09 · 배포 · 보안 · 확장 ══════ -->
 <section class="slide" data-dur="10">
-  <p class="eyebrow rise" style="--d:0">10 · Limits</p>
-  <h2 class="rise" style="--d:1">우리가 <span class="hl">못 잡는 것</span>을 먼저 말한다</h2>
-  <div class="vs">
-    <div class="col hot frag" data-frag="1">
-      <div class="k">조용한 고위험 — "작다 = 안전"이 아니다</div>
-      <div class="h mono" style="font-size:clamp(.88rem,2vh,1.16rem)">refactor(auth): 불필요한 None 체크 제거 −2줄</div>
-      <table class="score">
-        <thead><tr><th>중요 경로</th><th>위험 패턴</th><th>변경량</th><th class="r">총점 / 임계값</th></tr></thead>
-        <tbody><tr><td>+30</td><td>+0</td><td>+0</td><td class="r bad">30 / 40</td></tr></tbody>
-      </table>
-      <ul><li>인증 코드의 권한 검사를 지워도 <strong>게이트가 막지 않는다</strong></li></ul>
-    </div>
-    <div class="col frag" data-frag="2">
-      <div class="k">원인은 구조적이다</div>
-      <div class="h">그래서 무엇을 할까</div>
-      <ul>
-        <li><strong>A. 가중치 상향</strong> — 인증 경로 오타 수정까지 발동하는 부작용</li>
-        <li><strong>B. 삭제 전용 신호</strong> — "지워진 코드로 막지 않는다" 원칙과 충돌</li>
-        <li class="gr"><strong>C. 무조건 발동 경로</strong> — 기존 zeroCoverage 방식과 정합 · <strong>선택</strong></li>
-      </ul>
-    </div>
+  <p class="eyebrow rise" style="--d:0">09 · Deploy · Security · Scale</p>
+  <h2 class="rise" style="--d:1">Microsoft stack 위에서 <span class="hl">장기 시크릿 없이</span> 동작합니다</h2>
+  <div class="grid g4">
+    <div class="card frag" data-frag="1"><div class="t">GitHub App</div><div class="h">저장소 한정 권한</div>
+      <div class="d">선택한 저장소에만 유효한 installation token으로 API를 호출합니다.</div></div>
+    <div class="card frag" data-frag="1"><div class="t">Actions · OIDC</div><div class="h">단기 신원</div>
+      <div class="d">사전 공유한 장기 시크릿 대신 저장소에 묶인 OIDC 토큰을 씁니다.</div></div>
+    <div class="card frag" data-frag="1"><div class="t">Azure OpenAI · Entra ID</div><div class="h">키 없는 호출</div>
+      <div class="d">API key 없이 <strong>Entra 토큰</strong>으로 호출합니다.<span class="mono"> AzureCliCredential</span></div></div>
+    <div class="card hot frag" data-frag="1"><div class="t">결과</div><div class="h">장기 시크릿 0개</div>
+      <div class="d">경계를 넘는 것은 단기 자격과 metadata뿐입니다.</div></div>
   </div>
-  <div class="src frag" data-frag="3">
-    <div class="t">중요 경로 최고 가중치 <strong>30</strong> &lt; 임계값 <strong>40</strong>. 위험 패턴은 <strong>추가된 줄</strong>에만 걸려 삭제형 위험을 놓친다.</div>
-    <div class="m">.lasthuman.yml 규칙으로 실제 계산 · python docs/demo/presentation/verify_claims.py 로 재현</div>
+  <div class="grid g3" style="margin-top:.8rem">
+    <div class="card frag" data-frag="2"><div class="t">도입</div><div class="h">세 갈래 · 파일 3개</div>
+      <ul class="tight">
+        <li><strong>A 운영자(한 번)</strong> App 등록 → 서버 배포 → healthz 확인</li>
+        <li><strong>B 저장소마다</strong> App 설치 → 파일 3개 PR → 변수 → <strong>그다음에</strong> required check</li>
+        <li><strong>C 작성자(PR마다)</strong> 로그인 → 두 문항 → merge</li>
+      </ul></div>
+    <div class="card frag" data-frag="3"><div class="t">사내망</div><div class="h">webhook이 아니라 relay</div>
+      <ul class="tight">
+        <li>GitHub webhook 수신자가 아니므로 서버를 사내망에 둘 수 있습니다</li>
+        <li>self-hosted runner와 사내 접속 경로가 필요합니다</li>
+        <li>대가는 runner 기동 지연 20–40초입니다</li>
+      </ul></div>
+    <div class="card frag" data-frag="4"><div class="t">Global · 현재 제약</div><div class="h">지역 종속이 없습니다</div>
+      <ul class="tight">
+        <li>GitHub PR 흐름 위에서만 동작하고, 정책은 <span class="mono">.lasthuman.yml</span> 한 파일입니다</li>
+        <li>모델은 조직이 고른 Azure 리전을 씁니다</li>
+        <li>제약: <strong>서버 1대 = 저장소 1개</strong> · 구조 분석은 Python 중심</li>
+      </ul></div>
   </div>
 </section>
 
-<!-- ============ 11 · 클로징 + CTA ============ -->
-<section class="slide close" data-dur="10">
-  <p class="eyebrow rise" style="--d:0">11 · Closing</p>
-  <h2 class="rise" style="--d:1">Superhuman을 많이 모은다고<br>Super Organization이 되는 것이 아니다</h2>
-  <p class="lede rise" style="--d:2">장애가 났을 때 가장 먼저 나오는 질문은 <span class="q">"이 코드, 누가 아나요?"</span> 입니다. 그때 찾기 시작하면 이미 늦습니다.</p>
+<!-- ══════ 10 · Closing ══════ -->
+<section class="slide" data-dur="8">
+  <p class="eyebrow rise" style="--d:0">10 · Closing</p>
+  <h2 class="rise" style="--d:1">stack의 마지막 한 층에도 <span class="hl">기록을 남겼습니다</span></h2>
+  <p class="lede rise" style="--d:2">
+    장애가 났을 때 가장 먼저 나오는 질문은 <span class="hl">"이 코드, 누가 압니까?"</span> 입니다.
+    그때 찾기 시작하면 이미 늦습니다. 조직은 <strong>어느 모듈에 답할 수 있는 사람이 몇 명인지</strong> 미리 알아야 합니다.
+    이름이 아니라 <strong>수</strong>입니다.
+  </p>
   <div class="cta frag" data-frag="1">
-    <svg class="mark" width="150" height="92" viewBox="0 0 120 74" aria-hidden="true">
+    <svg class="mark" width="140" height="86" viewBox="0 0 120 74" aria-hidden="true">
       <rect class="f" x="0" y="0"  width="86" height="8" rx="4"/>
       <rect class="f" x="0" y="13" width="72" height="8" rx="4"/>
       <rect class="f" x="0" y="26" width="94" height="8" rx="4"/>
@@ -641,143 +596,133 @@
       <rect class="f" x="0" y="52" width="80" height="8" rx="4"/>
       <rect class="e" x="1.5" y="64.5" width="117" height="8" rx="4"/>
     </svg>
-    <div class="txt">
+    <div>
       <div class="a">지금 이 저장소에 걸려 있습니다</div>
       <div class="b">github.com/microsoft-2026-hackathon/the-last-human</div>
-      <div class="c">필수 status <span class="hl">last-human/human-verified</span> · 정책은 .lasthuman.yml 한 파일</div>
+      <div class="c">required status <span class="hl">last-human/human-verified</span> · 정책은 .lasthuman.yml 한 파일</div>
     </div>
   </div>
+  <p class="kicker frag" data-frag="2" style="margin-top:.9rem">
+    <strong>observability at every layer of stack.</strong> 마지막 한 층은 사람이 이해했는지입니다. 그 층을 만들었습니다.
+  </p>
 </section>
 
 <section class="slide tag" data-dur="0">
   <h2 class="rise" style="--d:0">AI-generated code. Human-owned decisions.</h2>
 </section>
 
-<!-- ============ A1 · 아키텍처 상세 (Q&A · 예산 외) ============ -->
-<section class="slide appx" data-dur="0" data-appendix="1">
-  <p class="eyebrow">부록 · Q&amp;A 전용 — 발표 3:30 예산에 포함하지 않음</p>
-  <h2>왜 그 상태를 <span class="hl">믿을 수 있나</span></h2>
-  <div class="cols">
+<!-- ══════ A1 · 데이터 흐름 상세 ══════ -->
+<section class="slide top appx" data-dur="0" data-appendix="1">
+  <p class="eyebrow">부록 · Q&amp;A 전용 — 발표 3:30 예산에 포함하지 않습니다</p>
+  <h2>데이터 흐름과 신뢰 경계</h2>
+  <div class="grid g2" style="margin-top:.6rem">
     <div>
       <table>
-        <thead><tr><th>#</th><th>구간</th><th>무엇이 움직이나</th></tr></thead>
+        <thead><tr><th>#</th><th>구간</th><th>무엇이 움직입니까</th></tr></thead>
         <tbody>
-          <tr><td class="n">①</td><td class="f">GitHub → Actions</td><td>PR 열림 / 새 커밋이 Relay를 시작. 웹훅 수신자가 필요 없다</td></tr>
-          <tr><td class="n">②</td><td class="f">Relay → Server</td><td>메타데이터 · 재계산한 snapshot binding + <strong>OIDC 신원</strong></td></tr>
-          <tr><td class="n">②′</td><td class="f">Server ↔ Model</td><td>diff 사실 → 질문 둘 · 근거 한 줄 → 평가. GitHub 권한 없음</td></tr>
-          <tr><td class="n">③</td><td class="f">작성자 ↔ Server</td><td>보기 + 근거 → Accepted / Hold. 원문은 공개 PR에 남기지 않는다</td></tr>
-          <tr><td class="n">④</td><td class="f">Server</td><td>head SHA에 묶인 영수증. 새 커밋에 재사용하지 않는다</td></tr>
-          <tr><td class="n">⑤</td><td class="f">Server → Actions</td><td>Verify dispatch — snapshot·위험도를 <strong>재계산</strong>해 binding과 비교</td></tr>
-          <tr><td class="n">⑤′</td><td class="f">Actions → Server</td><td>재계산한 binding + OIDC로 검증 요청</td></tr>
-          <tr><td class="n">⑥</td><td class="f">Server → GitHub</td><td>상태 · 카드 · 보조 Check. <strong>GitHub에 쓰는 것은 이 하나</strong></td></tr>
-          <tr><td class="n">⑥′</td><td class="f">Actions → GitHub</td><td>현재 SHA의 최신 gate status를 직접 확인</td></tr>
-          <tr><td class="n">⑦</td><td class="f">Store + CODEOWNERS</td><td>구역별 커버리지 · 답할 수 있는 사람 수. 이름 없이 수만</td></tr>
-          <tr><td class="n">⑧</td><td class="f">사람 → GitHub</td><td>Merge. 봇은 절대 아니다</td></tr>
-          <tr><td class="n">⑨</td><td class="f">조직 → Server</td><td>대시보드 열람</td></tr>
+          <tr><td class="n">①</td><td class="f">GitHub → Actions</td><td>PR 열림 / 새 commit이 Relay를 시작합니다. webhook 수신자가 필요 없습니다</td></tr>
+          <tr><td class="n">②</td><td class="f">Relay → Server</td><td>metadata · 재계산한 snapshot binding + <strong>OIDC 신원</strong></td></tr>
+          <tr><td class="n">②′</td><td class="f">Server ↔ Model</td><td>diff 사실 → 질문 2개 · 근거 한 줄 → 평가. GitHub 권한은 없습니다</td></tr>
+          <tr><td class="n">③</td><td class="f">작성자 ↔ Server</td><td>보기 + 근거 → Accepted / Hold. 원문은 공개 PR에 남기지 않습니다</td></tr>
+          <tr><td class="n">④</td><td class="f">Server</td><td>head SHA에 묶인 receipt. 새 commit에 재사용하지 않습니다</td></tr>
+          <tr><td class="n">⑤</td><td class="f">Server → Actions</td><td>Verify dispatch — snapshot · 위험도를 <strong>재계산</strong>해 binding과 비교합니다</td></tr>
+          <tr><td class="n">⑤′</td><td class="f">Actions → Server</td><td>재계산한 binding + OIDC로 검증을 요청합니다</td></tr>
+          <tr><td class="n">⑥</td><td class="f">Server → GitHub</td><td>status · card · 보조 Check. <strong>GitHub에 쓰는 것은 이 하나입니다</strong></td></tr>
+          <tr><td class="n">⑥′</td><td class="f">Actions → GitHub</td><td>현재 SHA의 최신 gate status를 직접 확인합니다</td></tr>
+          <tr><td class="n">⑦</td><td class="f">Store + CODEOWNERS</td><td>구역별 커버리지 · 답할 수 있는 사람 수. 이름 없이 수만 셉니다</td></tr>
+          <tr><td class="n">⑧</td><td class="f">사람 → GitHub</td><td>Merge. bot은 하지 않습니다</td></tr>
+          <tr><td class="n">⑨</td><td class="f">조직 → Server</td><td>dashboard 열람</td></tr>
         </tbody>
       </table>
     </div>
     <div>
       <table>
-        <thead><tr><th>신뢰 경계</th><th>무엇으로 증명하나</th></tr></thead>
+        <thead><tr><th>신뢰 경계</th><th>무엇으로 증명합니까</th></tr></thead>
         <tbody>
           <tr><td class="f">App installation ↔ Server</td><td>선택 저장소에 한정된 installation token</td></tr>
-          <tr><td class="f">GitHub ↔ Actions</td><td>실행 신원 · <span class="mono">pull_request_target</span>은 main 정의만 실행</td></tr>
-          <tr><td class="f">Actions ↔ Server</td><td><strong>OIDC</strong> + binding 대조. 장기 시크릿 없음</td></tr>
-          <tr><td class="f">사람 ↔ Server</td><td>같은 App의 OAuth · 세션 메모리 30분</td></tr>
+          <tr><td class="f">GitHub ↔ Actions</td><td>실행 신원 · <span class="mono">pull_request_target</span>은 main 정의만 실행합니다</td></tr>
+          <tr><td class="f">Actions ↔ Server</td><td><strong>OIDC</strong> + binding 대조. 장기 시크릿이 없습니다</td></tr>
+          <tr><td class="f">사람 ↔ Server</td><td>같은 App의 OAuth · 세션은 메모리 30분입니다</td></tr>
         </tbody>
       </table>
-      <table style="margin-top:1rem">
+      <table style="margin-top:.9rem">
         <thead><tr><th>정직하게 말할 것</th></tr></thead>
         <tbody>
-          <tr><td>Actions에도 <strong>단기 GitHub·OIDC 자격은 있다.</strong> "비밀이 전혀 없다"고 말하지 않는다</td></tr>
-          <tr><td>코드와 근거는 모델에 전달된다. 보관 정책은 <strong>별도로</strong> 다룬다</td></tr>
-          <tr><td>서버 1대 = 저장소 1개 바인딩 — 패키징에서 정리 중</td></tr>
-          <tr><td>구조 분석은 <strong>Python 중심</strong></td></tr>
+          <tr><td>Actions에도 <strong>단기 GitHub · OIDC 자격은 있습니다.</strong> "비밀이 전혀 없다"고 말하지 않습니다</td></tr>
+          <tr><td>코드와 근거는 모델에 전달됩니다. 보관 정책은 <strong>별도로</strong> 다룹니다</td></tr>
+          <tr><td>receipt 결속은 head SHA뿐 아니라 repo/PR · base SHA · 정책 · snapshot · 위험도 · 작성자 · installation · 질문 버전을 포함합니다</td></tr>
+          <tr><td>서버 1대 = 저장소 1개 바인딩입니다 — 패키징에서 정리 중입니다</td></tr>
         </tbody>
       </table>
-      <p class="lede" style="font-size:.95rem;margin-top:.9rem">전체 그림: <a href="architecture-details.html">architecture-details.html</a></p>
+      <p class="lede" style="font-size:.95rem;margin-top:.8rem">전체 그림: <a href="architecture-details.html">architecture-details.html</a></p>
     </div>
   </div>
 </section>
 
-<!-- ============ A2 · 고객과 가치 ============ -->
-<section class="slide appx" data-dur="0" data-appendix="1">
+<!-- ══════ A2 · 고객과 가치 ══════ -->
+<section class="slide top appx" data-dur="0" data-appendix="1">
   <p class="eyebrow">부록 · Q&amp;A — 고객과 가치</p>
-  <h2>누가 쓰고, <span class="hl">무엇이 달라지나</span></h2>
-  <div class="three">
-    <div class="c"><div class="h">누가</div>
-      <div class="d">에이전트를 이미 도입한 <strong>엔지니어링 조직.</strong> 특히 장애가 비싸고 감사 대응이 필요한 곳 — 금융·의료·인프라.</div>
-      <div class="m">개인 개발자가 아니라 조직이 고객</div></div>
-    <div class="c"><div class="h">무엇이</div>
-      <div class="d"><strong>승인 기록만 있던 자리에 이해 기록이 생긴다.</strong> 누가 눌렀는지가 아니라, 어느 모듈에 답할 수 있는 사람이 몇 명인지를 조직이 미리 안다.</div>
-      <div class="m">머지 전 · 커밋 SHA에 결속</div></div>
-    <div class="c"><div class="h">얼마에</div>
-      <div class="d">서버 1대와 <strong>파일 3개.</strong> 기존 CI·리뷰·브랜치 보호를 바꾸지 않고 체크 한 줄을 더한다. 롤백은 변수 한 줄.</div>
+  <h2>누가 쓰고, <span class="hl">무엇이 달라집니까</span></h2>
+  <div class="grid g3">
+    <div class="card"><div class="t">누가</div><div class="h">에이전트를 이미 도입한 엔지니어링 조직</div>
+      <div class="d">특히 장애가 비싸고 감사 대응이 필요한 곳입니다 — 금융 · 의료 · 인프라.</div>
+      <div class="m">개인 개발자가 아니라 조직이 고객입니다</div></div>
+    <div class="card"><div class="t">무엇이</div><div class="h">승인 기록 자리에 이해 기록이 생깁니다</div>
+      <div class="d">누가 눌렀는지가 아니라, 어느 모듈에 답할 수 있는 사람이 몇 명인지를 조직이 미리 압니다.</div>
+      <div class="m">merge 전 · commit SHA 결속</div></div>
+    <div class="card"><div class="t">얼마에</div><div class="h">서버 1대와 파일 3개</div>
+      <div class="d">기존 CI · review · branch protection을 바꾸지 않고 check 한 줄을 더합니다. 롤백은 변수 한 줄입니다.</div>
       <div class="m">작성자 부담은 PR당 두 문항</div></div>
   </div>
-  <div class="vs" style="margin-top:1rem">
-    <div class="col">
-      <div class="k">지금 조직이 치르는 비용</div>
-      <ul>
-        <li>장애 복구 때 <strong>"이 코드 누가 아나요"</strong>를 그 자리에서 찾는 시간</li>
-        <li>담당자가 CODEOWNERS에 적혀 있지만 <strong>그 코드를 이해한 사람은 아닌</strong> 격차</li>
-        <li>리뷰에서는 94%가 낫다고 했는데 배포 뒤 78%가 장애 — 검토와 결과의 괴리</li>
-      </ul>
-    </div>
-    <div class="col hot">
-      <div class="k">우리가 약속하는 것 / 아닌 것</div>
-      <ul>
-        <li><strong>약속:</strong> 위험한 변경은 사람의 설명 없이 머지되지 않는다</li>
-        <li><strong>약속:</strong> 그 기록은 커밋에 묶이고 새 커밋엔 재사용되지 않는다</li>
-        <li><strong>아님:</strong> 버그를 찾아 주지 않는다. 코드 품질을 보증하지 않는다. 사람을 평가하지 않는다</li>
-      </ul>
-    </div>
+  <div class="grid g2" style="margin-top:.9rem">
+    <div class="card"><div class="t">지금 조직이 치르는 비용</div>
+      <ul class="tight">
+        <li>장애 복구 때 <strong>"이 코드 누가 압니까"</strong>를 그 자리에서 찾는 시간</li>
+        <li>CODEOWNERS에 담당자가 적혀 있지만 <strong>그 코드를 이해한 사람은 아닌</strong> 격차</li>
+        <li>불일치가 큰 AI PR의 승인율 28.3% · merge까지 3.5배 — 재작업 비용</li>
+      </ul></div>
+    <div class="card hot"><div class="t">약속하는 것 / 아닌 것</div>
+      <ul class="tight">
+        <li><strong>약속:</strong> 위험한 변경은 사람의 설명 없이 merge되지 않습니다</li>
+        <li><strong>약속:</strong> 그 기록은 commit에 묶이고 새 commit엔 재사용되지 않습니다</li>
+        <li><strong>아님:</strong> 버그를 찾아 주지 않습니다. 코드 품질을 보증하지 않습니다. 사람을 평가하지 않습니다</li>
+      </ul></div>
   </div>
 </section>
 
-<!-- ============ A3 · 배포 · 확장 · Global ============ -->
-<section class="slide appx" data-dur="0" data-appendix="1">
-  <p class="eyebrow">부록 · Q&amp;A — 배포 · 확장 · Global</p>
-  <h2>지금 어디까지 되고, <span class="hl">다음은 무엇인가</span></h2>
-  <div class="vs">
-    <div class="col">
-      <div class="k">현재 제약 — 숨기지 않는다</div>
-      <ul>
-        <li>서버 1대 = <strong>저장소 1개</strong> 바인딩</li>
-        <li>구조 분석은 <strong>Python 중심</strong></li>
-        <li>게이트가 status와 보조 Check <strong>두 줄</strong>로 보임 (권위는 status)</li>
-        <li>Relay가 대상 저장소에 TLH 소스를 설치해 재계산 — 소스가 없는 저장소엔 별도 verifier 필요</li>
-        <li>작성자 세션 메모리 30분 · 서버 재시작 시 재로그인</li>
-      </ul>
-    </div>
-    <div class="col hot">
-      <div class="k">다음 수 — 우선순위 순</div>
-      <ul>
-        <li><strong>무조건 발동 경로</strong> — 삭제형 고위험을 잡는다 (슬라이드 10의 C안)</li>
-        <li><strong>버전 고정 verifier 패키지</strong> — 소스 없는 저장소에 설치 템플릿으로</li>
-        <li>다중 저장소 바인딩 · 한 줄 통합 체크</li>
+<!-- ══════ A3 · 제약과 다음 수 ══════ -->
+<section class="slide top appx" data-dur="0" data-appendix="1">
+  <p class="eyebrow">부록 · Q&amp;A — 제약과 다음 수</p>
+  <h2>지금 어디까지 되고, <span class="hl">다음은 무엇입니까</span></h2>
+  <div class="grid g2">
+    <div class="card"><div class="t">현재 제약 — 숨기지 않습니다</div>
+      <ul class="tight">
+        <li>서버 1대 = <strong>저장소 1개</strong> 바인딩입니다</li>
+        <li>구조 분석은 <strong>Python 중심</strong>입니다</li>
+        <li>gate가 status와 보조 Check <strong>두 줄</strong>로 보입니다 (권위는 status)</li>
+        <li>Relay가 대상 저장소에 TLH 소스를 설치해 재계산합니다 — 소스가 없는 저장소엔 별도 verifier가 필요합니다</li>
+        <li>작성자 세션은 메모리 30분이라 서버 재시작 시 재로그인해야 합니다</li>
+        <li>질문 생성은 모델 호출이라 드물게 정답 키가 틀린 세트가 나올 수 있습니다</li>
+      </ul></div>
+    <div class="card hot"><div class="t">다음 수 — 우선순위 순</div>
+      <ul class="tight">
+        <li><strong>무조건 발동 경로</strong> — 삭제형 고위험을 잡습니다 (슬라이드 07의 C안)</li>
+        <li><strong>버전 고정 verifier 패키지</strong> — 소스 없는 저장소에 설치 템플릿으로 배포합니다</li>
+        <li>다중 저장소 바인딩 · status와 Check를 한 줄로 통합</li>
         <li>구조 분석 언어 확장</li>
-      </ul>
-    </div>
+        <li>PR-MCI 유형별 질문 템플릿 — 논문의 8개 유형을 질문 생성에 반영합니다</li>
+      </ul></div>
   </div>
-  <div class="three" style="margin-top:1rem">
-    <div class="c"><div class="h">배포</div>
-      <div class="d">한 프로세스 + SQLite. 공개 HTTPS origin이면 바로, 사내망이면 <strong>self-hosted 러너 + 사내 접속</strong>으로. GitHub 웹훅 수신자가 아니라 가능하다.</div>
-      <div class="m">대가: 러너 기동 20–40초</div></div>
-    <div class="c"><div class="h">보안</div>
-      <div class="d">App 키·client secret·모델 자격은 서버에만. 경계를 넘는 것은 <strong>단기 OIDC</strong>와 메타데이터. Azure OpenAI는 Entra 토큰으로 <strong>키 없이</strong> 호출.</div>
-      <div class="m">장기 시크릿 0개</div></div>
-    <div class="c"><div class="h">Global</div>
-      <div class="d">GitHub PR 워크플로 위에서만 동작해 <strong>지역·언어 종속이 없다.</strong> 정책은 저장소의 <span class="mono">.lasthuman.yml</span> 한 파일, 모델은 조직이 고른 Azure 리전.</div>
-      <div class="m">규제가 강한 조직일수록 수요가 크다</div></div>
+  <div class="card frag in" style="margin-top:.9rem">
+    <div class="t">실패 방향의 일관성</div>
+    <div class="d">사람이 답을 빠뜨리면 <strong>막습니다.</strong> 모델이나 연동이 죽으면 <strong>통과시킵니다.</strong> 인프라 장애로 사람을 막지 않습니다. 미통과는 failure가 아니라 pending입니다.</div>
   </div>
 </section>
 
 <div id="meta"></div>
 <div id="dots"><i></i></div>
 <div id="hud">
-  <b>→</b> 다음 단계·슬라이드 &nbsp; <b>←</b> 뒤로 &nbsp; <b>↓</b> 슬라이드 통째로<br>
+  <b>→</b> 다음 단계 · 슬라이드 &nbsp; <b>←</b> 뒤로 &nbsp; <b>↓ ↑</b> 슬라이드 통째로<br>
   <b>F</b> 전체화면 &nbsp; <b>A</b> 부록 &nbsp; <b>M</b> 타이머 &nbsp; <b>H</b> 이 안내
 </div>
 
@@ -792,33 +737,26 @@
   var fallback = document.getElementById("demoFallback");
   var i = 0, step = 0;
 
-  // 부록은 발표 시간 예산에서 뺀다.
   var timed = slides.filter(function (s) { return !s.dataset.appendix; });
   var starts = [], acc = 0;
   timed.forEach(function (s) { starts.push(acc); acc += Number(s.dataset.dur || 0); });
   var appendixIndex = slides.findIndex(function (s) { return s.dataset.appendix; });
 
-  // 각 슬라이드의 빌드 단계 수
   function maxStep(s) {
     var n = 0;
-    s.querySelectorAll(".frag").forEach(function (f) {
-      n = Math.max(n, Number(f.dataset.frag || 0));
-    });
+    s.querySelectorAll(".frag").forEach(function (f) { n = Math.max(n, Number(f.dataset.frag || 0)); });
     return n;
   }
-
   function applyStep(s, k) {
     s.querySelectorAll(".frag").forEach(function (f) {
       f.classList.toggle("in", Number(f.dataset.frag || 0) <= k);
     });
-    var p = s.querySelector("#statusPath");
-    if (p) p.classList.toggle("draw", k >= 5);
+    var p = s.querySelector("#gateArrow");
+    if (p) p.classList.toggle("draw", k >= 8);
   }
-
-  // 숫자 카운트업
   function countUp(s) {
     s.querySelectorAll(".count").forEach(function (el) {
-      var to = Number(el.dataset.to || 0), t0 = null, dur = 900;
+      var to = Number(el.dataset.to || 0), t0 = null, dur = 850;
       function tick(t) {
         if (!t0) t0 = t;
         var r = Math.min(1, (t - t0) / dur);
@@ -841,61 +779,45 @@
     var m = Math.floor(sec / 60), x = Math.round(sec % 60);
     return m + ":" + String(x).padStart(2, "0");
   }
+  function status() {
+    var s = slides[i], t = timed.indexOf(s), ms = maxStep(s);
+    if (t === -1) { meta.innerHTML = "부록 · 시간 예산 외"; bar.style.width = "100%"; return; }
+    meta.innerHTML = fmt(starts[t]) + " → " + fmt(starts[t] + Number(s.dataset.dur)) +
+      "<br>" + s.dataset.dur + "s &nbsp;·&nbsp; " + (t + 1) + " / " + timed.length +
+      (ms ? "&nbsp;·&nbsp; 단계 " + step + "/" + ms : "") +
+      (s.dataset.demo ? "<br>영상 재생 · 말하지 않습니다" : "");
+    bar.style.width = (100 * (starts[t] + Number(s.dataset.dur)) / acc) + "%";
+  }
 
-  function show(n, atLastStep) {
+  function show(n, atLast) {
     i = Math.max(0, Math.min(slides.length - 1, n));
     var s = slides[i];
     slides.forEach(function (x, k) { x.classList.toggle("on", k === i); });
-
-    step = atLastStep ? maxStep(s) : 0;
+    step = atLast ? maxStep(s) : 0;
     applyStep(s, step);
-    if (!atLastStep) countUp(s);
-
+    if (!atLast) countUp(s);
     document.body.classList.toggle("demo-on", !!s.dataset.demo);
     if (video) {
       if (s.dataset.demo) { try { video.currentTime = 0; video.play(); } catch (e) {} }
       else { video.pause(); }
     }
-
-    var t = timed.indexOf(s);
-    if (t === -1) {
-      meta.innerHTML = "부록 · 시간 예산 외";
-      bar.style.width = "100%";
-    } else {
-      var ms = maxStep(s);
-      meta.innerHTML = fmt(starts[t]) + " → " + fmt(starts[t] + Number(s.dataset.dur)) +
-        "<br>" + s.dataset.dur + "s &nbsp;·&nbsp; " + (t + 1) + " / " + timed.length +
-        (ms ? "&nbsp;·&nbsp; 단계 " + step + "/" + ms : "") +
-        (s.dataset.demo ? "<br>영상 재생 · 말하지 않는다" : "");
-      bar.style.width = (100 * (starts[t] + Number(s.dataset.dur)) / acc) + "%";
-    }
+    status();
     document.body.classList.add("idle");
   }
-
   function next() {
     var s = slides[i];
-    if (step < maxStep(s)) { step++; applyStep(s, step); render(); }
-    else show(i + 1);
+    if (step < maxStep(s)) { step++; applyStep(s, step); status(); } else show(i + 1);
   }
   function prev() {
     var s = slides[i];
-    if (step > 0) { step--; applyStep(s, step); render(); }
-    else show(i - 1, true);
-  }
-  function render() {
-    var s = slides[i], t = timed.indexOf(s), ms = maxStep(s);
-    if (t !== -1 && ms) {
-      meta.innerHTML = fmt(starts[t]) + " → " + fmt(starts[t] + Number(s.dataset.dur)) +
-        "<br>" + s.dataset.dur + "s &nbsp;·&nbsp; " + (t + 1) + " / " + timed.length +
-        "&nbsp;·&nbsp; 단계 " + step + "/" + ms;
-    }
+    if (step > 0) { step--; applyStep(s, step); status(); } else show(i - 1, true);
   }
 
   document.addEventListener("keydown", function (e) {
     var k = e.key;
     if (k === "ArrowRight" || k === "PageDown" || k === " ") { e.preventDefault(); next(); }
     else if (k === "ArrowLeft" || k === "PageUp") { e.preventDefault(); prev(); }
-    else if (k === "ArrowDown") { e.preventDefault(); show(i + 1); }   // 빌드 건너뛰고 다음 슬라이드
+    else if (k === "ArrowDown") { e.preventDefault(); show(i + 1); }
     else if (k === "ArrowUp") { e.preventDefault(); show(i - 1); }
     else if (k === "Home") { show(0); }
     else if (k === "End") { show(timed.length - 1); }
@@ -912,9 +834,8 @@
   });
 
   show(0);
-  var appendixCount = slides.length - timed.length;
   hud.innerHTML += "<br>본편 <b>" + fmt(acc) + "</b> · 슬라이드 " + timed.length +
-                   " (+부록 " + appendixCount + ")";
+                   " (+부록 " + (slides.length - timed.length) + ")";
 })();
 </script>
 </body>
