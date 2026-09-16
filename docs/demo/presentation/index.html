@@ -120,6 +120,59 @@
                 padding:.16rem 0 .16rem .95rem; position:relative; }
   ul.tight li::before { content:"·"; position:absolute; left:.15rem; color:var(--dim); }
 
+  /* 방향 반전 비교 */
+  .rev { display:grid; gap:clamp(.4rem,1.1vh,.7rem); margin-top:clamp(.6rem,1.6vh,1.1rem); }
+  .rev .r { display:flex; align-items:center; gap:clamp(.5rem,1.2vw,1rem); border:1px solid var(--line);
+            border-radius:8px; padding:clamp(.5rem,1.3vh,.8rem) clamp(.7rem,1.5vw,1.1rem); background:rgba(17,23,34,.7); }
+  .rev .r.hot { border-color:var(--amber); background:rgba(232,177,85,.08); }
+  .rev .tag { font-family:var(--mono); font-size:clamp(.6rem,1.35vh,.78rem); letter-spacing:.1em;
+              text-transform:uppercase; color:var(--dim); width:clamp(6.5rem,12vw,10rem); flex:none; }
+  .rev .r.hot .tag { color:var(--amber); }
+  .rev .node { border:1px solid #3a4452; border-radius:6px; padding:.26rem .8rem; font-weight:700;
+               font-size:clamp(.85rem,1.95vh,1.15rem); flex:none; background:var(--ground); }
+  .rev .r.hot .node.you { border-color:var(--amber); color:var(--amber); }
+  .rev .flow { flex:1; display:flex; align-items:center; gap:.5rem; min-width:0; }
+  .rev .flow i { flex:1; height:1px; background:#3a4452; }
+  .rev .flow em { font-style:normal; font-family:var(--mono); font-size:clamp(.66rem,1.5vh,.86rem);
+                  color:var(--neutral); white-space:nowrap; }
+  .rev .r.hot .flow em { color:var(--amber); }
+  .rev .flow b { color:#7e8a99; font-weight:400; }
+  .rev .note { font-size:clamp(.74rem,1.65vh,.96rem); color:var(--dim); flex:none; }
+  .rev .r.hot .note { color:var(--neutral); }
+
+  /* 파이프라인 */
+  .pipe { display:flex; align-items:stretch; gap:clamp(.25rem,.7vw,.5rem); margin-top:clamp(.5rem,1.4vh,.9rem); }
+  .pipe .p { flex:1; border:1px solid var(--line); border-radius:7px; background:rgba(17,23,34,.72);
+             padding:clamp(.45rem,1.2vh,.75rem) clamp(.5rem,1.1vw,.8rem); }
+  .pipe .p:last-of-type { border-color:var(--amber); }
+  .pipe .p .i { font-family:var(--mono); font-size:clamp(.6rem,1.35vh,.76rem); color:var(--amber); letter-spacing:.1em; }
+  .pipe .p b { display:block; font-size:clamp(.88rem,2vh,1.18rem); margin-top:.15rem; letter-spacing:-.02em; }
+  .pipe .p span { display:block; font-size:clamp(.72rem,1.6vh,.92rem); color:var(--neutral); margin-top:.25rem; line-height:1.36; }
+  .pipe .sep { display:flex; align-items:center; color:#5e6a79; font-family:var(--mono); font-size:1.1rem; }
+
+  /* 도입 스윔레인 */
+  .swim { display:grid; gap:clamp(.4rem,1.1vh,.65rem); margin-top:clamp(.6rem,1.6vh,1.1rem); }
+  .swim .lane { display:grid; grid-template-columns:clamp(7rem,13vw,11rem) 1fr; gap:clamp(.5rem,1.2vw,1rem); align-items:center; }
+  .swim .who { border-left:3px solid var(--line); padding-left:.6rem; }
+  .swim .lane.hot .who { border-left-color:var(--amber); }
+  .swim .who .n { font-family:var(--mono); font-size:clamp(.6rem,1.35vh,.76rem); letter-spacing:.1em;
+                  text-transform:uppercase; color:var(--dim); }
+  .swim .who .t { font-weight:700; font-size:clamp(.85rem,1.95vh,1.12rem); }
+  .swim .lane.hot .who .t { color:var(--amber); }
+  .swim .steps { display:flex; align-items:center; gap:clamp(.25rem,.6vw,.45rem); flex-wrap:wrap; }
+  .swim .s { display:flex; align-items:baseline; gap:.45rem; border:1px solid var(--line); border-radius:6px;
+             background:rgba(17,23,34,.72); padding:.3rem .7rem; font-size:clamp(.76rem,1.7vh,.98rem); }
+  .swim .lane.hot .s { border-color:rgba(232,177,85,.45); }
+  .swim .s i { font-family:var(--mono); font-style:normal; color:var(--amber); font-size:.9em; }
+  .swim .ar { color:#5e6a79; font-family:var(--mono); }
+
+  /* 기반 밴드 */
+  .found { display:grid; grid-template-columns:repeat(4,1fr); gap:clamp(.5rem,1.3vw,1rem);
+           margin-top:clamp(.6rem,1.6vh,1.1rem); padding-top:clamp(.5rem,1.3vh,.8rem); border-top:2px solid var(--line); }
+  .found .f { font-size:clamp(.78rem,1.75vh,1rem); font-weight:700; }
+  .found .f.hot { color:var(--amber); }
+  .found .f span { display:block; font-weight:400; font-size:.86em; color:var(--neutral); margin-top:.2rem; line-height:1.36; }
+
   /* SDLC 스트립 — agent가 들어온 단계와 기록이 없는 지점 */
   .sdlc { display:grid; grid-template-columns:repeat(7,1fr); gap:clamp(.3rem,.8vw,.6rem);
           margin-top:clamp(.7rem,1.9vh,1.3rem); align-items:stretch; }
@@ -176,17 +229,25 @@
   .demo-card .cue { font-family:var(--mono); color:var(--dim); font-size:clamp(.76rem,1.7vh,1rem); line-height:1.95; text-align:center; max-width:76ch; }
   .demo-card .cue b { color:var(--neutral); font-weight:500; }
 
-  /* 아키텍처 */
-  .arch svg { width:100%; height:auto; max-height:52vh; display:block; margin-top:clamp(.4rem,1.1vh,.8rem); }
+  /* 아키텍처 — 도면을 최대한 크게 */
+  .arch { padding-left:clamp(1rem,2.4vw,2rem); padding-right:clamp(1rem,2.4vw,2rem); }
+  .arch h2 { font-size:clamp(1.3rem,3.3vh,2.05rem); }
+  .arch .eyebrow { margin-bottom:clamp(.3rem,.8vh,.6rem); }
+  .arch svg { width:100%; height:auto; max-height:70vh; display:block; margin-top:clamp(.3rem,.9vh,.7rem); }
+  .guards { display:grid; grid-template-columns:repeat(3,1fr); gap:clamp(.6rem,1.6vw,1.3rem);
+            margin-top:clamp(.4rem,1.1vh,.8rem); }
+  .guards .g { display:flex; gap:.55rem; align-items:baseline; font-size:clamp(.78rem,1.72vh,1rem);
+               color:var(--neutral); line-height:1.4; border-top:2px solid var(--line); padding-top:.45rem; }
+  .guards .g .k { font-family:var(--mono); color:var(--amber); flex:none; font-weight:500; }
   .lane-bg   { fill:rgba(22,28,38,.55); }
   .lane-bg2  { fill:rgba(22,28,38,.28); }
-  .lane-name { fill:var(--neutral); font-family:var(--mono); font-size:15px; font-weight:500; letter-spacing:.12em; }
-  .lane-sub  { fill:var(--dim); font-family:var(--mono); font-size:12px; letter-spacing:.06em; }
+  .lane-name { fill:var(--type); font-family:var(--mono); font-size:16px; font-weight:500; letter-spacing:.1em; }
+  .lane-sub  { fill:var(--dim); font-family:var(--mono); font-size:12.5px; letter-spacing:.04em; }
   .nbox   { fill:rgba(22,28,38,.96); stroke:#39424f; stroke-width:1.4; }
   .nbox-s { fill:rgba(22,28,38,.96); stroke:var(--amber); stroke-width:2; }
   .nbox-m { fill:none; stroke:var(--dim); stroke-width:1.3; stroke-dasharray:6 5; }
-  .ntitle { fill:var(--type); font-family:var(--ko); font-size:17px; font-weight:700; }
-  .ntext  { fill:#aab4c2; font-family:var(--mono); font-size:13px; }
+  .ntitle { fill:var(--type); font-family:var(--ko); font-size:18px; font-weight:700; }
+  .ntext  { fill:#b3bdca; font-family:var(--mono); font-size:13.5px; }
   .nok    { fill:var(--green); font-family:var(--mono); font-size:13px; }
   .nno    { fill:var(--red); font-family:var(--mono); font-size:13px; }
   .nnum   { fill:var(--ground); font-family:var(--mono); font-size:13px; font-weight:500; }
@@ -378,31 +439,40 @@
 <!-- ══════ 06 · 어떻게 동작합니까 ══════ -->
 <section class="slide" data-dur="10">
   <p class="eyebrow rise" style="--d:0"><span class="crit c2">Reversing the Flow</span><span class="crit c4">Proof in Motion → 다음 88초</span> 06 · 어떻게 동작합니까</p>
-  <h2 class="rise" style="--d:1">방향을 뒤집었습니다 — <span class="hl">사람이 모델에게 답합니다</span></h2>
-  <p class="lede rise" style="--d:2">다른 AI 리뷰 도구는 사람에게 설명을 <strong>전달합니다.</strong> The Last Human은 사람에게 설명을 <strong>요구합니다.</strong>
-    그리고 이 전부가 <strong>GitHub Actions와 required status check 안에서</strong> 돕니다 — 별도 도구가 아니라 파이프라인의 한 단계입니다.</p>
-  <div class="grid g4">
-    <div class="card frag" data-frag="1"><div class="t">Step 1</div><div class="h">위험도 판정</div>
-      <div class="d">중요 경로·변경량·위험 패턴을 <strong>순수 함수</strong>로 계산합니다. 같은 입력이면 항상 같은 결과입니다.</div>
-      <div class="m">모델을 부르지 않습니다</div></div>
-    <div class="card frag" data-frag="1"><div class="t">Step 2</div><div class="h">질문 생성</div>
-      <div class="d">그 hunk와 <strong>그 코드가 호출하는 다른 파일</strong>을 근거로 질문을 만듭니다. 오답도 저장소에 실재하는 것으로 채웁니다.</div>
-      <div class="m">설명문만 읽고는 답할 수 없습니다</div></div>
-    <div class="card frag" data-frag="1"><div class="t">Step 3</div><div class="h">설명과 근거</div>
-      <div class="d">보기를 고르는 데 그치지 않고 <strong>코드 어디가 근거인지</strong> 한 줄로 받습니다.</div>
-      <div class="m">Accepted / Hold</div></div>
-    <div class="card hot frag" data-frag="1"><div class="t">Step 4</div><div class="h">commit 결속</div>
-      <div class="d">확인 기록을 <strong>head SHA에</strong> 묶습니다. 새 commit이 오면 무효가 되고 다시 묻습니다.</div>
-      <div class="m">사람에게 자격을 주지 않습니다</div></div>
+  <h2 class="rise" style="--d:1">설명의 방향을 <span class="hl">뒤집었습니다</span></h2>
+  <div class="rev">
+    <div class="r frag" data-frag="1">
+      <span class="tag">다른 AI 리뷰 도구</span>
+      <span class="node">Model</span>
+      <span class="flow"><i></i><em>설명을 전달합니다</em><i></i><b>▶</b></span>
+      <span class="node">사람</span>
+      <span class="note">사람은 읽기만 합니다</span>
+    </div>
+    <div class="r hot frag" data-frag="2">
+      <span class="tag">The Last Human</span>
+      <span class="node you">사람</span>
+      <span class="flow"><i></i><em>보기 + 코드 근거 한 줄</em><i></i><b>▶</b></span>
+      <span class="node">Model</span>
+      <span class="note">사람이 답하고, 그 답이 commit에 남습니다</span>
+    </div>
   </div>
-  <div class="grid g3" style="margin-top:.8rem">
-    <div class="card frag" data-frag="2"><div class="t">만들지 않습니다</div><div class="h">개인 점수·순위</div>
-      <div class="d">리더보드도, 팀장 조회 기능도 만들지 않습니다. 집계는 <strong>모듈 단위</strong>뿐입니다.</div></div>
-    <div class="card frag" data-frag="3"><div class="t">만들지 않습니다</div><div class="h">전수 적용</div>
-      <div class="d">임계값 미달 PR은 <span class="mono">Not required</span>로 그냥 지나갑니다. 오타 수정에 확인을 요구하지 않습니다.</div></div>
-    <div class="card frag" data-frag="4"><div class="t">만들지 않습니다</div><div class="h">감점 기록</div>
-      <div class="d">Hold는 남기지 않고 <strong>통과한 것만</strong> 쌓습니다. "모르겠다"는 정직한 답변입니다.</div></div>
+  <div class="pipe">
+    <div class="p frag" data-frag="3"><span class="i">STEP 1</span><b>위험도 판정</b><span>순수 함수 · 모델을 부르지 않습니다</span></div>
+    <span class="sep frag" data-frag="3">▸</span>
+    <div class="p frag" data-frag="3"><span class="i">STEP 2</span><b>질문 생성</b><span>hunk + 그 코드가 호출하는 파일</span></div>
+    <span class="sep frag" data-frag="3">▸</span>
+    <div class="p frag" data-frag="3"><span class="i">STEP 3</span><b>설명과 근거</b><span>코드 어디가 근거인지 한 줄</span></div>
+    <span class="sep frag" data-frag="3">▸</span>
+    <div class="p frag" data-frag="3"><span class="i">STEP 4</span><b>commit 결속</b><span>head SHA에 묶고, 새 commit이면 무효</span></div>
   </div>
+  <div class="guards frag" data-frag="4">
+    <div class="g"><span class="k">✕</span><span><strong>개인 점수·순위</strong> — 집계는 모듈 단위뿐입니다</span></div>
+    <div class="g"><span class="k">✕</span><span><strong>전수 적용</strong> — 임계값 미달은 Not required로 지나갑니다</span></div>
+    <div class="g"><span class="k">✕</span><span><strong>감점 기록</strong> — 통과한 것만 쌓습니다</span></div>
+  </div>
+  <p class="cite frag" data-frag="4" style="margin-top:.6rem">
+    이 전부가 GitHub Actions와 required status check 안에서 돕니다 — 별도 도구가 아니라 파이프라인의 한 단계입니다
+  </p>
 </section>
 
 <!-- ══════ DEMO ══════ -->
@@ -583,47 +653,55 @@
       <text class="nok"    x="1204" y="126">not the bot</text>
     </g>
   </svg>
-  <div class="grid g3 frag" data-frag="9" style="margin-top:.5rem">
-    <div class="card"><div class="t">왜 믿을 수 있습니까</div><div class="d">서버가 "통과"라고 말해도 gate는 열리지 않습니다. <strong>Actions가 대상 PR을 다시 읽어 위험도와 snapshot을 재계산</strong>하고 receipt와 대조한 뒤에야 열립니다.</div></div>
-    <div class="card"><div class="t">비밀은 어디에 있습니까</div><div class="d">App private key · client secret · 모델 자격은 <strong>서버에만</strong> 둡니다. 경계를 넘는 것은 단기 OIDC 신원과 metadata뿐입니다.</div></div>
-    <div class="card"><div class="t">모델의 권한은 무엇입니까</div><div class="d">질문을 쓰고 근거 한 줄을 대조할 뿐입니다. <strong>GitHub 상태를 바꾸거나 merge를 승인하지 못합니다.</strong> 위험 점수는 모델을 부르지 않습니다.</div></div>
+  <div class="guards frag" data-frag="9">
+    <div class="g"><span class="k">⑦</span><span>서버가 "통과"라고 말해도 gate는 열리지 않습니다. <strong>Actions가 재계산해 대조한 뒤에야</strong> 열립니다.</span></div>
+    <div class="g"><span class="k">🔒</span><span>App private key · client secret · 모델 자격은 <strong>서버에만</strong> 있습니다. 경계를 넘는 것은 단기 OIDC뿐입니다.</span></div>
+    <div class="g"><span class="k">✕</span><span>모델은 질문을 쓰고 근거를 대조할 뿐, <strong>GitHub에 쓰지도 merge하지도 못합니다.</strong></span></div>
   </div>
 </section>
 
 <!-- ══════ 09 · 배포 · 보안 · 확장 ══════ -->
 <section class="slide" data-dur="10">
   <p class="eyebrow rise" style="--d:0"><span class="crit c5">Ready to Ship</span> 09 · 어떻게 배포하고 확장합니까</p>
-  <h2 class="rise" style="--d:1">Microsoft stack 위에서 <span class="hl">장기 시크릿 없이</span> 동작합니다</h2>
-  <div class="grid g4">
-    <div class="card frag" data-frag="1"><div class="t">GitHub App</div><div class="h">저장소 한정 권한</div>
-      <div class="d">선택한 저장소에만 유효한 installation token으로 API를 호출합니다.</div></div>
-    <div class="card frag" data-frag="1"><div class="t">Actions · OIDC</div><div class="h">단기 신원</div>
-      <div class="d">사전 공유한 장기 시크릿 대신 저장소에 묶인 OIDC 토큰을 씁니다.</div></div>
-    <div class="card frag" data-frag="1"><div class="t">Azure OpenAI · Entra ID</div><div class="h">키 없는 호출</div>
-      <div class="d">API key 없이 <strong>Entra 토큰</strong>으로 호출합니다.<span class="mono"> AzureCliCredential</span></div></div>
-    <div class="card hot frag" data-frag="1"><div class="t">결과</div><div class="h">장기 시크릿 0개</div>
-      <div class="d">경계를 넘는 것은 단기 자격과 metadata뿐입니다.</div></div>
+  <h2 class="rise" style="--d:1">도입은 세 갈래, 기반은 <span class="hl">장기 시크릿 0개</span></h2>
+  <div class="swim">
+    <div class="lane frag" data-frag="1">
+      <div class="who"><div class="n">A · 한 번만</div><div class="t">운영자</div></div>
+      <div class="steps">
+        <div class="s"><i>1</i>GitHub App 등록</div><span class="ar">→</span>
+        <div class="s"><i>2</i>서버 배포 · 1 프로세스 + SQLite</div><span class="ar">→</span>
+        <div class="s"><i>3</i>healthz · 모델 호출 확인</div>
+      </div>
+    </div>
+    <div class="lane hot frag" data-frag="2">
+      <div class="who"><div class="n">B · 저장소마다</div><div class="t">저장소 관리자</div></div>
+      <div class="steps">
+        <div class="s"><i>4</i>App 설치 · 서버에 바인딩</div><span class="ar">→</span>
+        <div class="s"><i>5</i>파일 3개를 PR 하나로</div><span class="ar">→</span>
+        <div class="s"><i>6</i>저장소 변수</div><span class="ar">→</span>
+        <div class="s"><i>7</i>첫 PR로 발행 확인</div><span class="ar">→</span>
+        <div class="s"><i>8</i><strong>그다음에</strong> required check</div>
+      </div>
+    </div>
+    <div class="lane frag" data-frag="3">
+      <div class="who"><div class="n">C · PR마다</div><div class="t">작성자</div></div>
+      <div class="steps">
+        <div class="s"><i>9</i>카드 링크로 로그인 · 최초 1회</div><span class="ar">→</span>
+        <div class="s"><i>10</i>두 문항에 답</div><span class="ar">→</span>
+        <div class="s"><i>11</i>Human-verified → 사람이 merge</div>
+      </div>
+    </div>
   </div>
-  <div class="grid g3" style="margin-top:.8rem">
-    <div class="card frag" data-frag="2"><div class="t">도입</div><div class="h">세 갈래 · 파일 3개</div>
-      <ul class="tight">
-        <li><strong>A 운영자(한 번)</strong> App 등록 → 서버 배포 → healthz 확인</li>
-        <li><strong>B 저장소마다</strong> App 설치 → 파일 3개 PR → 변수 → <strong>그다음에</strong> required check</li>
-        <li><strong>C 작성자(PR마다)</strong> 로그인 → 두 문항 → merge</li>
-      </ul></div>
-    <div class="card frag" data-frag="3"><div class="t">사내망</div><div class="h">webhook이 아니라 relay</div>
-      <ul class="tight">
-        <li>GitHub webhook 수신자가 아니므로 서버를 사내망에 둘 수 있습니다</li>
-        <li>self-hosted runner와 사내 접속 경로가 필요합니다</li>
-        <li>대가는 runner 기동 지연 20–40초입니다</li>
-      </ul></div>
-    <div class="card frag" data-frag="4"><div class="t">Global · 현재 제약</div><div class="h">지역 종속이 없습니다</div>
-      <ul class="tight">
-        <li>GitHub PR 흐름 위에서만 동작하고, 정책은 <span class="mono">.lasthuman.yml</span> 한 파일입니다</li>
-        <li>모델은 조직이 고른 Azure 리전을 씁니다</li>
-        <li>제약: <strong>서버 1대 = 저장소 1개</strong> · 구조 분석은 Python 중심</li>
-      </ul></div>
+  <div class="found frag" data-frag="4">
+    <div class="f">GitHub App<span>저장소에 한정된 installation token</span></div>
+    <div class="f">Actions · OIDC<span>저장소에 묶인 단기 신원</span></div>
+    <div class="f">Azure OpenAI · Entra ID<span>API key 없이 Entra 토큰으로</span></div>
+    <div class="f hot">장기 시크릿 0개<span>경계를 넘는 것은 단기 자격과 metadata뿐</span></div>
   </div>
+  <p class="cite frag" data-frag="4" style="margin-top:.55rem">
+    webhook 수신자가 아니라 relay 구조이므로 서버를 사내망에 둘 수 있습니다 (self-hosted runner 필요 · 기동 지연 20–40초) ·
+    정책은 .lasthuman.yml 한 파일 · 현재 제약은 서버 1대 = 저장소 1개
+  </p>
 </section>
 
 <!-- ══════ 10 · Closing ══════ -->
