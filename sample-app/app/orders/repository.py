@@ -21,7 +21,7 @@ class OrderRepository:
         placeholders = ", ".join("?" for _ in ACTIVE_STATES)
         return await self.db.query(
             "SELECT * FROM orders WHERE customer_id = ? "
-            f"AND status IN ({placeholders}) ORDER BY created_at DESC LIMIT ?",
+            f"AND status IN ({placeholders}) AND deleted_at IS NULL ORDER BY created_at DESC LIMIT ?",
             (customer_id, *ACTIVE_STATES, limit),
         )
 
