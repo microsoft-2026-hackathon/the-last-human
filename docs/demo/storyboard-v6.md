@@ -165,31 +165,52 @@ ORG의 모듈 분포 → repo의 기록·선언된 담당 → 장애 조사에 �
 
 #### 장면·메시지·English VO
 
-| 컷 | 데모 시간 | 전달할 메시지 | 화면과 실제 동작 | English VO |
+| 컷 | 화면 목표 | 전달할 메시지 | 화면과 실제 동작 | English VO (문장 단위 · 촬영·편집 후 확정) |
 | --- | --- | --- | --- | --- |
-| D01 | 00:00–00:08 · 8s | 사람이 작업을 요청하고 에이전트가 구현·push까지 수행 | 1920×1080 전체 화면을 터미널/Copilot과 브라우저로 분할. 아래 영어 요청을 입력하고 실행. 요청의 `ensure_fresh`, `push`, `open a pull request`를 읽을 수 있게 터미널을 잠깐 확대. 작업 대기는 편집으로 줄이고, 실제 생성된 PR 링크로 끝냄 | We ask GitHub Copilot to add failure handling to token refresh and push the changes. |
-| D02 | 00:08–00:12 · 4s | 방금 요청한 작업이 검토 대상이 됨 | GitHub PR 목록으로 이동. 방금 생성한 PR 한 행의 제목·작성자·브랜치를 확인하고 클릭. 전체 목록의 다른 PR은 강조하지 않음 | The pull request is ready for review. |
-| D03 | 00:12–00:23 · 11s | 검사와 승인이 끝났어도 작성자의 설명 확인이 남아 있음 | 실제 테스트·CI·린트 성공과 다른 리뷰어의 Approve를 먼저 보여 줌. `Why is merging blocked?`에서 비활성 merge 영역으로 이동. 다음 문장에 맞춰 `last-human/human-verified`의 pending / Awaiting author explanation과 Required를 강조 | Tests and lint pass, and a reviewer approves. Why is merging blocked? The author still needs to explain the change from the code. |
-| D04 | 00:23–00:28 · 5s | 작성자 자신의 GitHub 계정으로 면담에 진입 | PR 카드의 `Check this change` → GitHub의 `Authorize the-last-human-app` 계정 선택 화면 → PR 작성자 계정의 `Continue` → 면담 화면. GitHub와 App 아이콘, 제목, Continue를 중심으로 크롭 | The author signs in with their GitHub account. |
-| D05 | 00:28–00:36 · 8s | 호출되는 코드의 동작을 빠뜨린 설명은 보완이 필요 | 두 문항과 근거 입력칸에 답해 한 번에 `Submit answers`. 입력·대기를 압축하고 실제 채점 뒤 첫 문항 `Accepted`, 둘째 `Hold`와 빠진 호출 관계를 읽히는 데 시간을 배정. Hold를 failure나 개인 점수로 바꾸지 않음 | Both answers are submitted. One is accepted; the second misses another retry layer and stays on hold. |
-| D06 | 00:36–00:48 · 12s | 힌트를 따라 코드의 영향을 이해하고 설명만 바로잡음 | Hold의 힌트와 `http_client.py` 발췌를 열어 기존 반복문·`MAX_ATTEMPTS = 3`을 읽음. 첫 문장 뒤 변경된 바깥 반복과 나란히 2초간 보여 줌. 마지막 문장에 맞춰 둘째 문항의 보기·근거만 정정. 코드 편집기에서 파일을 수정하거나 커밋하지 않음 | The hint points to another retry loop. Three attempts at each layer can mean up to nine requests. Only the explanation changes. |
-| D07 | 00:48–00:57 · 9s | 통과한 설명이 현재 커밋에 해당함을 확인한 뒤 작성자가 merge 여부를 결정 | 재제출 → 두 문항 Accepted → 현재 커밋과 설명의 결속에 대한 독립 검증 완료 → 같은 SHA의 `Human-verified`와 실제 필수 status success → 활성 `Merge pull request`. D03과 같은 merge 영역에서 멈춰 작성자의 선택으로 연결. merge 버튼은 클릭하지 않음 | An independent check confirms the accepted explanation matches this commit. The author can now decide whether to merge. |
-| D08 | 00:57–01:06 · 9s | 한 PR을 넘어 조직의 모듈별 확인 범위를 파악 | ORG 대시보드 Demo. 출처 배지와 저장소 범위를 유지. 0명·1명·2명 이상 기록을 가진 **모듈 수** 카드 → 한 카드 선택 → 관련 모듈 행을 보여 줌. 카드 숫자를 조직의 인원 합계처럼 읽지 않음 | Beyond this pull request, the organization dashboard shows which modules have confirmation records and which need attention. |
-| D09 | 01:06–01:16 · 10s | 저장소 단위의 확인 기록을 살펴보고 관련 코드의 공식 문의처를 찾음 | 저장소명을 클릭해 기존 the-last-human repo 대시보드의 Demo로 이동. 대상 저장소명·Demo 배지를 계속 표시하고 auth 모듈의 기록·Declared owner를 강조. 데이터 모드를 바꾸지 않고 기록과 문의처를 읽히는 데 시간을 배정 | At repository level, we review the records and find the declared owner—the contact for that code. |
-| D10 | 01:16–01:28 · 12s | 장애가 생기면 살펴볼 코드와 상의할 출발점으로 활용 | repo 화면을 유지하며 첫 문장 동안 GitHub 사후 분석의 짧은 재시도 문구·출처를 약 4–5초 제시. 이어 auth 모듈 → 현재 CODEOWNERS의 선언된 담당 → 관련 코드로 이동. 마지막은 담당·코드가 함께 보이는 화면. 아래 선택안에서는 이 구간만 Copilot 질의 화면으로 교체 | GitHub's outage showed how retries can amplify recovery traffic. These records help us investigate the code and consult its declared owner. |
+| D01 | 7.5s | 사람이 작업을 요청하고 에이전트가 구현·PR 생성까지 수행 | GitHub Copilot app 화면을 왼쪽에, 흐름 참고 패널을 오른쪽에 합성. 프롬프트 전문을 읽히고, 도구 호출 구간은 빠른 감기로 압축한 뒤 실제 `Pull request created` 줄로 끝냄 | We ask GitHub Copilot to handle failures in token refresh, and it opens a pull request. |
+| D02 | *T1b에 포함* | 방금 요청한 작업이 검토 대상이 됨 | GitHub PR 목록에서 해당 PR 한 행을 클릭. 다른 PR은 강조하지 않음 | The pull request is ready for review. |
+| D03 | 12.0s (D02 포함) | 검사와 승인이 끝났어도 작성자의 설명 확인이 남아 있음 | 실제 CI 성공 4건과 다른 리뷰어의 Approve를 먼저 보여 준 뒤 스크롤. 비활성 Merge와 `last-human/human-verified`의 pending · Awaiting author explanation · **Required**를 강조 | Tests and lint pass, and a reviewer approves.<br>To merge, the author still needs to explain the change from the code. |
+| D04 | 5.5s | 작성자 자신의 GitHub 계정으로 면담에 진입 | PR 카드의 `Check this change` → `Authorize the-last-human-app` 계정 선택 → 작성자 계정의 `Continue` → 면담 화면. 사용하지 않는 계정 행은 가림 | The author signs in with their GitHub account. |
+| D05 | 23.0s (D06 포함) | 호출되는 코드의 동작을 빠뜨린 설명은 보완이 필요 | 두 문항에 답해 한 번에 `Submit answers`. 채점 대기를 압축하고 첫 문항 `Accepted`, 둘째 `Hold`를 읽히는 데 시간을 배정 | In this example there are two questions.<br>The first answer is accepted.<br>Unfortunately, the second is on hold. |
+| D06 | *T3에 포함* | 힌트를 따라 호출 관계를 이해하고 설명만 바로잡음 | `Look here` 안내와 `http_client.py` 발췌를 읽음. 마지막 문장에 맞춰 둘째 문항의 근거만 정정 — 코드는 바꾸지 않음 | The hint points to the called file.<br>The change retries three times; so does the code it calls.<br>So one call can become nine.<br>Only the explanation changes. |
+| D07 | 11.0s | 통과한 설명이 현재 커밋에 해당함을 확인한 뒤 작성자가 merge 여부를 결정 | 재제출 → 두 문항 Accepted → 영수증 → 같은 SHA의 `Human-verified` 필수 status success → **All checks have passed · 6 successful checks** → 활성 `Merge pull request`. merge 버튼은 클릭하지 않음 | An independent check confirms the explanation matches this commit.<br>All checks pass, and the author can decide whether to merge. |
+| D08 | 21.0s (D09 포함) | 한 PR을 넘어 조직 범위를 파악하고, 볼 수 있는 범위가 권한으로 정해짐을 밝힘 | ORG 대시보드 Demo. `Demo data` 배지를 계속 노출. 저장소 목록 → `0 confirmed authors` 카드 선택 → 해당 모듈 행 | Beyond one pull request, every repository your account can open is here.<br>One module has nobody who has confirmed a change yet. |
+| D09 | *T5에 포함* | 저장소 단위의 확인 기록과 예외 처리를 살펴봄 | repo 대시보드 Demo로 이동. `Human-verified before merge` → `Merged without verification`. `Declared owner` 열은 데모 픽스처가 비어 있어 강조하지 않음 | Inside a repository, three quarters of gated changes were human-verified.<br>Three were merged as an exception — recorded, not blocked. |
+| D10 | 12.0s | 장애가 생기면 살펴볼 코드와 상의할 출발점으로 활용 | GitHub 사후 분석의 재시도 문구·출처 → `.github/CODEOWNERS`의 선언된 담당 → 대시보드의 `CAN ANSWER` → `MAX_ATTEMPTS = 3` | GitHub's outage showed how a retry loop can amplify traffic during recovery.<br>The record names who answers for that code, and how many have explained it. |
 
-#### D01 · Copilot에 입력할 요청
+**대본 원칙(2026-09-17 확정)**
+
+- 문장을 짧게 끊고 **문장 사이에 0.8–1.2초 쉼**을 둠. 쉼은 컷 WAV를 문장 단위로 잘라 배치 간격으로 만들며, **나레이션 배속은 쓰지 않음**.
+- 화면이 이미 말하는 문장은 대본에서 뺌. v6 초안 28문장 → **최종 20문장 · 음성 실측 72.4초**.
+- 화면에 없는 기능은 말하지 않음. 초안의 `sorts repositories by risk`는 ORG 목록이 이름순 정렬이라 삭제함(구현은 이슈 #34).
+- `3 × 3 = 9`가 성립하려면 **두 개의 3을 모두 말해야 함**. D06 둘째 문장이 `token.py`와 호출된 코드의 재시도 횟수를 함께 말함.
+- 확인한 사람의 이름은 말하지 않음. `DECLARED OWNER`는 *누구에게 물어볼지*, `CAN ANSWER`는 *설명해 본 사람 수*이며 둘은 다름.
+
+#### D01 · Copilot에 입력할 요청 (실제 사용본)
+
+먼저 이슈를 올리고, Copilot app에는 그 이슈를 참조하는 한 줄만 입력함.
 
 ```text
-In sample-app, add up to three retries with exponential backoff to ensure_fresh()
-for transient identity-provider errors. Return the existing token after exhaustion,
-but raise permanent errors. Keep post_json() unchanged, add tests, push the branch,
-and open a pull request.
+Read issue #32 in microsoft-2026-hackathon/the-last-human and implement it.
+Work only inside sample-app. Add tests, create a branch, commit, push,
+and open a pull request that closes the issue.
 ```
 
-질문의 문구·보기·정답이나 `3 × 3 = 9`를 요청에 넣지 않습니다. 녹화한 요청에서 생성된 실제 PR을
-이후 장면 전체에 사용합니다. 다른 PR로 바꿔 놓고 같은 작업의 결과처럼 이어 붙이지 않습니다.
-준비된 재시도 샘플은 리허설 기준으로 활용하되, 실제 생성된 diff와 질문이 다르면 장면·대사를 먼저 맞춥니다.
+이슈와 요청 어디에도 **질문의 문구·보기·정답이나 `3 × 3 = 9`, `MAX_ATTEMPTS`를 넣지 않음.** 작성자가 호출 계층을
+스스로 보지 못했다는 것이 D05–D06의 논지이므로, 이슈에 답이 적혀 있으면 데모가 성립하지 않음.
+
+**PR 번호 불일치(2026-09-17 결정).** 이 촬영본은 실제로 **PR #33**(`fix/token-refresh-transient`)을 만들었고,
+D02–D07은 앞서 준비된 **PR #28**(`enh/auth-resilience-demo`)을 씀. 제출 시한 때문에 재촬영하지 않기로 하고,
+D01에서는 **"이 요청이 PR을 만들었다"까지만** 보여 주며 브랜치명·PR 번호가 드러나는 구간은 편집에서 제외함.
+두 PR의 변경 파일(`sample-app/app/auth/token.py`, `sample-app/tests/test_token.py`)과 변경 성격은 같음.
+시간이 생기면 #33으로 T1b–T4를 재촬영해 번호를 일치시킴.
+
+#### D01 · 흐름 참고 패널
+
+GHCP 화면 오른쪽에 붙이는 패널은 `.work/demo-v6/assets/flow-panel-d01.png`임.
+`Issue → Agent → [the diff: token.py] --calls--> http_client.py (not in the diff)` 까지만 담고,
+**`3 × 3 = 9`는 넣지 않음** — D05–D06의 답을 D01에서 미리 보여 주게 되기 때문임.
+숫자가 들어간 전체 도해(`assets/flow-diagram.png`)는 D06에 쓸 수 있음.
 
 #### D04–D07 · 로그인과 같은 커밋에서의 보완
 
@@ -264,55 +285,63 @@ GitHub 사례의 연결점은 **복구 중 재시도가 트래픽을 증폭할 �
 원래 장애의 주원인은 용량 문제이며, 이 샘플 PR이 그 장애를 일으켰다거나 TLH가 이를 예방했을 것이라고
 말하지 않습니다. 대시보드는 진단·협업의 출발점을 제공하지 장애를 자동으로 해결하지 않습니다.
 
-#### 음성을 입혔을 때의 길이
+#### 음성 실측 (2026-09-17)
 
-위 English VO는 **165단어**입니다. 코드·화면 라벨·입력 프롬프트와 데모 진입 전 도입 문장은 따로 세지 않습니다.
-v4와 같은 `en-US-AndrewMultilingualNeural`, **rate 0%**를 기준으로 준비하되 아래 수치는
-TTS 실측이 아니라 **150 words/minute 가정의 계산값**입니다.
+`en-US-AndrewMultilingualNeural`, **rate 0%**, 컷별 WAV(`.work/demo-v6/voice/cuts/`). 아래는 계산값이 아니라 **실측**임.
 
-| 컷 | 화면 예산 | VO 단어 수 | 발화 예상 · 150 wpm | 발화 외 시간 · 진입·침묵 포함 |
-| --- | ---: | ---: | ---: | ---: |
-| D01 | 8s | 15 | 6.0s | 2.0s |
-| D02 | 4s | 7 | 2.8s | 1.2s |
-| D03 | 11s | 23 | 9.2s | 1.8s |
-| D04 | 5s | 8 | 3.2s | 1.8s |
-| D05 | 8s | 17 | 6.8s | 1.2s |
-| D06 | 12s | 22 | 8.8s | 3.2s |
-| D07 | 9s | 18 | 7.2s | 1.8s |
-| D08 | 9s | 17 | 6.8s | 2.2s |
-| D09 | 10s | 17 | 6.8s | 3.2s |
-| D10 | 12s | 21 | 8.4s | 3.6s |
-| **합계** | **88s** | **165** | **66.0s** | **22.0s** |
+| 컷 | 문장 수 | 음성 실측 |
+| --- | ---: | ---: |
+| D01 | 1 | 6.2s |
+| D02 | 1 | 2.6s |
+| D03 | 2 | 6.8s |
+| D04 | 1 | 2.4s |
+| D05 | 3 | 7.8s |
+| D06 | 4 | 10.3s |
+| D07 | 2 | 8.2s |
+| D08 | 2 | 9.0s |
+| D09 | 2 | 9.7s |
+| D10 | 2 | 9.4s |
+| **합계** | **20** | **72.4s** |
 
-- 계산식은 `단어 수 ÷ 분당 단어 수 × 60`입니다. 145–165 wpm에서는 발화만 **60.0–68.3초**입니다.
-- D06에서 코드 관계를 읽는 침묵 2초, D07의 활성 merge 화면 0.5초, D10 끝 1초를 확보합니다.
-  이 3.5초를 포함한 음성 트랙의 발화·명시 침묵은 약 **63.5–71.8초**이며, 150 wpm 기준으로는 **69.5초**입니다.
-  문장 호흡은 실제 TTS에 따라 달라집니다.
-- **음성은 화면 위에 겹치므로 최종 영상은 88초입니다.** 88초에 음성 길이를 더하지 않습니다.
-  남은 시간에는 입력·클릭·코드 읽기·상태 확인을 보여 줍니다. 대시보드·장애 대응에 마지막 **31초**를 배정했습니다.
-- 음성은 각 컷 진입 후 약 0.3–0.5초에 시작합니다. 보완 문장을 끝내기 전에 하이라이트를 풀거나
-  스크롤하지 않습니다. TTS가 길면 대본을 줄이고, 음성 속도를 올려 맞추지 않습니다.
-- 표의 발화 외 시간에는 컷 진입과 명시 침묵도 포함되므로 전부 추가 독해 시간으로 쓰지 않습니다.
-  D05는 입력·대기를 줄여 두 결과와 빠진 근거를 읽히고, D06은 두 반복문을 읽는 2초를 보존합니다.
-  전체 음성이 88초보다 짧다는 이유만으로 컷별 읽기 시간이 충분하다고 판단하지 않습니다.
-- D09는 데이터 모드 전환 없이 현재 10초 배정을 유지합니다. 저장소명·Demo 배지를 남긴 채 모듈의
-  확인 기록과 선언된 담당을 읽히며, D10의 인용·출처·문의처를 읽는 시간을 미리 줄이지 않습니다.
-- D03은 관객의 `왜?`에 답하도록 11초를 배정했습니다. 80초 축약본이 필요하면 대사를 먼저 줄이고
-  TTS를 재측정합니다. 현재 대사에서 화면만 8초 잘라 같은 읽기 속도를 유지할 수 있다고 가정하지 않습니다.
-  90초까지 필요하면 D03과 D06에 각각 1초를 더합니다. 이 경우 뒤쪽 타임코드도 함께 다시 계산합니다.
-- 촬영 후 컷별 음성을 실제 합성해 길이를 측정하고 이 표의 예상값을 실측으로 교체합니다.
-  전체 덱의 3분 30초 초과 문제는 별도이며, 이번 88초 슬롯 유지로 해결됐다고 표시하지 않습니다.
+- 최종 영상 길이 ≈ `음성 72.4 + 문장 사이 쉼 13회 + 컷별 도입·여운 7회`. **목표는 90초 이내**이며 88초 슬롯을 그대로 씀.
+- 쉼은 0.8–1.0초, 페이지가 바뀌는 자리만 1.2초까지. 컷 도입 0.7초, 끝 여운 0.7–0.8초.
+- **TTS가 길면 대본을 줄이며, 음성 속도를 올려 맞추지 않음.** 이 원칙 때문에 v6 초안 28문장을 20문장으로 줄임.
+- 길이가 더 필요하면 다음 순서로 줄임 — ① D05 첫 문장 ② D10 블로그 인용 구간 ③ 컷 여운.
 
 #### 촬영 단위와 편집 원칙
 
-| 테이크 | 컷 | 확보할 실제 화면 |
+| 테이크 | 컷 | 확보할 실제 화면 | raw |
+| --- | --- | --- | --- |
+| T1 | D01 | Copilot app의 프롬프트·작업·PR 생성. 흐름 참고 패널을 오른쪽에 합성 | `~/Desktop/ghcp-develop.mov` → 합성본 `raw/t1-copilot.mov` |
+| T1b | D02–D03 | PR 목록 한 행, CI 4건·Approve, `last-human/human-verified` pending **Required**, 비활성 Merge | `t1b-pr.mov` |
+| T2 | D04 | GitHub 계정 선택·승인과 실제 면담 진입 | `t2-signin.mov` |
+| T3 | D05–D06 | 일괄 제출, Accepted/Hold, 힌트·발췌, 같은 커밋에서 설명 보완 | `t3-answer-hold.mov` |
+| T4 | D07 | 재제출 이후 실제 검증·게시 완료, **All checks have passed · 6 successful**, merge 가능 상태 | `t4a-resubmit` · `t4b-accepted` · `t4c-verified` · `t4d-checks` |
+| T5 | D08–D09 | ORG Demo의 버킷·필터·저장소 이동, repo Demo의 KPI 카드. `Demo` 배지 상시 노출 | `t5-dashboards.mov` |
+| T6 | D10 | 출처가 있는 장애 문구, CODEOWNERS의 선언된 담당, 대시보드 `CAN ANSWER`, `MAX_ATTEMPTS = 3` | `t6-investigate.mov` (+ `t5-dashboards.mov` 한 컷) |
+
+#### 촬영·편집에서 확정된 것 (2026-09-17)
+
+**측정의 기준 타임라인.** `screencapture -v`가 만드는 raw는 VFR이라 `ffmpeg -ss <t> -i raw.mov`(fast seek)로 뽑은
+프레임이 렌더러 타임라인(`fps=30,trim=…`)과 **최대 2–3초 어긋남.** 테이크마다 CFR 프록시를 먼저 만들고
+시각·좌표는 프록시에서만 잼. `events/<take>.json`의 `t`는 프록시보다 0.8–1.0초 빠름(캡처 시작 지연).
+
+**박스 규칙.** 편집 전에 박스만 얹은 시트(`out/<take>-boxes.jpg`)를 먼저 확인하고 확정한 뒤 편집함.
+행 단위 스포트라이트는 컨테이너 테두리 기준 좌우 대칭, 세로는 대상 잉크와 위아래 요소의 중간점,
+배지처럼 작은 대상은 중심 기준 좌우 같은 거리로 잡음. 좌표는 눈대중하지 않고 픽셀로 실측함.
+
+**화면에 담지 않는 것.** 사용하지 않는 계정 행, Copilot app 사이드바의 무관한 프로젝트명과 계정명,
+OAuth code/state, 터미널의 토큰·환경 파일. `Demo` 배지는 계속 노출하되 하이라이트하지 않음.
+
+**촬영본의 한계로 남은 것.**
+
+| 항목 | 내용 | 해소 방법 |
 | --- | --- | --- |
-| T1 | D01–D03 | 분할 작업 화면, 실제 생성 PR, 목록 한 행, CI·Approve·필수 gate 대기 |
-| T2 | D04 | GitHub 계정 선택·승인과 실제 면담 진입 |
-| T3 | D05–D06 | 일괄 제출, Accepted/Hold, 근거 발췌, 같은 커밋에서 설명 보완 |
-| T4 | D07 | 보완 제출 이후 실제 검증·게시 완료와 merge 가능 상태 |
-| T5 | D08–D09 | ORG Demo의 필터·저장소 이동, repo Demo의 모듈 기록·Declared owner, 대상·Demo 배지 유지 |
-| T6 | D10 | 출처가 있는 장애 문구, 선언된 담당·코드 또는 실제 Copilot 질의 결과 |
+| T3 정지 프레임 | Q2가 Hold 상태로 화면에 남아 있는 실촬 구간이 1초뿐이라, 힌트·발췌 구간이 정지 프레임이 됨 | 힌트를 읽으며 실제로 스크롤하는 꼬리 재촬영 |
+| Q2의 틀린 보기 | 정정 클릭이 스크롤보다 먼저 일어나 **틀린 보기가 화면에 찍히지 않음.** D05는 Hold 배지만 짚음 | 재촬영 |
+| `Declared owner` | repo 대시보드 데모 픽스처가 비어 있어 담당자를 CODEOWNERS 원문으로 우회함 | 이슈 #35 |
+| ORG 롤업·위험도 정렬 | 미구현이라 D08 대본에서 해당 표현을 뺌 | 이슈 #34 |
+| 조사 동선 | zone 행에서 영수증·코드로 가는 클릭 동선이 없음 | 이슈 #36 |
 
 - v4의 `.work/demo-v4/rec/out/T1–T7.mp4`와 `rec/edit/T*.json`은 화면 강조·읽기 속도의 참고입니다.
   새 컷의 기준은 이 DEMO 절이며, v4의 코드 수정·새 커밋·merge·0→1 장면을 그대로 재사용하지 않습니다.
