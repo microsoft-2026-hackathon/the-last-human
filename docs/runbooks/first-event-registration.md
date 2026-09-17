@@ -143,7 +143,13 @@ repo:<owner>/<repo>:ref:refs/heads/main
 repo:<owner>@<owner_id>/<repo>@<repository_id>:ref:refs/heads/main
 ```
 
-Both are compared exactly, in initial and tenant-bound verification, against
+For `pull_request_target`, the corresponding legacy or immutable `:pull_request`
+subject is also accepted. Its separate signed `ref` and `workflow_ref` must still
+identify trusted `main`. Ordinary `pull_request` events remain rejected, and
+`workflow_dispatch` continues to require a ref-scoped subject. Repository
+names/IDs alone do not authorize a PR-head workflow.
+
+Subjects are compared exactly, in initial and tenant-bound verification, against
 the signed repository name, numeric IDs and trusted ref. Different IDs/names,
 other refs, environment subjects and arbitrary custom subject templates are
 not accepted. Signature, issuer, time, audience and workflow checks remain
