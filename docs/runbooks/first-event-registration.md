@@ -262,6 +262,19 @@ background health, active registered/runtime tenant counts, and worker limits.
 Those counts are not the total capacity count including retired rows. A stopped
 scheduler or degraded background work is not reported as healthy.
 
+Tenant operations are counted for retirement without serializing their entire
+execution behind one lifecycle mutex. Slow snapshot/model/publication work must
+not block another authenticated request from admitting or polling an Actions job
+in the same tenant. The job can remain `queued` or `running`; this is not a
+successful verification result. Shutdown stops new admission and drains existing
+operations and executors before a replacement runtime opens the same Store.
+
+Relay transport errors identify the stage (`OIDC fetch`, `event submission`, or
+`job polling`) without logging tokens, payloads or credential-bearing URLs.
+Per-request timeouts and the overall job polling deadline are unchanged. A
+transport timeout is separate from the risk result or an author's pending
+explanation; do not lower risk rules or increase all timeouts to conceal it.
+
 Registry rows and tenant Stores survive process restart; memory sessions do not.
 Use real, separate paths: symlink/reparse-point ancestors, parent traversal,
 hardlinked DB/lock files, and aliased source/registry/destination/lock paths are
