@@ -5,6 +5,8 @@
   change without touching markup. Counts only; the only names on this page are
   CODEOWNERS owners, which the repository already publishes.
 -#}
+{% autoescape true %}
+{% set source = dashboard_source|default('legacy') %}
 {% set copy = {
   "product": "The Last Human",
   "subtitle": "Last Human dashboard",
@@ -53,7 +55,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="csrf-token" content="{{ csrf_token }}">
 <title>{{ copy.subtitle }} · {{ repo }}</title>
-<style>
+<style nonce="{{ csp_nonce|default('') }}">
   :root {
     color-scheme: light;
     --bg: #F5F7F6; --surface: #FFFFFF; --ink: #152C3B; --ink-2: #3B4E5C; --muted: #64737D;
@@ -95,6 +97,11 @@
   .btn { font: inherit; font-size: .82rem; padding: 5px 11px; border-radius: var(--radius); border: 1px solid var(--line); background: var(--surface); color: var(--ink); cursor: pointer; }
   .btn:hover { background: var(--tint); }
   form { margin: 0; }
+  .org-link { font-size: .85rem; text-decoration: underline; text-underline-offset: 3px; }
+  .source-switch { display: inline-flex; flex-wrap: wrap; gap: 3px; padding: 3px; border: 1px solid var(--line); border-radius: var(--radius); background: var(--line-soft); }
+  .source-switch a { padding: 5px 11px; border-radius: 3px; font-size: .82rem; font-weight: 600; }
+  .source-switch a[aria-current="page"] { background: var(--surface); box-shadow: 0 1px 3px #152C3B14; }
+  .repo { overflow-wrap: anywhere; }
 
   .headline { display: flex; align-items: flex-end; justify-content: space-between; gap: 16px; flex-wrap: wrap; margin-bottom: 14px; }
   .headline h1 { margin: 0; font-size: 1.25rem; font-weight: 700; letter-spacing: -.01em; }
@@ -159,8 +166,9 @@
       <div class="name">{{ copy.product }}<small>{{ copy.subtitle }}</small></div>
     </div>
     <div class="sep" aria-hidden="true"></div>
-    <div class="repo">{{ repo }}{% if dashboard.demo_seeded %} <span class="chip demo" title="{{ copy.demo_title }}">{{ copy.demo_chip }}</span>{% endif %}</div>
+    <div class="repo">{{ repo }}{% if source == 'demo' %} <span class="chip demo" title="Sample data only">{{ copy.demo_chip }}</span>{% elif source == 'repo' %} <span class="chip">Actual data</span>{% elif dashboard.demo_seeded %} <span class="chip demo" title="{{ copy.demo_title }}">{{ copy.demo_chip }}</span>{% endif %}</div>
     <div class="right">
+      {% if organization_url|default('') %}<a class="org-link" href="{{ organization_url }}">Organization</a>{% endif %}
       <span class="who">{{ copy.signed_in }} {{ actor_login }}</span>
       <form method="post" action="{{ url_for('logout') }}">
         <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
@@ -171,6 +179,12 @@
 
   <div class="headline">
     <h1>{{ copy.headline }}</h1>
+    {% if dashboard_source_links|default({}) %}
+    <nav class="source-switch" aria-label="Data source">
+      <a href="{{ dashboard_source_links.actual }}"{% if source == 'repo' %} aria-current="page"{% endif %}>Actual data</a>
+      <a href="{{ dashboard_source_links.demo }}"{% if source == 'demo' %} aria-current="page"{% endif %}>Demo</a>
+    </nav>
+    {% endif %}
     <span class="gen">{{ copy.window|format(dashboard.window_days) }} · {{ copy.generated }} <span class="mono">{{ dashboard.generated_at }}</span></span>
   </div>
 
@@ -228,7 +242,7 @@
             <td class="num">{% if zone.gated %}{{ zone.gated }}{% else %}—{% endif %}</td>
             <td class="num">{% if zone.gated %}{{ zone.attested }}<span class="of">/ {{ zone.gated }}{% if zone.rate is not none %} · {{ (zone.rate * 100)|round|int }}%{% endif %}</span>{% else %}—{% endif %}</td>
             <td class="num">{% if zone.forced %}<span class="forced">{{ zone.forced }}</span>{% else %}0{% endif %}</td>
-            <td class="prs">{% for pr in zone.prs %}<a href="https://github.com/{{ repo }}/pull/{{ pr }}">#{{ pr }}</a>{% endfor %}</td>
+            <td class="prs">{% for pr in zone.prs %}{% if source == 'demo' %}<span class="mono">#{{ pr }} </span>{% else %}<a href="https://github.com/{{ repo }}/pull/{{ pr }}">#{{ pr }}</a>{% endif %}{% endfor %}</td>
           </tr>
         {% endfor %}
         </tbody>
@@ -250,7 +264,7 @@
           <span class="e">{{ action.from }} → {{ action.to }} {{ copy.actions_unit }}</span>
         </li>
       {% else %}
-        <li class="none">{% if dashboard.gated_total == 0 %}{{ copy.actions_none_empty }}{% else %}{{ copy.actions_none_ok }}{% endif %}</li>
+        <li class="none">{% if source == 'demo' %}No suggested actions{% elif dashboard.gated_total == 0 %}{{ copy.actions_none_empty }}{% else %}{{ copy.actions_none_ok }}{% endif %}</li>
       {% endfor %}
       </ul>
     </div>
@@ -264,3 +278,4 @@
 </div>
 </body>
 </html>
+{% endautoescape %}

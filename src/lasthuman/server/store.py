@@ -984,17 +984,20 @@ class Store:
             ).fetchall()
         return tuple((int(row["pr"]), str(row["snapshot_id"])) for row in rows)
 
-    def load_merges_since(self, *, since: str) -> tuple[StoredMerge, ...]:
+    def load_merges_since(self, *, since: str, until: str | None = None) -> tuple[StoredMerge, ...]:
+        """머지 시각의 포함 구간 조회. until을 생략하면 기존처럼 상한을 두지 않는다."""
+        query = """
+            SELECT *
+            FROM merges
+            WHERE merged_at IS NOT NULL AND merged_at >= ?
+        """
+        parameters: list[str] = [since]
+        if until is not None:
+            query += " AND merged_at <= ?"
+            parameters.append(until)
+        query += " ORDER BY merged_at ASC, pr ASC"
         with self._read_connection() as connection:
-            rows = connection.execute(
-                """
-                SELECT *
-                FROM merges
-                WHERE merged_at IS NOT NULL AND merged_at >= ?
-                ORDER BY merged_at ASC, pr ASC
-                """,
-                (since,),
-            ).fetchall()
+            rows = connection.execute(query, parameters).fetchall()
         return tuple(_merge_from_row(row) for row in rows)
 
     def _prepare_path(self) -> None:

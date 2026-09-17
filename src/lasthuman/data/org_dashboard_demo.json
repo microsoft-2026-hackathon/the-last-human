@@ -1,0 +1,40 @@
+{
+  "repositories": [
+    {
+      "id": "sample-payments",
+      "name": "sample-payments",
+      "modules": [
+        {"zone": "auth/", "gated": 5, "attested": 1, "answerers": 1, "owner": "@sample-organization/payments"},
+        {"zone": "ledger/", "gated": 10, "attested": 8, "answerers": 3, "owner": "@sample-organization/payments"}
+      ]
+    },
+    {
+      "id": "sample-orders",
+      "name": "sample-orders",
+      "modules": [
+        {"zone": "checkout/", "gated": 3, "attested": 3, "answerers": 2, "owner": "@sample-organization/orders"},
+        {"zone": "shipping/", "gated": 5, "attested": 0, "answerers": 0, "owner": "@sample-organization/orders"}
+      ]
+    },
+    {
+      "id": "sample-platform",
+      "name": "sample-platform",
+      "modules": [
+        {"zone": "events/", "gated": null, "attested": null, "answerers": null, "owner": "@sample-organization/platform"}
+      ]
+    }
+  ],
+  "repository_dashboard": {
+    "merged_total": 15,
+    "gated_total": 12,
+    "attested_total": 9,
+    "forced_total": 3,
+    "waiting_total": 1,
+    "measured_total": 15,
+    "unmeasured_total": 0,
+    "zones": [
+      {"zone": "auth/", "merged": 5, "gated": 5, "attested": 1, "forced": 3, "answerers": 1},
+      {"zone": "ledger/", "merged": 10, "gated": 10, "attested": 8, "forced": 2, "answerers": 3}
+    ]
+  }
+}
