@@ -1,12 +1,16 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from html.parser import HTMLParser
 from pathlib import Path
 from urllib.parse import parse_qs, urlencode, urlsplit
 
 import pytest
 from jinja2 import Environment, FileSystemLoader, StrictUndefined
+
+from test_app_service import make_settings
+from test_org_dashboard import repository_demo_zone, set_repository_demo_zones
+from lasthuman.server.organization import repository_demo
 
 TEMPLATE_DIR = Path(__file__).resolve().parents[1] / "src" / "lasthuman" / "templates"
 ORG_PATH = "/repos/41/dashboard/organization"
@@ -496,3 +500,72 @@ def test_repository_optional_empty_controls_and_autoescaping() -> None:
     assert not page.by_class("a", "org-link")
     assert page.select("title")[0].words == f"Last Human dashboard · {text}"
     assert page.select("style")[0].attrs["nonce"] == "repo-render-nonce"
+
+
+@pytest.mark.parametrize("source", ["demo", "repo", "legacy"])
+def test_repository_metadata_actions_and_evidence_keep_source_specific_rendering(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, source: str,
+) -> None:
+    owner = '@sample-organization/<script>alert("team")</script> & group'
+    zone = '<script>alert("zone")</script>/'
+    set_repository_demo_zones(monkeypatch, [
+        repository_demo_zone(zone="quiet/", gated=0, attested=0, answerers=0),
+        repository_demo_zone(zone="ledger/", answerers=3, forced=2),
+        repository_demo_zone(zone=zone, owner=owner),
+        repository_demo_zone(zone="exceptions/", answerers=0, attested=0, forced=1),
+    ])
+    dashboard = repository_demo(replace(make_settings(tmp_path), org_demo_enabled=True))
+    html = _render_repo(dashboard=dashboard, dashboard_source=source)
+    page = Page(html)
+
+    assert [cell.words for cell in page.by_class("td", "zone")] == [
+        "exceptions/", zone, "ledger/", "quiet/",
+    ]
+    assert [cell.words for cell in page.by_class("td", "owner")] == [
+        "@sample-organization/payments", owner, "@sample-organization/payments",
+        "@sample-organization/payments",
+    ]
+    evidence_text = "#907 #903 #901" if source == "demo" else "#907#903#901"
+    assert [cell.words for cell in page.by_class("td", "prs")] == [evidence_text] * 4
+    evidence_links = [
+        link for link in page.select("a") if "/pull/" in (link.attrs.get("href") or "")
+    ]
+    if source == "demo":
+        assert evidence_links == []
+    else:
+        assert [link.attrs["href"] for link in evidence_links] == [
+            f"https://github.com/acme/the-last-human/pull/{pr}"
+            for _row in range(4) for pr in (907, 903, 901)
+        ]
+    assert [span.words for span in page.by_class("span", "z")] == [
+        "exceptions/", zone, "ledger/",
+    ]
+    assert [span.words for span in page.by_class("span", "a")] == [
+        "Verify 1 exception after the fact · owner @sample-organization/payments",
+        f"One more verified change in this zone · owner {owner}",
+        "Verify 2 exceptions after the fact · owner @sample-organization/payments",
+    ]
+    assert not page.by_class("li", "none")
+    assert not page.select("script") and "&lt;script&gt;" in html
+    assert "No suggested actions" not in html
+
+
+@pytest.mark.parametrize("source", ["demo", "repo", "legacy"])
+@pytest.mark.parametrize(
+    ("gated", "message"),
+    [
+        (0, "No gated merges in this window yet. The first verified merge lights a zone."),
+        (5, "Nothing to raise: no exceptions, and every gated zone has at least two people who can answer."),
+    ],
+)
+def test_repository_action_empty_copy_is_shared_by_demo_actual_and_legacy(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, source: str, gated: int, message: str,
+) -> None:
+    set_repository_demo_zones(monkeypatch, [
+        repository_demo_zone(gated=gated, attested=0, answerers=2 if gated else 0),
+    ])
+    dashboard = repository_demo(replace(make_settings(tmp_path), org_demo_enabled=True))
+    dashboard["gated_total"] = gated
+    assert dashboard["actions"] == []
+    page = Page(_render_repo(dashboard=dashboard, dashboard_source=source))
+    assert [item.words for item in page.by_class("li", "none")] == [message]

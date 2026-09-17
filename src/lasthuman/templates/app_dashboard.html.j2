@@ -264,7 +264,7 @@
           <span class="e">{{ action.from }} → {{ action.to }} {{ copy.actions_unit }}</span>
         </li>
       {% else %}
-        <li class="none">{% if source == 'demo' %}No suggested actions{% elif dashboard.gated_total == 0 %}{{ copy.actions_none_empty }}{% else %}{{ copy.actions_none_ok }}{% endif %}</li>
+        <li class="none">{% if dashboard.gated_total == 0 %}{{ copy.actions_none_empty }}{% else %}{{ copy.actions_none_ok }}{% endif %}</li>
       {% endfor %}
       </ul>
     </div>

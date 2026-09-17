@@ -197,7 +197,12 @@ def test_actual_skips_configured_seed_and_default_remains_additive(
     assert dashboard_service.dashboard(include_seed=False, as_of=AS_OF) == actual
 
 
-def test_pinned_actual_preserves_premerge_anchor_and_distinct_actor_semantics(dashboard_service: BotService) -> None:
+def test_pinned_actual_preserves_premerge_anchor_and_distinct_actor_semantics(
+    dashboard_service: BotService, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        "lasthuman.server.organization._demo_fixture", lambda: pytest.fail("Actual loaded demo metadata"),
+    )
     first = save_snapshot(dashboard_service, 1)
     save_merge(dashboard_service.store, 1, MERGED_AT, first)
     save_receipt(dashboard_service, first, 7, (AUTH_ANCHOR, AUTH_ANCHOR))
@@ -239,6 +244,12 @@ def test_pinned_actual_preserves_premerge_anchor_and_distinct_actor_semantics(da
     assert rows["app/orders/"]["gated"] == rows["app/orders/"]["answerers"] == 0
     assert rows["app/orders/"]["sample_state"] == "no_data"
     assert rows["app/auth/"]["rate"] is None
+    assert [row["zone"] for row in payload["zones"]] == ["docs/", "app/auth/", "app/orders/"]
+    assert rows["docs/"]["prs"] == rows["app/auth/"]["prs"] == [4, 3, 2, 1]
+    assert all(row["owner"] == "" for row in rows.values())
+    assert payload["actions"] == [{
+        "zone": "docs/", "owner": "", "action": "One more verified change in this zone", "from": 0, "to": 1,
+    }]
     assert "private-actor-" not in json.dumps(payload)
     assert "successful_answers" not in payload
     assert dashboard_service.store.path.read_bytes() == before

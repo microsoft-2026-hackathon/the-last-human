@@ -22,6 +22,7 @@ from werkzeug.test import TestResponse
 
 from registration_transport import Call, Integration, Repository, integration, response
 from test_app_http import FakeOAuth, FakeReader, FakeVerifier, FakeGitHub, make_settings, make_snapshot, login
+from test_org_dashboard import repository_demo_zone, set_repository_demo_zones
 from lasthuman.server.app import create_app
 from lasthuman.server.auth import AuthError, normalize_next_path
 from lasthuman.server.gateway import GatewayRuntimeError, TenantContainer, _rewrite_location
@@ -448,12 +449,20 @@ def test_source_isolation_legacy_seed_and_org_demo_repo_demo_then_actual_journey
     before = [database_contents(tenant) for tenant in (one, two)]
     original_one = one.service.dashboard
     original_two = two.service.dashboard
+    original_merges = one.service.store.load_merges_since
     original_inventory = harness.runtime.registry.list_registered
     monkeypatch.setattr(one.service, "dashboard", lambda **_kwargs: pytest.fail("Demo read anchor business records"))
     monkeypatch.setattr(two.service, "dashboard", lambda **_kwargs: pytest.fail("Demo read peer business records"))
     monkeypatch.setattr(
+        one.service.store, "load_merges_since", lambda **_kwargs: pytest.fail("Demo read actual merge history"),
+    )
+    monkeypatch.setattr(
         harness.runtime.registry, "list_registered", lambda: pytest.fail("Demo enumerated actual repository inventory"),
     )
+    set_repository_demo_zones(monkeypatch, [
+        repository_demo_zone(zone="ledger/", owner="@sample-organization/platform", answerers=3, forced=2),
+        repository_demo_zone(),
+    ])
     start = len(harness.runtime.http.calls)
     _, demo = rendered_view(browser, ORG + "?source=demo&bucket=many")
     assert demo.summary == Summary(zero=1, one=1, many=2)
@@ -465,12 +474,29 @@ def test_source_isolation_legacy_seed_and_org_demo_repo_demo_then_actual_journey
     assert one.settings.repository in html and "Demo data" in html
     assert "sample-payments" not in html and "legacy-only/" not in html
     assert "/pull/" not in html and "/receipts/" not in html
+    assert "@sample-organization/payments" in html and "@sample-organization/platform" in html
+    assert html.index("#907") < html.index("#903") < html.index("#901")
+    assert "One more verified change in this zone" in html
+    assert "Verify 2 exceptions after the fact" in html
     payload = browser.get("/repos/101/api/dashboard?data=demo", headers={"X-CSRF-Token": csrf}).get_json()
     assert payload["source"] == "demo" and payload["repo"] == one.settings.repository
-    assert all(row["prs"] == [] for row in payload["zones"])
+    assert [(row["zone"], row["owner"], row["prs"]) for row in payload["zones"]] == [
+        ("auth/", "@sample-organization/payments", [907, 903, 901]),
+        ("ledger/", "@sample-organization/platform", [907, 903, 901]),
+    ]
+    assert payload["actions"] == [
+        {"zone": "auth/", "owner": "@sample-organization/payments",
+         "action": "One more verified change in this zone", "from": 1, "to": 2},
+        {"zone": "ledger/", "owner": "@sample-organization/platform",
+         "action": "Verify 2 exceptions after the fact", "from": 3, "to": 4},
+    ]
     assert before == [database_contents(tenant) for tenant in (one, two)]
     monkeypatch.setattr(one.service, "dashboard", original_one)
     monkeypatch.setattr(two.service, "dashboard", original_two)
+    monkeypatch.setattr(one.service.store, "load_merges_since", original_merges)
+    monkeypatch.setattr(
+        "lasthuman.server.organization._demo_fixture", lambda: pytest.fail("Actual read the demo fixture"),
+    )
     actual_payload = browser.get("/repos/101/api/dashboard?data=repo", headers={"X-CSRF-Token": csrf}).get_json()
     assert actual_payload["source"] == "repo" and actual_payload["gated_total"] == 1
     assert actual_payload["demo_seeded"] is False
@@ -652,7 +678,30 @@ def test_fixed_mode_uses_only_configured_repository_and_sample_destination(
         assert actual.repositories[0].status == "No measured data"
         _, demo = rendered_view(browser, "/dashboard/organization?source=demo")
         assert {repo.dashboard_url for repo in demo.repositories} == {"/dashboard?data=demo"}
-        assert browser.get("/dashboard?data=demo").status_code == 200
+        with monkeypatch.context() as demo_only:
+            set_repository_demo_zones(demo_only, [repository_demo_zone(forced=1)])
+            demo_only.setattr(
+                service, "dashboard", lambda **_kwargs: pytest.fail("Demo invoked Actual dashboard provider"),
+            )
+            demo_only.setattr(
+                service.store, "load_merges_since", lambda **_kwargs: pytest.fail("Demo read Actual store"),
+            )
+            assert browser.get("/dashboard?data=demo").status_code == 200
+            cookie = browser.get_cookie(settings.session_cookie_name)
+            assert cookie is not None
+            session = app.extensions["auth"].sessions.get(cookie.value)
+            assert session is not None
+            response = browser.get(
+                "/api/dashboard?data=demo", headers={"X-CSRF-Token": session.csrf_token},
+            )
+            assert response.status_code == 200
+            payload = response.get_json()
+            assert payload["zones"][0]["owner"] == "@sample-organization/payments"
+            assert payload["zones"][0]["prs"] == [907, 903, 901]
+            assert payload["actions"] == [{
+                "zone": "auth/", "owner": "@sample-organization/payments",
+                "action": "Verify 1 exception after the fact", "from": 1, "to": 2,
+            }]
         assert browser.get("/dashboard?data=repo").status_code == 200
     finally:
         app.extensions["runtime"].shutdown()

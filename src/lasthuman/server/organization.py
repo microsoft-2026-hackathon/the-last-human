@@ -15,7 +15,7 @@ from urllib.parse import urlencode
 import requests
 
 from .config import Settings
-from .coverage import MIN_SAMPLE
+from .coverage import MIN_SAMPLE, ZoneCounts, actions_for, risk_rank
 from .github import GitHubClient, GitHubError
 from .service import BotError, BotService
 
@@ -436,26 +436,46 @@ def demo_repositories(dashboard_url: str) -> tuple[RepositoryView, ...]:
 
 
 def repository_demo(settings: Settings, *, as_of: datetime | None = None) -> dict[str, object]:
+    """Render fixture metadata with the same zone and action ordering as Actual."""
     require_demo(settings)
     raw = _demo_fixture().get("repository_dashboard")
     if not isinstance(raw, dict) or not isinstance(raw.get("zones"), list):
         raise ValueError("Invalid repository demo")
-    zones: list[dict[str, object]] = []
+    rows: list[tuple[ZoneCounts, dict[str, object]]] = []
     for row in raw["zones"]:
         if not isinstance(row, dict):
             raise ValueError("Invalid repository demo row")
-        gated, attested = _count(row.get("gated")), _count(row.get("attested"))
+        zone, owner, prs = row.get("zone"), row.get("owner", ""), row.get("prs", [])
+        if not isinstance(zone, str) or not zone:
+            raise ValueError("Invalid repository demo zone")
+        if not isinstance(owner, str):
+            raise ValueError("Invalid repository demo owner")
+        if not isinstance(prs, list) or any(
+            isinstance(pr, bool) or not isinstance(pr, int) or pr <= 0 for pr in prs
+        ):
+            raise ValueError("Invalid repository demo PRs")
+        gated = _count(0 if row.get("gated") is None else row["gated"])
+        attested = _count(0 if not gated and row.get("attested") is None else row.get("attested"))
         if attested > gated:
             raise ValueError("Invalid repository demo counters")
-        zones.append({
-            **row, "prs": [], "owner": "", "rate": None if gated < MIN_SAMPLE else attested / gated,
+        counts = ZoneCounts(
+            zone=zone, owner=owner, prs=sorted(prs, reverse=True),
+            merged=_count(row.get("merged")), gated=gated, attested=attested,
+            forced=_count(row.get("forced")),
+            answerers=_count(0 if not gated and row.get("answerers") is None else row.get("answerers")),
+        )
+        rows.append((counts, {
+            **row, "prs": counts.prs, "owner": owner, "rate": None if gated < MIN_SAMPLE else attested / gated,
             "low_sample": 0 < gated < MIN_SAMPLE,
             "sample_state": "no_data" if not gated else "small_sample" if gated < MIN_SAMPLE else "measured",
-        })
+        }))
+    rows.sort(key=lambda item: risk_rank(item[0]))
+    zones = [zone for _counts, zone in rows]
     gated = _count(raw.get("gated_total"))
     attested = _count(raw.get("attested_total"))
     return {
-        **raw, "zones": zones, "actions": [], "repo": settings.repository, "source": "demo",
+        **raw, "zones": zones, "actions": actions_for(counts for counts, _zone in rows),
+        "repo": settings.repository, "source": "demo",
         "generated_at": (as_of or datetime.now(timezone.utc)).strftime("%Y-%m-%dT%H:%M:%SZ"),
         "window_days": 30, "min_sample": MIN_SAMPLE, "demo_seeded": False,
         "attested_rate": None if gated < MIN_SAMPLE else attested / gated,

@@ -20,6 +20,20 @@ from lasthuman.server.organization import (
 AS_OF = datetime(2026, 9, 17, 3, tzinfo=timezone.utc)
 
 
+def repository_demo_zone(**overrides: object) -> dict[str, object]:
+    return {
+        "zone": "auth/", "owner": "@sample-organization/payments", "prs": [901, 907, 903],
+        "merged": 5, "gated": 5, "attested": 1, "forced": 0, "answerers": 1,
+        **overrides,
+    }
+
+
+def set_repository_demo_zones(monkeypatch: pytest.MonkeyPatch, zones: list[dict[str, object]]) -> None:
+    fixture = json.loads(files("lasthuman").joinpath("data/org_dashboard_demo.json").read_text(encoding="utf-8"))
+    fixture["repository_dashboard"]["zones"] = zones
+    monkeypatch.setattr("lasthuman.server.organization._demo_fixture", lambda: fixture)
+
+
 def test_bundled_fixture_has_exact_distribution_and_only_anchor_demo_navigation() -> None:
     repos = demo_repositories("/repos/101/dashboard?data=demo")
     assert len(repos) == 3
@@ -141,6 +155,130 @@ def test_repository_demo_keeps_real_destination_identity_but_has_no_business_lin
     assert demo["generated_at"] == "2026-09-17T03:00:00Z"
     assert demo["zones"] and all(row["prs"] == [] for row in demo["zones"])
     assert "receipt" not in json.dumps(demo)
+
+
+@pytest.mark.parametrize("metadata", [True, False])
+def test_repository_demo_preserves_optional_metadata_without_mutating_fixture(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, metadata: bool,
+) -> None:
+    row = repository_demo_zone(owner=" @sample-organization/payments ")
+    if not metadata:
+        row.pop("owner")
+        row.pop("prs")
+    before = json.dumps(row)
+    set_repository_demo_zones(monkeypatch, [row])
+    demo = repository_demo(replace(make_settings(tmp_path), org_demo_enabled=True), as_of=AS_OF)
+    assert demo["zones"] == [{
+        **row, "owner": " @sample-organization/payments " if metadata else "",
+        "prs": [907, 903, 901] if metadata else [],
+        "rate": 0.2, "low_sample": False, "sample_state": "measured",
+    }]
+    assert demo["actions"] == [{
+        "zone": "auth/", "owner": row.get("owner", ""),
+        "action": "One more verified change in this zone", "from": 1, "to": 2,
+    }]
+    assert json.dumps(row) == before
+
+
+@pytest.mark.parametrize(
+    ("field", "value"),
+    [
+        ("owner", None), ("owner", True), ("owner", 1), ("owner", []), ("owner", {}),
+        ("prs", None), ("prs", "901"), ("prs", (901,)), ("prs", {}),
+        ("prs", [True]), ("prs", [False]), ("prs", [0]), ("prs", [-1]),
+        ("prs", [1.5]), ("prs", ["901"]), ("prs", [None]),
+        ("zone", None), ("zone", True), ("zone", 1), ("zone", ""),
+    ],
+)
+def test_repository_demo_rejects_invalid_metadata(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, field: str, value: object,
+) -> None:
+    set_repository_demo_zones(monkeypatch, [repository_demo_zone(**{field: value})])
+    with pytest.raises(ValueError, match="Invalid repository demo"):
+        repository_demo(replace(make_settings(tmp_path), org_demo_enabled=True))
+
+
+@pytest.mark.parametrize("field", ["merged", "gated", "attested", "forced", "answerers"])
+@pytest.mark.parametrize("value", [True, -1, "1", 1.5])
+def test_repository_demo_validates_helper_counters(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, field: str, value: object,
+) -> None:
+    set_repository_demo_zones(monkeypatch, [repository_demo_zone(**{field: value})])
+    with pytest.raises(ValueError, match="Invalid coverage counter"):
+        repository_demo(replace(make_settings(tmp_path), org_demo_enabled=True))
+
+
+def test_repository_demo_sorts_table_and_limited_actions_by_actual_risk_rank(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    rows = [
+        repository_demo_zone(zone="idle/", merged=0, gated=0, attested=0, answerers=0),
+        repository_demo_zone(zone="quiet/", gated=0, attested=0, answerers=0),
+        repository_demo_zone(zone="covered/", answerers=2),
+        repository_demo_zone(zone="one/"),
+        repository_demo_zone(zone="zero/", answerers=0, attested=0),
+        repository_demo_zone(zone="a-tie/", answerers=0, attested=0),
+        repository_demo_zone(zone="more-merges/", merged=10, answerers=0, attested=0),
+        repository_demo_zone(zone="exceptions/", forced=2, answerers=0, attested=0),
+        repository_demo_zone(zone="one-exception/", forced=1),
+    ]
+    before = json.dumps(rows)
+    set_repository_demo_zones(monkeypatch, rows)
+    demo = repository_demo(replace(make_settings(tmp_path), org_demo_enabled=True))
+    assert [row["zone"] for row in demo["zones"]] == [
+        "exceptions/", "more-merges/", "a-tie/", "zero/", "one-exception/",
+        "one/", "covered/", "quiet/", "idle/",
+    ]
+    assert [action["zone"] for action in demo["actions"]] == [
+        row["zone"] for row in demo["zones"][:5]
+    ]
+    assert [action["action"] for action in demo["actions"]] == [
+        "Verify 2 exceptions after the fact",
+        "One more verified change in this zone",
+        "One more verified change in this zone",
+        "One more verified change in this zone",
+        "Verify 1 exception after the fact",
+    ]
+    assert json.dumps(rows) == before
+
+
+@pytest.mark.parametrize(
+    ("gated", "answerers", "forced", "action"),
+    [
+        (5, 0, 0, "One more verified change in this zone"),
+        (3, 1, 0, "One more verified change in this zone"),
+        (5, 1, 1, "Verify 1 exception after the fact"),
+        (5, 2, 2, "Verify 2 exceptions after the fact"),
+        (5, 2, 0, None),
+        (0, 0, 0, None),
+        (0, 0, 1, None),
+        (None, None, 0, None),
+    ],
+)
+def test_repository_demo_actions_preserve_sparse_and_ungated_display_values(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    gated: int | None, answerers: int | None, forced: int, action: str | None,
+) -> None:
+    row = repository_demo_zone(
+        gated=gated, attested=None if gated is None else 0, answerers=answerers, forced=forced,
+    )
+    set_repository_demo_zones(monkeypatch, [row])
+    demo = repository_demo(replace(make_settings(tmp_path), org_demo_enabled=True))
+    result = demo["zones"][0]
+    assert result["gated"] == gated and result["answerers"] == answerers
+    assert result["attested"] == row["attested"]
+    assert result["rate"] == (0.0 if gated == 5 else None)
+    assert result["low_sample"] is (gated == 3)
+    assert result["sample_state"] == (
+        "no_data" if not gated else "small_sample" if gated < 5 else "measured"
+    )
+    if action is None:
+        assert demo["actions"] == []
+    else:
+        assert demo["actions"] == [{
+            "zone": row["zone"], "owner": row["owner"], "action": action,
+            "from": answerers, "to": answerers + 1,
+        }]
 
 
 @pytest.mark.parametrize(
