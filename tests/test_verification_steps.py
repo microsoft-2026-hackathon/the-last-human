@@ -707,7 +707,7 @@ def test_publication_view_rejects_malformed_and_terminal_states() -> None:
         verified_at="2026-09-08T12:00:00Z",
         error_code="stale_snapshot",
     )
-    _receipt, _verified_at, gate = relay._require_publication_view(
+    _receipt, _verified_at, gate, _repository_path = relay._require_publication_view(
         terminal,
         RECEIPT_ID,
         action_context.settings,
