@@ -6,7 +6,7 @@ import os
 import time
 from dataclasses import dataclass
 
-from ..http_client import Transport, post_json
+from ..http_client import HttpError, Transport, post_json
 
 #: Margin applied when deciding expiry. Absorbs clock skew and round-trip time.
 CLOCK_SKEW_SEC = 60.0
@@ -29,8 +29,8 @@ def is_expired(token: TokenSet, now: float | None = None) -> bool:
 async def refresh(transport: Transport, token: TokenSet) -> TokenSet:
     """Exchange the refresh token for a new token set.
 
-    Failures are raised as-is. The transport layer already retries transient
-    failures; do not add another retry on top without checking it.
+    The HTTP layer retries transient failures with backoff. Failures that remain
+    after that retry policy are raised as-is.
     """
     body = await post_json(
         transport,
@@ -45,7 +45,12 @@ async def refresh(transport: Transport, token: TokenSet) -> TokenSet:
 
 
 async def ensure_fresh(transport: Transport, token: TokenSet) -> TokenSet:
-    """Refresh a near-expiry token, otherwise return it unchanged."""
+    """Refresh a near-expiry token, retaining it after transient failures."""
     if not is_expired(token):
         return token
-    return await refresh(transport, token)
+    try:
+        return await refresh(transport, token)
+    except HttpError as error:
+        if error.transient:
+            return token
+        raise
