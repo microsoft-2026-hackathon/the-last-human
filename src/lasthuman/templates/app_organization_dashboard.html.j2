@@ -162,6 +162,7 @@
     <span class="selection-name">
       {% if view.selected_repository == 'all' %}
         {{ view.repository_options|length }} {{ 'sample ' if view.source == 'demo' else '' }}{{ 'repository' if view.repository_options|length == 1 else 'repositories' }}
+        {% if view.source == 'actual' %}you can open{% endif %}
       {% else %}
         {% for option in view.repository_options %}{% if option.id == view.selected_repository %}{{ option.name }}{% endif %}{% endfor %}
       {% endif %}

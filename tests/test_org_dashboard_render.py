@@ -22,6 +22,7 @@ class Element:
     tag: str
     attrs: dict[str, str | None]
     text: str = ""
+    ancestors: tuple[Element, ...] = ()
 
     @property
     def words(self) -> str:
@@ -36,7 +37,7 @@ class Page(HTMLParser):
         self.feed(html)
 
     def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
-        element = Element(tag, dict(attrs))
+        element = Element(tag, dict(attrs), ancestors=tuple(self.stack))
         self.elements.append(element)
         if tag not in {"meta", "input", "br", "hr", "link", "img"}:
             self.stack.append(element)
@@ -204,6 +205,35 @@ def test_organization_product_labels_and_module_count_cards() -> None:
     assert [heading.words for heading in page.select("th", scope="col")] == [
         "Module", "Verified before merge", "Can answer", "Declared owner", "Data status",
     ]
+
+
+@pytest.mark.parametrize("source", ["actual", "demo"])
+@pytest.mark.parametrize("count", [0, 1, 3])
+def test_organization_header_permission_scope_depends_on_source(source: str, count: int) -> None:
+    options = [{"id": str(index), "name": f"acme/repo-{index}"} for index in range(count)]
+    page = Page(_render_org(_view(source=source, repository_options=options)))
+    selection = page.by_class("span", "selection-name")[0]
+    noun = "repository" if count == 1 else "repositories"
+    if source == "actual":
+        assert selection.words == f"{count} {noun} you can open"
+    else:
+        assert selection.words == f"{count} sample {noun}"
+        header = page.by_class("header", "topbar")[0].words + page.by_class("div", "selection")[0].words
+        assert not any(word in header.lower() for word in ("permission", "authorized", "you can open"))
+
+
+@pytest.mark.parametrize("source", ["actual", "demo"])
+def test_selected_repository_header_keeps_only_its_name(source: str) -> None:
+    page = Page(
+        _render_org(
+            _view(
+                source=source,
+                selected_repository="41",
+                repository_options=[{"id": "41", "name": "acme/the-last-human"}],
+            )
+        )
+    )
+    assert page.by_class("span", "selection-name")[0].words == "acme/the-last-human"
 
 
 def test_bucket_links_preserve_repository_without_recalculating_summary() -> None:
@@ -443,6 +473,58 @@ def test_organization_is_keyboard_accessible_and_has_no_frontend_dependencies() 
     assert not page.select("script")
     assert not page.select("link")
     assert all(not name.startswith("on") for element in page.elements for name in element.attrs)
+
+
+@pytest.mark.parametrize("source", ["legacy", "repo", "demo"])
+def test_repository_trust_headings_are_visible_between_cards_and_table_outside_footer(source: str) -> None:
+    page = Page(_render_repo(dashboard_source=source))
+    region = page.by_class("div", "trust-notes")[0]
+    notes = page.by_class("details", "trust-note")
+    headings = page.select("h3")
+    assert [heading.words for heading in headings] == [
+        "No people metrics", "Small samples stay small", "No retroactive credit",
+    ]
+    assert len(notes) == 3
+    for heading, note in zip(headings, notes, strict=True):
+        assert heading.ancestors[-1].tag == "summary"
+        assert note in heading.ancestors
+        assert region in heading.ancestors
+        assert "open" not in note.attrs
+        assert not any(
+            ancestor.tag == "footer" or "foot" in (ancestor.attrs.get("class") or "").split()
+            for ancestor in heading.ancestors
+        )
+        assert not any("hidden" in ancestor.attrs for ancestor in (*heading.ancestors, heading))
+    kpis = page.by_class("div", "kpis")[0]
+    table_panel = page.select("section", **{"aria-labelledby": "zones-h"})[0]
+    assert page.elements.index(kpis) < page.elements.index(region) < page.elements.index(table_panel)
+
+
+def test_repository_trust_disclosures_preserve_the_original_copy() -> None:
+    page = Page(_render_repo())
+    notes = page.by_class("details", "trust-note")
+    bodies = [
+        paragraph.words for paragraph in page.select("p")
+        if paragraph.ancestors[-1] in notes
+    ]
+    assert bodies == [
+        "Owners come from CODEOWNERS as written. People who verified are counted, never named. "
+        "No rankings, no hold history, no raw answers.",
+        "A zone with fewer than 5 gated PRs shows counts, not a rate. "
+        "A percentage of three is a signal that isn't there.",
+        "A verification after merge never raises the before-merge rate. Exceptions stay visible.",
+    ]
+
+
+def test_repository_answer_count_explanation_belongs_to_its_column() -> None:
+    page = Page(_render_repo())
+    note = page.by_class("span", "column-note")[0]
+    assert note.words == "counts, never names"
+    column = note.ancestors[-1]
+    assert column.tag == "th"
+    assert column.attrs["scope"] == "col"
+    assert column.words == "Can answer counts, never names"
+    assert "counts, never names" not in page.by_class("span", "sub")[0].words
 
 
 def test_repository_template_retains_legacy_behavior_when_new_context_is_absent() -> None:
