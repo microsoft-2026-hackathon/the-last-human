@@ -58,6 +58,7 @@ fresh confirmation; a changed base or policy can also make an earlier receipt st
 | **Private confirmation** | Author-only interviews and receipts. Successful confirmation records persist; incomplete answers and clarification feedback are temporary. |
 | **Visible progress** | One updating PR card, a final commit status, and an optional GitHub App Check Run. |
 | **Module-level coverage** | A CODEOWNERS-based view of pre-merge confirmation coverage, evidence PRs, and areas with gaps. |
+| **Repository onboarding** | Fixed single-repository mode by default, or explicit first-event registration with isolated per-repository storage. |
 
 ### GitHub status and verification
 
@@ -120,7 +121,11 @@ python -m lasthuman.server --help
 ```
 
 Pylint is configured in [`pyproject.toml`](pyproject.toml); the exact CI commands are
-in the [Pylint workflow](.github/workflows/pylint.yml).
+in the [Pylint workflow](.github/workflows/pylint.yml). The
+[runtime test workflow](.github/workflows/runtime-tests.yml) runs `pytest -q tests`
+on Python 3.11 and 3.12. Commands and the distinction between offline tests and live
+external evidence are documented in the
+[first-event runbook](docs/runbooks/first-event-registration.md#verification-and-evidence).
 
 ## Run with GitHub
 
@@ -132,17 +137,26 @@ supported.
 To connect a repository:
 
 1. Register and install the GitHub App with the required repository permissions.
-2. Configure the service, persistent database, model access, and public HTTPS origin.
-3. Align the OAuth callback and GitHub Actions OIDC settings.
+2. Choose a registration mode and configure persistent storage, model access, and a public HTTPS origin.
+3. Align the common OAuth callback and GitHub Actions OIDC settings; put the trusted relay and policy on `main`.
 4. Set the repository's `TLH_BOT_URL` and enable the App path with `LASTHUMAN_RUNTIME=app`.
 5. Confirm the workflow operates, then require `last-human/human-verified` in branch protection.
+
+**Fixed mode is the default:** one service is bound to one repository through its
+repository and installation settings. **First-event mode is opt-in** through
+`TLH_REGISTRATION_MODE=first-event`: one bounded gateway discovers installed,
+trusted-workflow-enabled repositories from verified Actions events, with a separate
+SQLite store and browser URL prefix for each numeric repository ID. It does not
+deploy the service or configure repositories automatically.
 
 For the optional App Check, approve **Checks: Read and write** and set the server
 environment variable **`TLH_CHECK_RUNS=true`**. It is disabled by default.
 
-See the [runtime configuration guide](docs/runbooks/github-app.md) for permissions,
-environment variables, deployment, and troubleshooting. App registration alone
-does not start the service.
+Start with [repository onboarding](docs/runbooks/onboarding.md). For multi-repository
+operation, use the [first-event runbook](docs/runbooks/first-event-registration.md)
+for owner policy, resource bounds, scoped URLs, and import/rollback. The
+[runtime configuration guide](docs/runbooks/github-app.md) covers shared App/model
+settings and fixed-mode operation. App registration alone does not start the service.
 
 ## Architecture
 
@@ -183,9 +197,10 @@ confirmation records for the selected code anchors in a module. It is not a gene
 measure of individual skill. Insufficient samples are identified, and optional
 seeded history is labelled **Demo data**.
 
-The current runtime is single-repository and single-process. Cross-file structure
-analysis is Python-focused. Confirmation is scoped to selected questions and code
-evidence, not an exhaustive guarantee about every changed line.
+Both registration modes are single-process. First-event mode supports a bounded
+set of repositories, not shared-state multi-worker or distributed deployment.
+Cross-file structure analysis is Python-focused. Confirmation is scoped to selected
+questions and code evidence, not an exhaustive guarantee about every changed line.
 
 ## License
 
