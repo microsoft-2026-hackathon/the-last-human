@@ -9,7 +9,7 @@ import os
 import secrets
 import sqlite3
 import time
-from collections.abc import Mapping
+from collections.abc import Callable, Mapping
 from concurrent.futures import Future, ThreadPoolExecutor
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -20,8 +20,10 @@ from flask import Flask, Response, g, jsonify, redirect, render_template, reques
 from jinja2 import select_autoescape
 from werkzeug.exceptions import BadRequest, RequestEntityTooLarge
 
-from .auth import AuthError, AuthManager, AuthorizedSession, SESSION_COOKIE_NAME, normalize_next_path
-from .config import Settings
+from lasthuman.models import Answer, Question
+
+from .auth import AuthError, AuthManager, AuthorizedSession, normalize_next_path
+from .config import GatewaySettings, Settings, load_settings
 from .events import ActionsIdentity, EventError, OIDCError, OIDCVerifier, decode_event
 from .github import GitHubClient, GitHubError
 from .service import BotError, BotService
@@ -545,6 +547,7 @@ class AppRuntime:
                 SELECT 1
                 FROM outbox
                 WHERE last_error_code IS NOT NULL
+                  AND tenant_generation IS ?
                   AND (
                     status = 'pending'
                     OR kind IN (
@@ -556,7 +559,8 @@ class AppRuntime:
                     )
                   )
                 LIMIT 1
-                """
+                """,
+                (self.settings.tenant_generation,),
             ).fetchone()
             return row is not None
         finally:
@@ -570,6 +574,9 @@ def build_runtime_dependencies(
     github: GitHubClient | None = None,
     oauth: object | None = None,
     verifier: OIDCVerifier | None = None,
+    access_guard: Callable[[], None] | None = None,
+    generate: Callable[..., list[Question]] | None = None,
+    grade: Callable[..., Answer] | None = None,
 ) -> tuple[Settings, BotService, GitHubClient, AuthManager, OIDCVerifier]:
     resolved_settings = settings
     if resolved_settings is None and service is not None and hasattr(service, "settings"):
@@ -578,16 +585,18 @@ def build_runtime_dependencies(
         resolved_settings = getattr(github, "settings")
     if resolved_settings is None:
         resolved_settings = Settings.from_env()
+    if not isinstance(resolved_settings, Settings):
+        raise TypeError("build_runtime_dependencies requires fixed repository Settings")
 
     resolved_github = github
     if resolved_github is None and service is not None and hasattr(service, "github"):
         resolved_github = getattr(service, "github")
     if resolved_github is None:
-        resolved_github = GitHubClient(resolved_settings)
+        resolved_github = GitHubClient(resolved_settings, access_guard=access_guard)
 
     resolved_service = service
     if resolved_service is None:
-        store = Store(resolved_settings.database)
+        store = Store(resolved_settings.database, tenant_generation=resolved_settings.tenant_generation)
         reader = SnapshotReader(
             resolved_github,
             resolved_settings.database.parent / "snapshot-cache",
@@ -598,6 +607,10 @@ def build_runtime_dependencies(
             reader,
             store,
         )
+        if generate is not None:
+            resolved_service.generate = generate
+        if grade is not None:
+            resolved_service.grade = grade
 
     clock = getattr(resolved_service, "clock", time.time)
     auth = AuthManager(
@@ -611,7 +624,7 @@ def build_runtime_dependencies(
 
 
 def create_app(
-    settings: Settings | None = None,
+    settings: Settings | GatewaySettings | None = None,
     *,
     service: BotService | None = None,
     github: GitHubClient | None = None,
@@ -619,6 +632,14 @@ def create_app(
     verifier: OIDCVerifier | None = None,
     start_worker: bool = True,
 ) -> Flask:
+    if settings is None and service is None and github is None:
+        settings = load_settings()
+    if isinstance(settings, GatewaySettings):
+        from .gateway import create_gateway  # pylint: disable=import-outside-toplevel
+
+        return create_gateway(settings, start_worker=start_worker)
+    if settings is not None and not isinstance(settings, Settings):
+        raise TypeError("create_app requires Settings or GatewaySettings")
     (
         resolved_settings,
         resolved_service,
@@ -716,7 +737,7 @@ def create_app(
     def github_login() -> Response:
         try:
             sid, authorization_url = auth.begin(
-                request.cookies.get(SESSION_COOKIE_NAME),
+                request.cookies.get(resolved_settings.session_cookie_name),
                 request.args.get("next"),
             )
         except AuthError as error:
@@ -729,7 +750,7 @@ def create_app(
     def github_callback() -> Response:
         try:
             session, next_path = auth.callback(
-                request.cookies.get(SESSION_COOKIE_NAME),
+                request.cookies.get(resolved_settings.session_cookie_name),
                 state=request.args.get("state"),
                 code=request.args.get("code"),
             )
@@ -741,7 +762,7 @@ def create_app(
 
     @app.post("/auth/logout")
     def logout() -> Response:
-        sid = request.cookies.get(SESSION_COOKIE_NAME)
+        sid = request.cookies.get(resolved_settings.session_cookie_name)
         try:
             auth.validate_csrf(sid, _csrf_token_from_request())
         except AuthError as error:
@@ -1067,7 +1088,7 @@ def _authorize_html(
 ) -> tuple[AuthorizedSession | None, Response | None]:
     try:
         session = auth.authorize(
-            request.cookies.get(SESSION_COOKIE_NAME),
+            request.cookies.get(auth.settings.session_cookie_name),
             pr=pr,
             require_author=require_author,
         )
@@ -1087,7 +1108,7 @@ def _authorize_api(
 ) -> tuple[AuthorizedSession | None, Response | None]:
     try:
         session = auth.authorize(
-            request.cookies.get(SESSION_COOKIE_NAME),
+            request.cookies.get(auth.settings.session_cookie_name),
             pr=pr,
             require_author=require_author,
         )
@@ -1171,8 +1192,19 @@ def _current_receipt_context(service: BotService, pr: int, actor_id: int) -> dic
         record.snapshot.snapshot_id,
         record.question_version,
         actor_id,
+        app_id=service.settings.app_id,
+        installation_id=service.settings.installation_id,
     )
     if receipt is None:
+        return None
+    snapshot = record.snapshot
+    if not all((
+        receipt.repo_id == snapshot.repo_id == service.settings.repository_id,
+        receipt.repo.casefold() == snapshot.repo.casefold() == service.settings.repository.casefold(),
+        receipt.pr == snapshot.pr, receipt.actor_id == snapshot.author_id,
+        receipt.head_sha == snapshot.head_sha, receipt.base_sha == snapshot.base_sha,
+        receipt.policy_version == snapshot.policy_version,
+    )):
         return None
     payload = service.publication_status(receipt.receipt_id, actor_id)
     return {"receipt_id": receipt.receipt_id, **payload}

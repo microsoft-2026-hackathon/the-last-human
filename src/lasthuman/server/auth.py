@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import hmac
+import re
 import secrets
 import time
 from collections.abc import Callable, Mapping
@@ -25,6 +26,7 @@ _DASHBOARD_PATH = "/dashboard"
 _SESSION_LIMIT = 1000
 _STATE_LIMIT = 1000
 _OAUTH_TTL_SECONDS = 600.0
+_STATE_PREFIX_RE = re.compile(r"^r[1-9][0-9]*\.$")
 
 
 class AuthError(RuntimeError):
@@ -123,12 +125,14 @@ class MemorySessions:
         state_ttl_seconds: float = _OAUTH_TTL_SECONDS,
         max_sessions: int = _SESSION_LIMIT,
         max_states: int = _STATE_LIMIT,
+        state_prefix: str = "",
     ) -> None:
         self.clock = clock
         self.session_ttl_seconds = session_ttl_seconds
         self.state_ttl_seconds = state_ttl_seconds
         self.max_sessions = max_sessions
         self.max_states = max_states
+        self.state_prefix = _validate_state_prefix(state_prefix)
         self._lock = RLock()
         self._sessions: dict[str, _SessionRecord] = {}
         self._states: dict[str, _PendingState] = {}
@@ -152,9 +156,12 @@ class MemorySessions:
             self._trim_sessions_locked()
             return record.sid
 
-    def register_state(self, sid: str, *, next_path: str, code_verifier: str) -> str:
+    def register_state(
+        self, sid: str, *, next_path: str, code_verifier: str, state_prefix: str | None = None,
+    ) -> str:
         now = self.clock()
-        state = self._new_token()
+        prefix = self.state_prefix if state_prefix is None else _validate_state_prefix(state_prefix)
+        state = prefix + self._new_token()
         with self._lock:
             self._purge_locked(now)
             self._states[state] = _PendingState(
@@ -286,7 +293,7 @@ class MemorySessions:
         max_age = int(settings.session_ttl.total_seconds())
         secure = urlsplit(settings.base_url).scheme.lower() == "https"
         return {
-            "key": SESSION_COOKIE_NAME,
+            "key": settings.session_cookie_name,
             "path": "/",
             "httponly": True,
             "samesite": "Lax",
@@ -356,17 +363,19 @@ class AuthManager:
             else MemorySessions(
                 clock=clock,
                 session_ttl_seconds=settings.session_ttl.total_seconds(),
+                state_prefix=settings.oauth_state_prefix,
             )
         )
 
     def begin(self, sid: str | None, next_path: str | None) -> tuple[str, str]:
-        safe_next = normalize_next_path(next_path)
+        safe_next = normalize_next_path(next_path, path_prefix=self.settings.path_prefix)
         prelogin_sid = self.sessions.ensure_prelogin(sid)
         code_verifier = secrets.token_urlsafe(48)
         state = self.sessions.register_state(
             prelogin_sid,
             next_path=safe_next,
             code_verifier=code_verifier,
+            state_prefix=self.settings.oauth_state_prefix,
         )
         authorization_url = self._oauth_create_authorization_url(
             state=state,
@@ -387,7 +396,11 @@ class AuthManager:
                 code="invalid_callback",
                 status_code=400,
             )
+        expected_prefix = self.settings.oauth_state_prefix
+        if expected_prefix and not state.startswith(expected_prefix):
+            raise AuthError("GitHub login state is invalid", code="invalid_state", status_code=400)
         pending = self.sessions.consume_state(state, sid=sid)
+        next_path = normalize_next_path(pending.next_path, path_prefix=self.settings.path_prefix)
         token = self._oauth_fetch_token(code=code, code_verifier=pending.code_verifier)
         access_token = _require_access_token(token)
         access_token_expires_at = _token_expiry(token, now=self.clock())
@@ -399,7 +412,7 @@ class AuthManager:
             access_token=access_token,
             access_token_expires_at=access_token_expires_at,
         )
-        return session, pending.next_path
+        return session, next_path
 
     def authorize(
         self,
@@ -511,21 +524,33 @@ class AuthManager:
         return token
 
 
-def normalize_next_path(next_path: str | None) -> str:
+def normalize_next_path(next_path: str | None, *, path_prefix: str = "") -> str:
     raw = (next_path or "").strip()
     if not raw:
         return _DASHBOARD_PATH
+    if any(ord(character) < 32 for character in raw) or "\\" in raw:
+        raise AuthError("next path is invalid", code="invalid_next", status_code=400)
     parsed = urlsplit(raw)
     if parsed.scheme or parsed.netloc or raw.startswith("//"):
         raise AuthError("next path is invalid", code="invalid_next", status_code=400)
     if parsed.query or parsed.fragment:
         raise AuthError("next path is invalid", code="invalid_next", status_code=400)
+    if path_prefix and parsed.path.startswith(path_prefix + "/"):
+        raw = parsed.path[len(path_prefix):]
+        parsed = urlsplit(raw)
+    if not raw.startswith("/") or raw.startswith("//"):
+        raise AuthError("next path is invalid", code="invalid_next", status_code=400)
     if parsed.path == _DASHBOARD_PATH:
         return parsed.path
-    parts = [part for part in parsed.path.split("/") if part]
-    if len(parts) == 2 and parts[0] == "prs" and parts[1].isdigit() and int(parts[1]) > 0:
+    if re.fullmatch(r"/prs/[1-9][0-9]*", parsed.path):
         return parsed.path
     raise AuthError("next path is invalid", code="invalid_next", status_code=400)
+
+
+def _validate_state_prefix(value: str) -> str:
+    if value == "" or _STATE_PREFIX_RE.fullmatch(value):
+        return value
+    raise AuthError("GitHub login state namespace is invalid", code="invalid_state_namespace", status_code=500)
 
 
 def _require_access_token(token: Mapping[str, object]) -> str:

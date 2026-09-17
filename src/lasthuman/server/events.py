@@ -9,7 +9,7 @@ from typing import cast
 
 import jwt
 
-from .config import ConfigurationError, Settings
+from .config import ConfigurationError, GatewaySettings, Settings
 from .github import JsonObject
 
 _ACTIONS_ISSUER = "https://token.actions.githubusercontent.com"
@@ -34,8 +34,10 @@ _BINDING_KEYS = frozenset(
     }
 )
 _NUMERIC_RE = re.compile(r"^[1-9][0-9]*$")
+_REPOSITORY_RE = re.compile(r"^[A-Za-z0-9._-]+/[A-Za-z0-9._-]+$")
 _SHA_RE = re.compile(r"^[0-9a-f]{40}$")
 _HEX64_RE = re.compile(r"^[0-9a-f]{64}$")
+_MAX_SQLITE_ID = (1 << 63) - 1
 
 
 class OIDCError(RuntimeError):
@@ -57,6 +59,25 @@ class ActionsIdentity:
     run_attempt: str
     jti: str
     workflow_ref: str
+    repository: str = ""
+    repository_id: int | None = None
+    owner_id: int | None = None
+    sub: str = ""
+    audience: str = ""
+
+
+@dataclass(frozen=True)
+class VerifiedActionsIdentity:
+    event_name: str
+    run_id: str
+    run_attempt: str
+    jti: str
+    workflow_ref: str
+    repository: str
+    repository_id: int
+    owner_id: int
+    sub: str
+    audience: str
 
 
 @dataclass(frozen=True)
@@ -120,6 +141,71 @@ class OIDCVerifier:
             raise OIDCError("GitHub Actions source is untrusted") from None
 
 
+class DynamicOIDCVerifier:
+    """Tenant claims become authority only after pinned signature and time checks."""
+
+    def __init__(self, settings: GatewaySettings, jwks_client: object | None = None) -> None:
+        if settings.workflow_ref != _TRUSTED_WORKFLOW_REF:
+            raise ConfigurationError("dynamic GitHub Actions OIDC requires the trusted main workflow")
+        self.settings = settings
+        self._jwks_client = jwt.PyJWKClient(_ACTIONS_JWKS_URL) if jwks_client is None else jwks_client
+
+    def verify(self, token: str) -> VerifiedActionsIdentity:
+        if not isinstance(token, str) or not token.strip():
+            raise OIDCError("GitHub Actions OIDC token is invalid")
+        candidate = token.strip()
+        try:
+            signing_key = self._jwks_client.get_signing_key_from_jwt(candidate)
+            claims = cast(Mapping[str, object], jwt.decode(
+                candidate, signing_key.key, algorithms=["RS256"], issuer=_ACTIONS_ISSUER, leeway=30,
+                options={
+                    "verify_aud": False,
+                    "require": ["exp", "iat", "nbf", "iss", "aud", "sub", "jti"],
+                },
+            ))
+        except (AttributeError, TypeError, ValueError, jwt.PyJWTError):
+            raise OIDCError("GitHub Actions OIDC token is invalid") from None
+        for field in ("exp", "iat", "nbf"):
+            value = claims[field]
+            if isinstance(value, bool) or not isinstance(value, int):
+                raise OIDCError("GitHub Actions OIDC token is invalid")
+        if claims["exp"] <= claims["iat"] or claims["exp"] <= claims["nbf"]:
+            raise OIDCError("GitHub Actions OIDC token is invalid")
+        repository = _require_nonempty_string(claims.get("repository"), "repository")
+        if not _REPOSITORY_RE.fullmatch(repository):
+            raise OIDCError("GitHub Actions source is untrusted")
+        repository_id = _require_claim_positive_int(claims.get("repository_id"), "repository_id")
+        owner_id = _require_claim_positive_int(claims.get("repository_owner_id"), "repository_owner_id")
+        expected = f"{repository}/.github/workflows/{self.settings.workflow}@{self.settings.workflow_ref}"
+        workflow_ref = _require_nonempty_string(claims.get("workflow_ref"), "workflow_ref")
+        if workflow_ref != expected or claims.get("ref") != self.settings.workflow_ref:
+            raise OIDCError("GitHub Actions source is untrusted")
+        audience = _require_signed_audience(
+            claims.get("aud"), common_audience=self.settings.oidc_audience, repository=repository,
+        )
+        sub = _require_nonempty_string(claims.get("sub"), "sub")
+        if sub != f"repo:{repository}:ref:{self.settings.workflow_ref}":
+            raise OIDCError("GitHub Actions source is untrusted")
+        return VerifiedActionsIdentity(
+            event_name=_require_event_name(claims.get("event_name")),
+            run_id=_require_numeric_string(claims.get("run_id"), "run_id"),
+            run_attempt=_require_numeric_string(claims.get("run_attempt"), "run_attempt"),
+            jti=_require_nonempty_string(claims.get("jti"), "jti"), workflow_ref=workflow_ref,
+            repository=repository, repository_id=repository_id, owner_id=owner_id, sub=sub, audience=audience,
+        )
+
+
+def _require_signed_audience(value: object, *, common_audience: str, repository: str) -> str:
+    if isinstance(value, list) and len(value) == 1:
+        value = value[0]
+    trusted = {repository}
+    if common_audience:
+        trusted.add(common_audience)
+    if not isinstance(value, str) or value not in trusted:
+        raise OIDCError("GitHub Actions source is untrusted")
+    return value
+
+
 def decode_event(
     payload: Mapping[str, object],
     identity: ActionsIdentity,
@@ -133,10 +219,23 @@ def decode_event(
         raise EventError("workflow source is untrusted")
     if identity.event_name != "pull_request_target":
         raise EventError("workflow_dispatch must use the receipt verification route")
+    return _decode_repository_event(payload, settings.repository_id)
+
+
+def decode_event_for_identity(
+    payload: Mapping[str, object], identity: ActionsIdentity | VerifiedActionsIdentity,
+) -> ActionsEvent:
+    if identity.event_name != "pull_request_target":
+        raise EventError("only pull_request_target can register a repository")
+    repository_id = _require_positive_int(identity.repository_id, "verified repository identity")
+    return _decode_repository_event(payload, repository_id)
+
+
+def _decode_repository_event(payload: Mapping[str, object], trusted_repository_id: int) -> ActionsEvent:
     data = _require_object(payload, "event payload")
     action = _require_action(data.get("action"))
     repository_id = _require_positive_int(data.get("repository_id"), "repository_id")
-    if repository_id != settings.repository_id:
+    if repository_id != trusted_repository_id:
         raise EventError("repository binding mismatch")
     pr = _require_positive_int(data.get("pr"), "pr")
     if action == "closed":
@@ -234,16 +333,17 @@ def _require_claim_positive_int(value: object, _field_name: str) -> int:
     if isinstance(value, bool):
         raise OIDCError("GitHub Actions source is untrusted")
     if isinstance(value, int):
-        if value > 0:
+        if 0 < value <= _MAX_SQLITE_ID:
             return value
         raise OIDCError("GitHub Actions source is untrusted")
     if isinstance(value, str) and _NUMERIC_RE.fullmatch(value):
-        return int(value)
+        if len(value) <= 19 and int(value) <= _MAX_SQLITE_ID:
+            return int(value)
     raise OIDCError("GitHub Actions source is untrusted")
 
 
 def _require_positive_int(value: object, field_name: str) -> int:
-    if isinstance(value, bool) or not isinstance(value, int) or value <= 0:
+    if isinstance(value, bool) or not isinstance(value, int) or not 0 < value <= _MAX_SQLITE_ID:
         raise EventError(f"{field_name} must be a positive integer")
     return value
 

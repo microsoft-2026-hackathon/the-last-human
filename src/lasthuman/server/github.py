@@ -3,6 +3,9 @@
 from __future__ import annotations
 
 import re
+import shlex
+from base64 import b64decode
+from collections.abc import Callable, Mapping
 from datetime import datetime, timedelta, timezone
 from threading import Lock
 from typing import Final, Literal, cast
@@ -10,8 +13,11 @@ from urllib.parse import quote, unquote, urlsplit
 
 import jwt
 import requests
+import yaml
 
-from .config import Settings
+from lasthuman.config import parse_config
+from .config import GatewaySettings, Settings
+from .registration import RegistrationDeniedError, RegistrationOperationalError, RepositoryInstallation
 
 JsonObject = dict[str, object]
 JsonData = JsonObject | list[object]
@@ -34,6 +40,9 @@ _CHECK_EXTERNAL_ID_MAX = 512
 _CHECK_OUTPUT_TEXT_MAX = 65_535
 _PR_CARD_MARKER_PREFIX = "lasthuman:pr-card:"
 _MARKER_RESERVATION_CHARS = 128
+_REQUIRED_CORE_PERMISSIONS: Final[dict[str, str]] = {
+    "contents": "read", "pull_requests": "write", "statuses": "write", "actions": "write",
+}
 
 
 class GitHubError(RuntimeError):
@@ -55,9 +64,13 @@ class GitHubClient:
     api_origin: str = _API_ORIGIN
     timeout: tuple[int, int] = _TIMEOUT
 
-    def __init__(self, settings: Settings, session: requests.Session | None = None) -> None:
+    def __init__(
+        self, settings: Settings, session: requests.Session | None = None,
+        *, access_guard: Callable[[], None] | None = None,
+    ) -> None:
         self.settings = settings
         self._session = requests.Session() if session is None else session
+        self._access_guard = access_guard
         self._repo_path = f"repos/{settings.repository}"
         self._verification_lock = Lock()
         self._token_lock = Lock()
@@ -76,6 +89,7 @@ class GitHubClient:
         token_override: str | None = None,
         json: JsonObject | None = None,
     ) -> JsonData:
+        self._guard_access()
         if method.upper() != "GET":
             raise GitHubError(
                 "GitHub public request is read-only; use scoped methods for writes"
@@ -136,6 +150,7 @@ class GitHubClient:
         raise GitHubError("GitHub open pull request scan exceeded the pagination cap")
 
     def installation_token(self) -> str:
+        self._guard_access()
         now = datetime.now(timezone.utc)
         with self._token_lock:
             token = self._installation_token
@@ -158,6 +173,7 @@ class GitHubClient:
         return token
 
     def _check_token(self) -> str:
+        self._guard_access()
         self._ensure_checks_enabled()
         now = datetime.now(timezone.utc)
         with self._check_token_lock:
@@ -196,6 +212,7 @@ class GitHubClient:
                 },
                 expected_statuses=(201,),
             )
+            self._validate_issued_token(payload, {"checks": "write"})
             token = _require_str(payload.get("token"), "token", "installation token response")
             expiry = _parse_github_timestamp(
                 _require_str(payload.get("expires_at"), "expires_at", "installation token response")
@@ -215,6 +232,7 @@ class GitHubClient:
         return payload
 
     def verify_repository(self) -> None:
+        self._guard_access()
         now = datetime.now(timezone.utc)
         if self._repository_verification_is_fresh(now):
             return
@@ -242,11 +260,28 @@ class GitHubClient:
             app_id = _require_int(installation.get("app_id"), "app_id", "repository installation")
             if app_id != self.settings.app_id:
                 raise GitHubError("GitHub app id mismatch")
+            if self.settings.tenant_generation is not None and installation.get("suspended_at") is not None:
+                raise GitHubError("GitHub App installation is suspended", status_code=403)
             installation_token = self._refresh_installation_token(app_token, now=now)
             repository = self._request_object("GET", self._repo_path, token=installation_token)
             self._validate_repository(repository)
             self._repository_verified = True
             self._repository_verification_expiry = self._installation_token_expiry
+
+    def _guard_access(self) -> None:
+        if self._access_guard is not None:
+            self._access_guard()
+
+    def invalidate_tokens(self) -> None:
+        with self._verification_lock:
+            self._repository_verified = False
+            self._repository_verification_expiry = None
+            with self._token_lock:
+                self._installation_token = None
+                self._installation_token_expiry = None
+            with self._check_token_lock:
+                self._check_installation_token = None
+                self._check_installation_token_expiry = None
 
     def ensure_comment(self, pr: int, body: str, publication_id: str) -> JsonObject:
         _validate_positive_number(pr, "pull request number")
@@ -518,6 +553,7 @@ class GitHubClient:
                 },
                 expected_statuses=(201,),
             )
+            self._validate_issued_token(payload, _REQUIRED_CORE_PERMISSIONS)
             token = _require_str(payload.get("token"), "token", "installation token response")
             expiry = _parse_github_timestamp(
                 _require_str(payload.get("expires_at"), "expires_at", "installation token response")
@@ -803,6 +839,24 @@ class GitHubClient:
             "summary": _string_or_none(output.get("summary")) if output is not None else None,
         }
 
+    def _validate_issued_token(self, payload: JsonObject, required: Mapping[str, str]) -> None:
+        if self.settings.tenant_generation is None:
+            return
+        repositories = _require_list(payload.get("repositories"), "installation token repositories")
+        if len(repositories) != 1:
+            raise GitHubError("GitHub installation token repository scope is not exact")
+        repository = _require_object(repositories[0], "installation token repository")
+        if (
+            repository.get("id") != self.settings.repository_id
+            or isinstance(repository.get("id"), bool)
+            or _require_str(repository.get("full_name"), "full_name", "installation token repository").casefold()
+            != self.settings.repository.casefold()
+        ):
+            raise GitHubError("GitHub installation token repository scope mismatch")
+        permissions = _require_object(payload.get("permissions"), "installation token permissions")
+        if any(not _permission_covers(permissions.get(name), level) for name, level in required.items()):
+            raise GitHubError("GitHub installation token permissions mismatch")
+
     def _validate_target_url(self, target_url: str) -> None:
         self._validate_runtime_url(target_url, "status target URL")
 
@@ -817,6 +871,11 @@ class GitHubClient:
         decoded_path = unquote(parsed.path)
         if "\\" in decoded_path or any(segment == ".." for segment in decoded_path.split("/")):
             raise GitHubError(f"GitHub {label} must not include parent traversal")
+        if self.settings.path_prefix and not re.fullmatch(
+            re.escape(self.settings.path_prefix) + r"/(?:prs/[1-9][0-9]*|receipts/[A-Za-z0-9._-]{1,128})",
+            parsed.path,
+        ):
+            raise GitHubError(f"GitHub {label} must stay within this repository")
 
     def _request_object(
         self,
@@ -885,6 +944,7 @@ class GitHubClient:
         expect_json: bool = True,
         allow_transport_errors: bool = False,
     ) -> JsonData:
+        self._guard_access()
         path = _normalize_relative_api_path(relative_api_path)
         url = f"{self.api_origin}/{path}"
         authorization_header = "Bearer " + token
@@ -935,6 +995,229 @@ class GitHubClient:
                 status_code=response.status_code,
             )
         return cast(JsonData, payload)
+
+
+class GitHubInstallationDiscovery:
+    """Independently prove App installation, exact grants and trusted-main opt-in."""
+
+    api_origin: str = _API_ORIGIN
+    timeout: tuple[int, int] = _TIMEOUT
+
+    def __init__(self, common_settings: GatewaySettings, session: requests.Session | None = None) -> None:
+        self.settings = common_settings
+        self._session = requests.Session() if session is None else session
+
+    def discover(
+        self, repository: str, repository_id: int, owner_id: int, *, verify_opt_in: bool = True,
+    ) -> RepositoryInstallation:
+        try:
+            return self._discover(repository, repository_id, owner_id, verify_opt_in=verify_opt_in)
+        except GitHubError as error:
+            raise RegistrationOperationalError("GitHub discovery response was invalid") from error
+
+    def _discover(
+        self, repository: str, repository_id: int, owner_id: int, *, verify_opt_in: bool,
+    ) -> RepositoryInstallation:
+        repository_name = _validate_repository_name(repository)
+        _validate_positive_number(repository_id, "repository id")
+        _validate_positive_number(owner_id, "repository owner id")
+        app_token = self._app_jwt()
+        installation = self._request_object("GET", f"repos/{repository_name}/installation", token=app_token)
+        installation_id = _require_positive_int(installation.get("id"), "id", "repository installation")
+        if _require_positive_int(installation.get("app_id"), "app_id", "installation") != self.settings.app_id:
+            raise RegistrationDeniedError("GitHub App installation mismatch")
+        if installation.get("suspended_at") is not None:
+            raise RegistrationDeniedError("GitHub App installation is suspended")
+        account = _require_object(installation.get("account"), "installation account")
+        if _require_positive_int(account.get("id"), "id", "installation account") != owner_id:
+            raise RegistrationDeniedError("GitHub installation owner mismatch")
+        if installation.get("permissions") is not None:
+            self._require_core_permissions(installation)
+        token_payload = self._request_object(
+            "POST", f"app/installations/{installation_id}/access_tokens", token=app_token,
+            json={"repository_ids": [repository_id], "permissions": dict(_REQUIRED_CORE_PERMISSIONS)},
+            expected_statuses=(201,),
+        )
+        self._require_core_permissions(token_payload)
+        self._require_exact_repository_scope(token_payload, repository_name, repository_id)
+        token = _require_str(token_payload.get("token"), "token", "installation token response")
+        expiry = _parse_github_timestamp(
+            _require_str(token_payload.get("expires_at"), "expires_at", "installation token response")
+        )
+        if expiry <= datetime.now(timezone.utc):
+            raise RegistrationOperationalError("GitHub installation token is already expired")
+        metadata = self._request_object("GET", f"repos/{repository_name}", token=token)
+        self._validate_repository(metadata, repository_name, repository_id, owner_id)
+        if verify_opt_in:
+            self._verify_opt_in(repository_name, token)
+        return RepositoryInstallation(repository_id, repository_name, owner_id, installation_id)
+
+    def _verify_opt_in(self, repository: str, token: str) -> None:
+        branch = self.settings.workflow_ref.removeprefix("refs/heads/")
+        config_text = self._read_contents_text(repository, ".lasthuman.yml", branch, token)
+        try:
+            parse_config(config_text)
+        except (AttributeError, TypeError, ValueError, yaml.YAMLError):
+            raise RegistrationDeniedError("trusted .lasthuman.yml is invalid") from None
+        workflow = self._read_contents_text(
+            repository, f".github/workflows/{self.settings.workflow}", branch, token,
+        )
+        self._validate_relay_workflow(workflow)
+
+    def _read_contents_text(self, repository: str, path: str, ref: str, token: str) -> str:
+        payload = self._request_object(
+            "GET", f"repos/{repository}/contents/{quote(path, safe='/')}?ref={quote(ref, safe='')}", token=token,
+        )
+        if payload.get("type") != "file" or payload.get("encoding") != "base64":
+            raise RegistrationDeniedError("trusted repository opt-in file is invalid")
+        content = _require_str(payload.get("content"), "content", "repository content")
+        try:
+            return b64decode("".join(content.split()), validate=True).decode("utf-8")
+        except (ValueError, UnicodeError):
+            raise RegistrationDeniedError("trusted repository opt-in file is invalid") from None
+
+    def _validate_relay_workflow(self, text: str) -> None:
+        try:
+            workflow = yaml.safe_load(text)
+        except yaml.YAMLError:
+            raise RegistrationDeniedError("trusted relay workflow is invalid") from None
+        if not isinstance(workflow, dict):
+            raise RegistrationDeniedError("trusted relay workflow is invalid")
+        triggers = workflow.get("on", workflow.get(True))
+        if not (
+            triggers == "pull_request_target"
+            or isinstance(triggers, (dict, list)) and "pull_request_target" in triggers
+        ):
+            raise RegistrationDeniedError("trusted relay workflow must opt in to pull_request_target")
+        jobs = workflow.get("jobs")
+        if not isinstance(jobs, dict):
+            raise RegistrationDeniedError("trusted relay workflow must define jobs")
+        for job in jobs.values():
+            if not isinstance(job, dict) or not _job_runs_relay(job):
+                continue
+            permissions = job.get("permissions", workflow.get("permissions"))
+            if isinstance(permissions, dict) and permissions.get("id-token") == "write":
+                return
+        raise RegistrationDeniedError("trusted relay workflow must run the Last Human relay with id-token: write")
+
+    def _require_core_permissions(self, payload: Mapping[str, object]) -> None:
+        permissions = _require_object(payload.get("permissions"), "installation token permissions")
+        for name, required in _REQUIRED_CORE_PERMISSIONS.items():
+            if not _permission_covers(permissions.get(name), required):
+                raise RegistrationDeniedError(f"GitHub installation token is missing {name} permission")
+
+    def _require_exact_repository_scope(
+        self, payload: Mapping[str, object], repository_name: str, repository_id: int,
+    ) -> None:
+        repositories = _require_list(payload.get("repositories"), "installation token repositories")
+        if len(repositories) != 1:
+            raise RegistrationDeniedError("GitHub installation token repository scope is not exact")
+        repository = _require_object(repositories[0], "installation token repository")
+        if _require_positive_int(repository.get("id"), "id", "installation token repository") != repository_id:
+            raise RegistrationDeniedError("GitHub installation token repository scope mismatch")
+        full_name = _require_str(repository.get("full_name"), "full_name", "installation token repository")
+        if full_name.casefold() != repository_name.casefold():
+            raise RegistrationDeniedError("GitHub installation token repository name mismatch")
+
+    def _validate_repository(self, repository: JsonObject, name: str, repo_id: int, owner_id: int) -> None:
+        if _require_positive_int(repository.get("id"), "id", "repository") != repo_id:
+            raise RegistrationDeniedError("GitHub repository id mismatch")
+        if _require_str(repository.get("full_name"), "full_name", "repository").casefold() != name.casefold():
+            raise RegistrationDeniedError("GitHub repository name mismatch")
+        owner = _require_object(repository.get("owner"), "repository owner")
+        if _require_positive_int(owner.get("id"), "id", "repository owner") != owner_id:
+            raise RegistrationDeniedError("GitHub repository owner mismatch")
+
+    def _app_jwt(self) -> str:
+        now = int(datetime.now(timezone.utc).timestamp())
+        try:
+            key = self.settings.private_key_file.read_text(encoding="utf-8")
+            return cast(str, jwt.encode(
+                {"iss": self.settings.client_id, "iat": now - 60, "exp": now + 540}, key, algorithm="RS256",
+            ))
+        except (OSError, UnicodeError, TypeError, ValueError, jwt.PyJWTError):
+            raise RegistrationOperationalError("GitHub App private RSA key is unavailable or invalid") from None
+
+    def _request_object(
+        self, method: str, relative_api_path: str, *, token: str,
+        json: JsonObject | None = None, expected_statuses: tuple[int, ...] = (200,),
+    ) -> JsonObject:
+        path = _normalize_relative_api_path(relative_api_path)
+        try:
+            response = self._session.request(
+                method.upper(), f"{self.api_origin}/{path}",
+                headers={"Accept": _ACCEPT, "Authorization": "Bearer " + token},
+                json=json, timeout=self.timeout, allow_redirects=False,
+            )
+        except requests.exceptions.RequestException as error:
+            raise RegistrationOperationalError(f"GitHub discovery {method.upper()} {path} failed") from error
+        if response.status_code not in expected_statuses:
+            if _is_operational_discovery_status(response):
+                raise RegistrationOperationalError(f"GitHub discovery {method.upper()} {path} failed")
+            raise RegistrationDeniedError(f"GitHub discovery {method.upper()} {path} denied")
+        _validate_response_size(response, method.upper(), path)
+        if not response.content:
+            raise RegistrationOperationalError("GitHub discovery returned an empty response")
+        try:
+            payload = response.json()
+        except ValueError:
+            raise RegistrationOperationalError("GitHub discovery returned invalid JSON") from None
+        return _require_object(payload, "discovery response")
+
+
+def _validate_repository_name(repository: str) -> str:
+    if not isinstance(repository, str) or not re.fullmatch(r"[A-Za-z0-9._-]+/[A-Za-z0-9._-]+", repository):
+        raise RegistrationDeniedError("GitHub repository name is invalid")
+    return repository
+
+
+def _permission_covers(actual: object, required: str) -> bool:
+    levels = {"none": 0, "read": 1, "write": 2}
+    return isinstance(actual, str) and levels.get(actual, -1) >= levels[required]
+
+
+def _job_runs_relay(job: JsonObject) -> bool:
+    steps = job.get("steps")
+    if not isinstance(steps, list):
+        return False
+    for step in steps:
+        if not isinstance(step, dict) or not isinstance(step.get("run"), str):
+            continue
+        # Check executable command position, not comments, echo arguments or quoted examples.
+        for line in step["run"].replace("\\\n", " ").splitlines():
+            try:
+                lexer = shlex.shlex(line, posix=True, punctuation_chars=";&|")
+                lexer.whitespace_split = True
+                tokens = list(lexer)
+            except ValueError:
+                continue
+            command: list[str] = []
+            for token in [*tokens, ";"]:
+                if token and all(character in ";&|" for character in token):
+                    offset = 2 if command[:2] == ["uv", "run"] else 0
+                    executable = command[offset:offset + 3]
+                    if (
+                        len(executable) == 3
+                        and re.fullmatch(r"python(?:3(?:\.\d+)?)?", executable[0])
+                        and executable[1:] == ["-m", "lasthuman.server.relay"]
+                    ):
+                        return True
+                    command = []
+                else:
+                    command.append(token)
+    return False
+
+
+def _is_operational_discovery_status(response: requests.Response) -> bool:
+    if response.status_code in {401, 429} or response.status_code >= 500:
+        return True
+    if response.status_code != 403:
+        return False
+    retry_after = response.headers.get("Retry-After") or response.headers.get("retry-after")
+    remaining = response.headers.get("X-RateLimit-Remaining") or response.headers.get("x-ratelimit-remaining")
+    if retry_after or remaining == "0":
+        return True
+    return "rate limit" in response.text.lower()
 
 
 def _publication_marker(publication_id: str) -> str:
