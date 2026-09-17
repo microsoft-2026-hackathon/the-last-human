@@ -9,7 +9,7 @@
 | 나레이션 | `presentation/video/narration.json` | `presentation/video/narration.en.json` |
 | 영상 | `the-last-human-3m30.mp4` · **4:17.9** · 자막 49장 | `the-last-human-en.mp4` · **4:05.7** · 자막 50장 |
 | 목소리 | `ko-KR-HyunsuMultilingualNeural` | `en-US-AndrewMultilingualNeural` |
-| 데모 88초 | 앞 103s · 뒤 64s | 앞 95s · 뒤 60s |
+| 데모 88초 | 앞 103s · 뒤 68s | 앞 95s · 뒤 63s |
 
 **이 문서의 스크립트와 시간은 `narration*.json`과 `manifest*.json`에서 생성했습니다.**
 사람이 옮겨 적지 않으므로 영상과 어긋날 수 없습니다. 문장을 고치면 나레이션을 고치고
@@ -36,7 +36,7 @@ python make_shots.py    # 덱을 빌드 단계마다 캡처
 python build_video.py   # 조립 + 자막 굽기
 ```
 
-- 아래 표의 시간 합계(4:15 · 4:03)와 영상 길이(4:17.9 · 4:05.7)가 3초 안쪽으로
+- 아래 표의 시간 합계(4:19 · 4:06)와 영상 길이(4:17.9 · 4:05.7)가 3초 안쪽으로
   다릅니다. 표는 구간마다 초 단위로 반올림한 값이고 영상은 실측을 그대로 이어 붙이기 때문입니다.
 - MP4·캡처·음성 90MB는 저장소에 넣지 않았습니다. 위 세 명령으로 다시 만듭니다.
 - **3분 30초 예산을 한국어 48초 · 영어 36초 넘습니다.** 더 줄이면 설명이 단문 나열로
@@ -192,10 +192,17 @@ python build_video.py   # 조립 + 자막 굽기
 **시사점** — 01에서 말한 전제로 **되돌아와 해소합니다.** 속도를 줄이는 것이 아니라 조직이 감당할 수 있는 속도를 올리는 것입니다.
 <br>**Why it matters** — **Return to the premise stated in 01 and resolve it.** This is not about slowing down; it is about raising the speed an organization can carry.
 
-### 마무리 카드 · 무음
+### TAG · 마무리 카드
 
-한국어 4:15 · English 4:03 지점에서 `AI-generated code. Human-owned decisions.`가 뜹니다.
-**읽지 않습니다.** Q&A 동안 이 화면이 남습니다.
+**English** — Closing card
+
+| | 시간 | 스크립트 |
+| --- | --- | --- |
+| 한국어 | 4:15–4:19 · 4s | "AI가 만든 코드, 사람이 책임지는 결정." |
+| English | 4:03–4:06 · 3s | "AI-generated code. Human-owned decisions." |
+
+**시사점** — 화면에 함께 뜨는 `Copilot can fly. The pilot in command is still responsible.`는 **읽지 않습니다.** Q&A 동안 이 화면이 남습니다.
+<br>**Why it matters** — The second line on screen, `Copilot can fly. The pilot in command is still responsible.`, is **never read aloud.** This screen stays up through Q&A.
 
 ## 4. 리허설 지침
 
