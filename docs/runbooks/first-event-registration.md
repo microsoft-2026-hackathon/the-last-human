@@ -83,14 +83,43 @@ change the risk rules, question prompts, pass/hold criteria, or receipt schema.
 `TLH_REGISTRATION_OWNER_ALLOWLIST` is the implemented name;
 `TLH_ALLOWED_OWNERS` is not an alias. Supply IDs, not login names.
 An empty allowlist is not anonymous registration or a public tenant directory.
-`TLH_DEMO_SEED` remains fixed-mode-only and is rejected when nonempty in
-first-event mode.
+In first-event mode, `TLH_DEMO_SEED` requires an explicit
+`TLH_DEMO_SEED_REPOSITORY_ID`; it is never shared with all tenants.
 
 Without an audience override, the relay requests `github.repository`.
 The gateway accepts that **signed repository claim** or its configured common
 `TLH_OIDC_AUDIENCE`. For a custom audience, set the repository Actions variable
 `TLH_OIDC_AUDIENCE` to the common server value. There is no per-tenant audience
 configuration stored in the registry.
+
+## Repository-scoped demo data
+
+Keep the existing dashboard seed file and select the numeric repository that may
+display it. For `microsoft-2026-hackathon/the-last-human`, use:
+
+```bash
+TLH_DEMO_SEED='/absolute/path/to/dashboard-seed.json'
+TLH_DEMO_SEED_REPOSITORY_ID='1371498352'
+```
+
+Replace the example path with the existing seed file's absolute path. Both
+settings must be supplied together in first-event mode; missing files, incomplete
+pairs and invalid repository IDs fail configuration. To disable the overlay,
+unset both settings. Fixed mode keeps its existing `TLH_DEMO_SEED` behavior and
+does not require or use the repository selector.
+
+Only the matching numeric tenant receives the seed. Another repository, even one
+with the same name, receives no seed. The target must still be installed, opted
+in and registered; configuring demo data grants no access and creates no tenant.
+The existing dashboard adds the seed to live coverage and displays **Demo data**.
+No snapshots, receipts, gate results or model decisions are fabricated or changed.
+
+This option changes configuration only: no schema change or repeat data import is
+needed to enable it. If rollout preparation and backups are already complete,
+preserve them, update the existing deployment checkout to the merged code, and
+use its existing virtual environment. Do not repeat worktree creation, environment
+copying or backups. Keep `TLH_DEMO_SEED` in the new runtime environment, add the
+selector, and continue the remaining import/startup steps.
 
 ## Admission and identity changes
 
