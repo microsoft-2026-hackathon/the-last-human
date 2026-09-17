@@ -16,6 +16,7 @@ import requests
 import yaml
 
 from lasthuman.config import parse_config
+from lasthuman.ledger import CODEOWNERS_PATHS, parse_codeowners
 from .config import GatewaySettings, Settings
 from .registration import RegistrationDeniedError, RegistrationOperationalError, RepositoryInstallation
 
@@ -29,6 +30,7 @@ _API_ORIGIN: Final = "https://api.github.com"
 _ACCEPT: Final = "application/vnd.github+json"
 _TIMEOUT: Final[tuple[int, int]] = (5, 30)
 _MAX_RESPONSE_BYTES: Final = 2 * 1024 * 1024
+_MAX_CODEOWNERS_BYTES: Final = 128 * 1024
 _PER_PAGE: Final = 100
 _MAX_PAGES: Final = 10
 _TOKEN_REFRESH_SKEW: Final = timedelta(seconds=60)
@@ -102,6 +104,61 @@ class GitHubClient:
         payload = self.request("GET", self._repo_path, token_override=user_token)
         repository = _require_object(payload, "repository response")
         return self._validate_repository(repository)
+
+    def current_codeowners(
+        self, user_token: str, *, repository_info: JsonObject | None = None,
+    ) -> dict[str, str]:
+        """Read current declared rules at one immutable default-branch commit.
+
+        The caller authorizes repository access before supplying cached metadata.
+        Only missing files advance to the next candidate; an empty first file
+        declares no owners. Rules retain their last-declaration order. This is
+        current contact metadata, not historical module attribution or safe URLs.
+        """
+        self._guard_access()
+        if not isinstance(user_token, str) or not user_token.strip():
+            raise GitHubError("GitHub current CODEOWNERS requires a user access token")
+        try:
+            repository = (
+                self.repository_info(user_token)
+                if repository_info is None
+                else self._validate_repository(_require_object(repository_info, "repository response"))
+            )
+            branch = _require_str(repository.get("default_branch"), "default_branch", "repository")
+            try:
+                branch_ref = quote(branch, safe="")
+            except UnicodeError:
+                raise GitHubError("GitHub repository default branch is invalid") from None
+            commit = _require_object(
+                self.request(
+                    "GET", f"{self._repo_path}/commits/{branch_ref}",
+                    token_override=user_token,
+                ),
+                "default branch commit",
+            )
+            sha = _require_sha(commit.get("sha"), "default branch commit")
+            owners: dict[str, str] = {}
+            for candidate in CODEOWNERS_PATHS:
+                try:
+                    payload = self.request(
+                        "GET", f"{self._repo_path}/contents/{quote(candidate, safe='/')}?ref={sha}",
+                        token_override=user_token,
+                    )
+                except GitHubError as error:
+                    if error.status_code == 404:
+                        continue
+                    raise
+                text = _codeowners_contents_text(_require_object(payload, "CODEOWNERS response"))
+                for pattern, declared_owners in parse_codeowners(text, include_unowned=True, preserve_patterns=True):
+                    owners.pop(pattern, None)
+                    owners[pattern] = declared_owners
+                break
+            self._guard_access()
+            return owners
+        except GitHubError as error:
+            raise GitHubError(
+                "GitHub current CODEOWNERS metadata is unavailable", status_code=error.status_code,
+            ) from None
 
     def pull(self, pr: int, user_token: str | None = None) -> JsonObject:
         _validate_positive_number(pr, "pull request number")
@@ -1072,7 +1129,7 @@ class GitHubInstallationDiscovery:
             raise RegistrationDeniedError("trusted repository opt-in file is invalid")
         content = _require_str(payload.get("content"), "content", "repository content")
         try:
-            return b64decode("".join(content.split()), validate=True).decode("utf-8")
+            return _decode_contents_text(content)
         except (ValueError, UnicodeError):
             raise RegistrationDeniedError("trusted repository opt-in file is invalid") from None
 
@@ -1163,6 +1220,39 @@ class GitHubInstallationDiscovery:
         except ValueError:
             raise RegistrationOperationalError("GitHub discovery returned invalid JSON") from None
         return _require_object(payload, "discovery response")
+
+
+def _decode_contents_text(content: str, *, max_bytes: int | None = None) -> str:
+    encoded = "".join(content.split())
+    if max_bytes is not None and len(encoded) > 4 * ((max_bytes + 2) // 3):
+        raise ValueError("repository content exceeds the file size limit")
+    raw = b64decode(encoded, validate=True)
+    if max_bytes is not None and len(raw) > max_bytes:
+        raise ValueError("repository content exceeds the file size limit")
+    return raw.decode("utf-8")
+
+
+def _codeowners_contents_text(payload: JsonObject) -> str:
+    if (
+        payload.get("type") != "file"
+        or payload.get("encoding") != "base64"
+        or payload.get("target") is not None
+        or payload.get("submodule_git_url") is not None
+    ):
+        raise GitHubError("GitHub CODEOWNERS must be a base64-encoded regular file")
+    size = _require_int(payload.get("size"), "size", "CODEOWNERS")
+    if not 0 <= size <= _MAX_CODEOWNERS_BYTES:
+        raise GitHubError("GitHub CODEOWNERS exceeds the 128 KiB file size limit")
+    content = payload.get("content")
+    if not isinstance(content, str):
+        raise GitHubError("GitHub CODEOWNERS content must be a string")
+    try:
+        text = _decode_contents_text(content, max_bytes=_MAX_CODEOWNERS_BYTES)
+    except (ValueError, UnicodeError):
+        raise GitHubError("GitHub CODEOWNERS content is invalid or exceeds the file size limit") from None
+    if len(text.encode("utf-8")) != size:
+        raise GitHubError("GitHub CODEOWNERS content size mismatch")
+    return text
 
 
 def _validate_repository_name(repository: str) -> str:

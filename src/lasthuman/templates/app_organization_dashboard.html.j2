@@ -1,0 +1,251 @@
+{% autoescape true %}
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{{ view.organization }} · Organization · The Last Human</title>
+<style nonce="{{ csp_nonce }}">
+  :root {
+    color-scheme: light;
+    --bg: #F5F7F6; --surface: #FFFFFF; --ink: #152C3B; --ink-2: #3B4E5C; --muted: #64737D;
+    --line: #D9E0E3; --line-soft: #E9EEF0; --tint: #EEF3F1;
+    --human-soft: #FBEAE4; --human-ink: #A7503F;
+    --good: #1F7A3F; --good-soft: #E3F2E7; --warn-soft: #FFF3D6;
+    --focus: #2F6FED; --radius: 6px;
+    --font: -apple-system, BlinkMacSystemFont, "Segoe UI", "Helvetica Neue", Arial, sans-serif;
+    --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; padding: 0 24px 64px; background: var(--bg); color: var(--ink);
+    font: 14px/1.55 var(--font); font-variant-numeric: tabular-nums; -webkit-font-smoothing: antialiased;
+  }
+  a { color: var(--ink); text-decoration: none; }
+  a:hover { text-decoration: underline; }
+  :focus-visible { outline: 2px solid var(--focus); outline-offset: 3px; border-radius: 3px; }
+  .page { max-width: 1160px; min-width: 0; margin: 0 auto; }
+  .topbar {
+    display: flex; align-items: center; flex-wrap: wrap; gap: 16px;
+    padding: 20px 0; margin-bottom: 24px; border-bottom: 1px solid var(--line);
+  }
+  .brand { display: flex; align-items: center; gap: 10px; font-weight: 700; }
+  .mark {
+    display: grid; place-items: center; flex: none; width: 34px; height: 34px;
+    border: 1.5px solid var(--ink); border-radius: 50%; background: var(--human-soft);
+    color: var(--human-ink); font-size: .8rem;
+  }
+  .identity { min-width: 0; padding-left: 16px; border-left: 1px solid var(--line); }
+  .identity h1 { margin: 0; font-size: 1rem; font-weight: 650; overflow-wrap: anywhere; }
+  .section-label { color: var(--muted); font-size: .76rem; }
+  .topnav { display: flex; align-items: center; flex-wrap: wrap; gap: 16px; margin-left: auto; }
+  .back { font-size: .82rem; text-decoration: underline; text-underline-offset: 3px; }
+  .period { padding: 5px 10px; border: 1px solid var(--line); border-radius: var(--radius); font-size: .8rem; }
+  .toolbar { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 16px; }
+  .source-switch {
+    display: inline-flex; gap: 3px; padding: 3px; border: 1px solid var(--line);
+    border-radius: 8px; background: var(--line-soft);
+  }
+  .source-switch a, .source-switch .disabled { padding: 7px 16px; border-radius: 5px; font-size: .84rem; font-weight: 600; }
+  .source-switch a[aria-current="page"] { background: var(--surface); box-shadow: 0 1px 3px #152C3B14; }
+  .source-switch .disabled { color: var(--muted); }
+  .repository-filter { display: flex; align-items: center; gap: 9px; flex-wrap: wrap; min-width: 0; margin: 0; }
+  .repository-filter label { color: var(--ink-2); font-size: .82rem; font-weight: 500; }
+  select, button { min-height: 36px; font: inherit; color: var(--ink); border: 1px solid var(--line); border-radius: var(--radius); }
+  select { max-width: 300px; min-width: 180px; padding: 5px 30px 5px 10px; background: var(--surface); }
+  button { padding: 5px 13px; background: var(--surface); cursor: pointer; font-size: .82rem; font-weight: 600; }
+  button:hover { background: var(--tint); }
+  .selection { display: flex; align-items: center; flex-wrap: wrap; gap: 9px; margin: 12px 0 24px; }
+  .badge { display: inline-flex; align-items: center; padding: 2px 9px; border-radius: 999px; font-size: .75rem; font-weight: 600; }
+  .source-badge { background: var(--tint); color: var(--ink-2); border: 1px solid var(--line); }
+  .source-badge.demo { background: var(--warn-soft); color: #5C4200; border-color: transparent; }
+  .selection-name { color: var(--muted); font-size: .8rem; overflow-wrap: anywhere; }
+  .notice { margin: 0 0 18px; padding: 10px 14px; border: 1px solid #E5D6AD; border-radius: var(--radius); background: var(--warn-soft); color: #5C4200; }
+  .summary { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; margin-bottom: 26px; }
+  .summary-card {
+    display: flex; flex-direction: column; gap: 12px; min-width: 0; padding: 18px 20px;
+    background: var(--surface); border: 1px solid var(--line); border-radius: 8px;
+  }
+  .summary-card:hover { border-color: var(--human-ink); text-decoration: none; }
+  .summary-card[aria-current="true"] { border-color: var(--human-ink); box-shadow: inset 0 0 0 1px var(--human-ink); background: #FFFAF8; }
+  .card-label { font-size: .83rem; color: var(--ink-2); font-weight: 600; }
+  .card-value { display: flex; align-items: baseline; flex-wrap: wrap; gap: 8px; }
+  .card-value strong { font-size: 2rem; letter-spacing: -.04em; line-height: 1.15; font-weight: 650; }
+  .card-value span { color: var(--muted); font-size: .85rem; }
+  .modules-header { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-bottom: 12px; }
+  .modules-header h2 { margin: 0; font-size: .95rem; font-weight: 650; }
+  .reset { font-size: .8rem; color: var(--ink-2); text-decoration: underline; text-underline-offset: 3px; }
+  .reset[aria-current="true"] { font-weight: 650; }
+  .repository { min-width: 0; margin-bottom: 16px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); }
+  .repository-header { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 10px; padding: 15px 18px; }
+  .repository-header h3 { min-width: 0; margin: 0; font-size: .9rem; }
+  .repository-link { overflow-wrap: anywhere; text-decoration: underline; text-decoration-color: var(--line); text-underline-offset: 4px; }
+  .repository-link:hover { text-decoration-color: var(--ink); }
+  .repository-link .arrow { margin-left: 6px; color: var(--muted); }
+  .status { color: var(--muted); background: var(--tint); white-space: nowrap; font-weight: 500; }
+  .status.available { color: var(--good); background: var(--good-soft); }
+  .status.unavailable { color: #5C4200; background: var(--warn-soft); }
+  .tablewrap { max-width: 100%; overflow-x: auto; border-radius: 0 0 8px 8px; }
+  table { width: 100%; min-width: 790px; border-collapse: collapse; font-size: .85rem; }
+  th, td { text-align: left; padding: 13px 18px; border-top: 1px solid var(--line-soft); white-space: nowrap; }
+  thead th { color: var(--muted); background: #FAFBFB; font-size: .74rem; font-weight: 600; }
+  tbody th { font-family: var(--mono); font-size: .81rem; font-weight: 500; }
+  tbody tr:hover { background: #FAFBFB; }
+  .verified { font-weight: 600; }
+  .rate { margin-left: 9px; color: var(--muted); font-size: .78rem; font-weight: 400; }
+  .answerers { font-weight: 650; }
+  .owner { font-size: .8rem; }
+  .owner a { color: var(--ink-2); text-decoration: underline; text-underline-offset: 3px; }
+  .contact { display: block; }
+  .missing { color: var(--muted); font-weight: 400; }
+  .empty { margin: 0; padding: 22px 18px; color: var(--muted); font-size: .85rem; border-top: 1px solid var(--line-soft); }
+  .empty-selection { border: 1px solid var(--line); border-radius: 8px; background: var(--surface); }
+  @media (max-width: 760px) {
+    body { padding: 0 16px 40px; }
+    .topbar { gap: 12px; margin-bottom: 20px; }
+    .topnav { width: 100%; margin-left: 0; justify-content: space-between; }
+    .toolbar { align-items: flex-start; }
+    .repository-filter { width: 100%; }
+    select { flex: 1; min-width: 0; max-width: 100%; width: 100px; }
+    .summary { gap: 8px; }
+    .summary-card { padding: 14px 12px; gap: 9px; }
+    .card-label { font-size: .76rem; }
+    .card-value { gap: 4px; }
+    .card-value strong { font-size: 1.6rem; }
+    .card-value span { font-size: .75rem; }
+  }
+  @media (max-width: 400px) {
+    .identity { width: 100%; border-left: 0; padding-left: 0; }
+    .summary { grid-template-columns: 1fr; }
+    .summary-card { flex-direction: row; align-items: center; justify-content: space-between; gap: 12px; }
+  }
+</style>
+</head>
+<body>
+<main class="page">
+  <header class="topbar">
+    <div class="brand"><span class="mark" aria-hidden="true">TLH</span><span>The Last Human</span></div>
+    <div class="identity">
+      <span class="section-label">Organization</span>
+      <h1>{{ view.organization }}</h1>
+    </div>
+    <nav class="topnav" aria-label="Dashboard navigation">
+      <a class="back" href="{{ repo_dashboard_url }}">Repository dashboard <span aria-hidden="true">→</span></a>
+      <span class="period">Last 30 days</span>
+    </nav>
+  </header>
+
+  <div class="toolbar">
+    <nav class="source-switch" aria-label="Data source">
+      <a href="{{ view.links.actual }}"{% if view.source == 'actual' %} aria-current="page"{% endif %}>Actual data</a>
+      {% if view.demo_enabled %}
+      <a href="{{ view.links.demo }}"{% if view.source == 'demo' %} aria-current="page"{% endif %}>Demo</a>
+      {% else %}
+      <span class="disabled" aria-disabled="true">Demo</span>
+      {% endif %}
+    </nav>
+    <form class="repository-filter" method="get" action="{{ organization_path }}">
+      <input type="hidden" name="source" value="{{ view.source }}">
+      <input type="hidden" name="bucket" value="{{ view.selected_bucket }}">
+      <label for="repository">Repository</label>
+      <select id="repository" name="repository">
+        <option value="all"{% if view.selected_repository == 'all' %} selected{% endif %}>All connected</option>
+        {% for option in view.repository_options %}
+        <option value="{{ option.id }}"{% if view.selected_repository == option.id %} selected{% endif %}>{{ option.name }}</option>
+        {% endfor %}
+      </select>
+      <button type="submit">Apply</button>
+    </form>
+  </div>
+  <div class="selection">
+    <span class="badge source-badge{% if view.source == 'demo' %} demo{% endif %}">{{ 'Demo data' if view.source == 'demo' else 'Actual data' }}</span>
+    <span class="selection-name">
+      {% if view.selected_repository == 'all' %}
+        {{ view.repository_options|length }} {{ 'sample ' if view.source == 'demo' else '' }}{{ 'repository' if view.repository_options|length == 1 else 'repositories' }}
+      {% else %}
+        {% for option in view.repository_options %}{% if option.id == view.selected_repository %}{{ option.name }}{% endif %}{% endfor %}
+      {% endif %}
+    </span>
+  </div>
+  {% if view.notice|default('') %}
+  <p class="notice" role="status">{{ view.notice }}</p>
+  {% endif %}
+
+  <nav class="summary" aria-label="Filter modules by confirmed authors">
+    {% for bucket, label in [('zero', '0 confirmed authors'), ('one', '1 confirmed author'), ('many', '2+ confirmed authors')] %}
+    <a class="summary-card" href="{{ view.links[bucket] }}"{% if view.selected_bucket == bucket %} aria-current="true"{% endif %}>
+      <span class="card-label">{{ label }}</span>
+      <span class="card-value"><strong>{{ view.summary[bucket] }}</strong> <span>{{ 'module' if view.summary[bucket] == 1 else 'modules' }}</span></span>
+    </a>
+    {% endfor %}
+  </nav>
+
+  <section aria-labelledby="modules-heading">
+    <div class="modules-header">
+      <h2 id="modules-heading">Modules</h2>
+      <a class="reset" href="{{ view.links.reset }}"{% if view.selected_bucket == 'all' %} aria-current="true"{% endif %}>All modules</a>
+    </div>
+    {% for repository in view.repositories %}
+    <section class="repository" aria-labelledby="repository-{{ loop.index }}">
+      <header class="repository-header">
+        <h3 id="repository-{{ loop.index }}">
+          <a class="repository-link" href="{{ repository.dashboard_url }}" title="Open repository dashboard">{{ repository.name }}<span class="arrow" aria-hidden="true">→</span></a>
+        </h3>
+        <span class="badge status{% if repository.status == 'Available' %} available{% elif repository.status == 'Data unavailable' %} unavailable{% endif %}">{{ repository.status }}</span>
+      </header>
+      {% if repository.modules %}
+      <div class="tablewrap" role="region" aria-labelledby="repository-{{ loop.index }}" tabindex="0">
+        <table>
+          <thead>
+            <tr>
+              <th scope="col">Module</th>
+              <th scope="col">Verified before merge</th>
+              <th scope="col">Can answer</th>
+              <th scope="col">Declared owner</th>
+              <th scope="col">Data status</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for module in repository.modules %}
+            <tr>
+              <th scope="row">{{ module.zone }}</th>
+              <td class="verified">
+                {% if module.attested is not none and module.gated is not none %}
+                {{ module.attested }} / {{ module.gated }}{% if module.rate is not none %} <span class="rate">{{ (module.rate * 100)|round|int }}%</span>{% endif %}
+                {% else %}
+                <span class="missing" aria-label="Not available">—</span>
+                {% endif %}
+              </td>
+              <td class="answerers">{% if module.answerers is not none %}{{ module.answerers }}{% else %}<span class="missing" aria-label="Not available">—</span>{% endif %}</td>
+              <td class="owner">
+                {% for contact in module.contacts %}
+                {% if contact.url and view.source == 'actual' %}
+                <a class="contact" href="{{ contact.url }}" rel="noopener noreferrer">{{ contact.label }}</a>
+                {% else %}
+                <span class="contact">{{ contact.label }}</span>
+                {% endif %}
+                {% endfor %}
+                {% if module.contact_status %}
+                <span class="missing">{{ module.contact_status }}</span>
+                {% elif not module.contacts %}
+                <span class="missing">Not declared</span>
+                {% endif %}
+              </td>
+              <td><span class="badge status{% if module.status == 'Available' %} available{% elif module.status in ['Collection delayed', 'Data unavailable'] %} unavailable{% endif %}">{{ module.status }}</span></td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      {% else %}
+      <p class="empty">{% if repository.status != 'Available' %}{{ repository.status }}{% elif view.selected_bucket != 'all' %}No modules match this filter.{% else %}No measured data{% endif %}</p>
+      {% endif %}
+    </section>
+    {% else %}
+    <p class="empty empty-selection">{% if view.selected_bucket != 'all' %}No modules match this filter.{% else %}No measured data{% endif %}</p>
+    {% endfor %}
+  </section>
+</main>
+</body>
+</html>
+{% endautoescape %}

@@ -31,7 +31,7 @@ build-backend = "setuptools.build_meta"
 where = ["src"]
 
 [tool.setuptools.package-data]
-lasthuman = ["templates/*.j2"]
+lasthuman = ["templates/*.j2", "data/*.json"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

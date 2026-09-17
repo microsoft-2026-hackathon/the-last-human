@@ -9,7 +9,7 @@ import time
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass, field
 from threading import RLock
-from urllib.parse import urlsplit
+from urllib.parse import parse_qsl, urlencode, urlsplit
 
 import requests
 from authlib.integrations.base_client.errors import OAuthError
@@ -18,6 +18,7 @@ from authlib.oauth2.base import OAuth2Error
 
 from .config import Settings
 from .github import GitHubClient, GitHubError, JsonObject
+from .organization import OrganizationError, OrganizationQuery, repository_query
 
 SESSION_COOKIE_NAME = "lasthuman_sid"
 _AUTHORIZE_URL = "https://github.com/login/oauth/authorize"
@@ -533,17 +534,25 @@ def normalize_next_path(next_path: str | None, *, path_prefix: str = "") -> str:
     parsed = urlsplit(raw)
     if parsed.scheme or parsed.netloc or raw.startswith("//"):
         raise AuthError("next path is invalid", code="invalid_next", status_code=400)
-    if parsed.query or parsed.fragment:
+    if parsed.fragment or "#" in raw:
         raise AuthError("next path is invalid", code="invalid_next", status_code=400)
+    path = parsed.path
     if path_prefix and parsed.path.startswith(path_prefix + "/"):
-        raw = parsed.path[len(path_prefix):]
-        parsed = urlsplit(raw)
+        path = parsed.path[len(path_prefix):]
     if not raw.startswith("/") or raw.startswith("//"):
         raise AuthError("next path is invalid", code="invalid_next", status_code=400)
-    if parsed.path == _DASHBOARD_PATH:
-        return parsed.path
-    if re.fullmatch(r"/prs/[1-9][0-9]*", parsed.path):
-        return parsed.path
+    if path in {_DASHBOARD_PATH, "/dashboard/organization"}:
+        try:
+            pairs = parse_qsl(parsed.query, keep_blank_values=True, strict_parsing=True, max_num_fields=3)
+            if path == _DASHBOARD_PATH:
+                repository_query(pairs)
+            else:
+                OrganizationQuery.parse(pairs)
+        except (OrganizationError, ValueError):
+            raise AuthError("next path is invalid", code="invalid_next", status_code=400) from None
+        return path + ("?" + urlencode(pairs) if pairs else "")
+    if not parsed.query and "?" not in raw and re.fullmatch(r"/prs/[1-9][0-9]*", path):
+        return path
     raise AuthError("next path is invalid", code="invalid_next", status_code=400)
 
 
