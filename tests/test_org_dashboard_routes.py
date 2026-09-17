@@ -22,6 +22,8 @@ from werkzeug.test import TestResponse
 
 from registration_transport import Call, Integration, Repository, integration, response
 from test_app_http import FakeOAuth, FakeReader, FakeVerifier, FakeGitHub, make_settings, make_snapshot, login
+from test_org_dashboard import repository_demo_zone, set_repository_demo_zones
+from test_org_dashboard_render import Page
 from lasthuman.server.app import create_app
 from lasthuman.server.auth import AuthError, normalize_next_path
 from lasthuman.server.gateway import GatewayRuntimeError, TenantContainer, _rewrite_location
@@ -448,15 +450,23 @@ def test_source_isolation_legacy_seed_and_org_demo_repo_demo_then_actual_journey
     before = [database_contents(tenant) for tenant in (one, two)]
     original_one = one.service.dashboard
     original_two = two.service.dashboard
+    original_merges = one.service.store.load_merges_since
     original_inventory = harness.runtime.registry.list_registered
     monkeypatch.setattr(one.service, "dashboard", lambda **_kwargs: pytest.fail("Demo read anchor business records"))
     monkeypatch.setattr(two.service, "dashboard", lambda **_kwargs: pytest.fail("Demo read peer business records"))
     monkeypatch.setattr(
+        one.service.store, "load_merges_since", lambda **_kwargs: pytest.fail("Demo read actual merge history"),
+    )
+    monkeypatch.setattr(
         harness.runtime.registry, "list_registered", lambda: pytest.fail("Demo enumerated actual repository inventory"),
     )
+    set_repository_demo_zones(monkeypatch, [
+        repository_demo_zone(zone="ledger/", owner="@sample-organization/platform", answerers=3, forced=2),
+        repository_demo_zone(),
+    ])
     start = len(harness.runtime.http.calls)
     _, demo = rendered_view(browser, ORG + "?source=demo&bucket=many")
-    assert demo.summary == Summary(zero=1, one=1, many=2)
+    assert demo.summary == Summary(zero=1, one=1, many=5)
     assert all(repo.dashboard_url == "/repos/101/dashboard?data=demo" for repo in demo.repositories)
     assert not any(call.path.startswith("/repos/acme/two") for call in harness.runtime.http.calls[start:])
     destination = browser.get(demo.repositories[0].dashboard_url)
@@ -465,12 +475,29 @@ def test_source_isolation_legacy_seed_and_org_demo_repo_demo_then_actual_journey
     assert one.settings.repository in html and "Demo data" in html
     assert "sample-payments" not in html and "legacy-only/" not in html
     assert "/pull/" not in html and "/receipts/" not in html
+    assert "@sample-organization/payments" in html and "@sample-organization/platform" in html
+    assert html.index("#907") < html.index("#903") < html.index("#901")
+    assert "One more verified change in this zone" in html
+    assert "Verify 2 exceptions after the fact" in html
     payload = browser.get("/repos/101/api/dashboard?data=demo", headers={"X-CSRF-Token": csrf}).get_json()
     assert payload["source"] == "demo" and payload["repo"] == one.settings.repository
-    assert all(row["prs"] == [] for row in payload["zones"])
+    assert [(row["zone"], row["owner"], row["prs"]) for row in payload["zones"]] == [
+        ("auth/", "@sample-organization/payments", [907, 903, 901]),
+        ("ledger/", "@sample-organization/platform", [907, 903, 901]),
+    ]
+    assert payload["actions"] == [
+        {"zone": "auth/", "owner": "@sample-organization/payments",
+         "action": "One more verified change in this zone", "from": 1, "to": 2},
+        {"zone": "ledger/", "owner": "@sample-organization/platform",
+         "action": "Verify 2 exceptions after the fact", "from": 3, "to": 4},
+    ]
     assert before == [database_contents(tenant) for tenant in (one, two)]
     monkeypatch.setattr(one.service, "dashboard", original_one)
     monkeypatch.setattr(two.service, "dashboard", original_two)
+    monkeypatch.setattr(one.service.store, "load_merges_since", original_merges)
+    monkeypatch.setattr(
+        "lasthuman.server.organization._demo_fixture", lambda: pytest.fail("Actual read the demo fixture"),
+    )
     actual_payload = browser.get("/repos/101/api/dashboard?data=repo", headers={"X-CSRF-Token": csrf}).get_json()
     assert actual_payload["source"] == "repo" and actual_payload["gated_total"] == 1
     assert actual_payload["demo_seeded"] is False
@@ -481,6 +508,91 @@ def test_source_isolation_legacy_seed_and_org_demo_repo_demo_then_actual_journey
     assert reset.source == "actual" and reset.selected_repository == reset.selected_bucket == "all"
     _, selected = rendered_view(browser, ORG + "?source=actual&repository=101&bucket=zero")
     assert selected.summary == Summary(zero=1) and [repo.id for repo in selected.repositories] == ["101"]
+
+
+def test_bundled_demo_routes_preserve_six_zone_payload_and_org_filters_without_actual_reads(
+    organization_runtime: OrganizationHarness, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    harness = organization_runtime
+    tenants = (harness.register(101), harness.register(102))
+    browser, csrf = harness.browser()
+    before = [database_contents(tenant) for tenant in tenants]
+    images = [tenant.settings.database.read_bytes() for tenant in tenants]
+    for tenant in tenants:
+        monkeypatch.setattr(tenant.service, "dashboard", lambda **_kwargs: pytest.fail("Demo read Actual metrics"))
+        monkeypatch.setattr(
+            tenant.service.store, "load_merges_since", lambda **_kwargs: pytest.fail("Demo read Actual merges"),
+        )
+    monkeypatch.setattr(
+        harness.runtime.registry, "list_registered", lambda: pytest.fail("Demo enumerated Actual repositories"),
+    )
+    start = len(harness.runtime.http.calls)
+    result, demo = rendered_view(browser, ORG + "?source=demo")
+    page = Page(result.get_data(as_text=True))
+    assert demo.summary == Summary(zero=1, one=1, many=5)
+    assert len(demo.repositories) == 4 and sum(len(repo.modules) for repo in demo.repositories) == 8
+    assert [card.words for card in page.by_class("a", "summary-card")] == [
+        "0 confirmed authors 1 module", "1 confirmed author 1 module", "2+ confirmed authors 5 modules",
+    ]
+    for bucket, expected in (
+        ("zero", [("sample-orders", "shipping/")]),
+        ("one", [("sample-identity", "auth/")]),
+        ("many", [
+            ("sample-identity", "session/"), ("sample-orders", "checkout/"),
+            ("sample-payments", "billing/"), ("sample-payments", "ledger/"), ("sample-platform", "jobs/"),
+        ]),
+    ):
+        filtered_html, filtered = rendered_view(browser, demo.links[bucket])
+        assert filtered.summary == demo.summary
+        assert [(repo.id, module.zone) for repo in filtered.repositories for module in repo.modules] == expected
+        assert len(Page(filtered_html.get_data(as_text=True)).select("th", scope="row")) == len(expected)
+    for repository, summary, zones in (
+        ("sample-payments", Summary(many=2), []),
+        ("sample-identity", Summary(one=1, many=1), ["auth/"]),
+    ):
+        _, filtered = rendered_view(browser, ORG + f"?source=demo&repository={repository}&bucket=one")
+        assert filtered.summary == summary and len(filtered.repository_options) == 4
+        assert [repo.id for repo in filtered.repositories] == [repository]
+        assert [module.zone for module in filtered.repositories[0].modules] == zones
+    _, platform = rendered_view(browser, ORG + "?source=demo&repository=sample-platform")
+    assert [(module.zone, module.status) for module in platform.repositories[0].modules] == [
+        ("events/", "Collection delayed"), ("jobs/", "Sample too small"),
+    ]
+    destination = browser.get("/repos/101/dashboard?data=demo")
+    assert destination.status_code == 200
+    html = destination.get_data(as_text=True)
+    repo_page = Page(html)
+    assert [span.words for span in repo_page.by_class("span", "v")] == ["21/ 28 gated 75%", "3", "0"]
+    assert len(repo_page.by_class("td", "zone")) == 6
+    assert [span.words for span in repo_page.by_class("span", "low")] == ["Sample too small"]
+    assert [cell.words for cell in repo_page.select("td")[2::7]] == ["1", "2", "3", "4", "—", "—"]
+    visible_text = repo_page.select("body")[0].words
+    assert all(value in visible_text for value in ("83%", "86%", "20%"))
+    assert "100%" not in visible_text and "/pull/" not in html and "/receipts/" not in html
+    assert repo_page.by_class("td", "prs")[3].words == "#48 #45 #41 #38 #34 #30"
+    api_response = browser.get("/repos/101/api/dashboard?data=demo", headers={"X-CSRF-Token": csrf})
+    assert api_response.status_code == 200
+    payload = api_response.get_json()
+    assert payload["source"] == "demo" and payload["repo"] == tenants[0].settings.repository
+    assert payload["zone_count"] == 6 and payload["zero_answerer_zones"] == 0
+    assert payload["attested_rate"] == 0.75
+    assert (payload["merged_total"], payload["gated_total"], payload["attested_total"],
+            payload["forced_total"], payload["waiting_total"]) == (34, 28, 21, 3, 1)
+    assert (payload["measured_total"], payload["unmeasured_total"]) == (34, 0)
+    for field in ("merged", "gated", "attested", "forced"):
+        assert payload[f"{field}_total"] == sum(row[field] or 0 for row in payload["zones"])
+    assert [row["zone"] for row in payload["zones"]] == [
+        "sample-app/app/auth/", "sample-app/migrations/", "sample-app/app/orders/",
+        "sample-app/app/ledger/", "docs/", ".github/workflows/",
+    ]
+    assert [row["rate"] for row in payload["zones"]] == [0.2, None, 6 / 7, 10 / 12, None, None]
+    assert payload["zones"][1]["low_sample"] is True
+    for row in payload["zones"][-2:]:
+        assert row["gated"] is None and row["attested"] is None and row["answerers"] is None
+        assert row["prs"] == [] and row["forced"] == 0
+    assert before == [database_contents(tenant) for tenant in tenants]
+    assert images == [tenant.settings.database.read_bytes() for tenant in tenants]
+    assert not any(call.path.startswith("/repos/acme/two") for call in harness.runtime.http.calls[start:])
 
 
 def test_actual_captures_one_utc_as_of_for_both_real_aggregations(
@@ -652,7 +764,30 @@ def test_fixed_mode_uses_only_configured_repository_and_sample_destination(
         assert actual.repositories[0].status == "No measured data"
         _, demo = rendered_view(browser, "/dashboard/organization?source=demo")
         assert {repo.dashboard_url for repo in demo.repositories} == {"/dashboard?data=demo"}
-        assert browser.get("/dashboard?data=demo").status_code == 200
+        with monkeypatch.context() as demo_only:
+            set_repository_demo_zones(demo_only, [repository_demo_zone(forced=1)])
+            demo_only.setattr(
+                service, "dashboard", lambda **_kwargs: pytest.fail("Demo invoked Actual dashboard provider"),
+            )
+            demo_only.setattr(
+                service.store, "load_merges_since", lambda **_kwargs: pytest.fail("Demo read Actual store"),
+            )
+            assert browser.get("/dashboard?data=demo").status_code == 200
+            cookie = browser.get_cookie(settings.session_cookie_name)
+            assert cookie is not None
+            session = app.extensions["auth"].sessions.get(cookie.value)
+            assert session is not None
+            response = browser.get(
+                "/api/dashboard?data=demo", headers={"X-CSRF-Token": session.csrf_token},
+            )
+            assert response.status_code == 200
+            payload = response.get_json()
+            assert payload["zones"][0]["owner"] == "@sample-organization/payments"
+            assert payload["zones"][0]["prs"] == [907, 903, 901]
+            assert payload["actions"] == [{
+                "zone": "auth/", "owner": "@sample-organization/payments",
+                "action": "Verify 1 exception after the fact", "from": 1, "to": 2,
+            }]
         assert browser.get("/dashboard?data=repo").status_code == 200
     finally:
         app.extensions["runtime"].shutdown()

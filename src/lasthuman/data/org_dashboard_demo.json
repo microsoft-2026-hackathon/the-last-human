@@ -4,37 +4,50 @@
       "id": "sample-payments",
       "name": "sample-payments",
       "modules": [
-        {"zone": "auth/", "gated": 5, "attested": 1, "answerers": 1, "owner": "@sample-organization/payments"},
-        {"zone": "ledger/", "gated": 10, "attested": 8, "answerers": 3, "owner": "@sample-organization/payments"}
+        {"zone": "ledger/", "gated": 10, "attested": 8, "answerers": 3, "owner": "@sample-organization/payments"},
+        {"zone": "billing/", "gated": 8, "attested": 6, "answerers": 3, "owner": "@sample-organization/payments"}
       ]
     },
     {
       "id": "sample-orders",
       "name": "sample-orders",
       "modules": [
-        {"zone": "checkout/", "gated": 3, "attested": 3, "answerers": 2, "owner": "@sample-organization/orders"},
+        {"zone": "checkout/", "gated": 9, "attested": 7, "answerers": 2, "owner": "@sample-organization/orders"},
         {"zone": "shipping/", "gated": 5, "attested": 0, "answerers": 0, "owner": "@sample-organization/orders"}
+      ]
+    },
+    {
+      "id": "sample-identity",
+      "name": "sample-identity",
+      "modules": [
+        {"zone": "session/", "gated": 6, "attested": 4, "answerers": 2, "owner": "@sample-organization/identity"},
+        {"zone": "auth/", "gated": 5, "attested": 1, "answerers": 1, "owner": "@sample-organization/identity"}
       ]
     },
     {
       "id": "sample-platform",
       "name": "sample-platform",
       "modules": [
+        {"zone": "jobs/", "gated": 4, "attested": 4, "answerers": 2, "owner": "@sample-organization/platform"},
         {"zone": "events/", "gated": null, "attested": null, "answerers": null, "owner": "@sample-organization/platform"}
       ]
     }
   ],
   "repository_dashboard": {
-    "merged_total": 15,
-    "gated_total": 12,
-    "attested_total": 9,
+    "merged_total": 34,
+    "gated_total": 28,
+    "attested_total": 21,
     "forced_total": 3,
     "waiting_total": 1,
-    "measured_total": 15,
+    "measured_total": 34,
     "unmeasured_total": 0,
     "zones": [
-      {"zone": "auth/", "merged": 5, "gated": 5, "attested": 1, "forced": 3, "answerers": 1},
-      {"zone": "ledger/", "merged": 10, "gated": 10, "attested": 8, "forced": 2, "answerers": 3}
+      {"zone": "sample-app/app/ledger/", "owner": "@sample-organization/payments", "merged": 12, "gated": 12, "attested": 10, "forced": 1, "answerers": 4, "prs": [48, 45, 41, 38, 34, 30]},
+      {"zone": "sample-app/app/orders/", "owner": "@sample-organization/orders", "merged": 7, "gated": 7, "attested": 6, "forced": 0, "answerers": 3, "prs": [47, 44, 40, 36]},
+      {"zone": "sample-app/app/auth/", "owner": "@sample-organization/payments", "merged": 5, "gated": 5, "attested": 1, "forced": 2, "answerers": 1, "prs": [46, 43, 39]},
+      {"zone": "sample-app/migrations/", "owner": "@sample-organization/platform", "merged": 4, "gated": 4, "attested": 4, "forced": 0, "answerers": 2, "prs": [42, 37, 33, 29]},
+      {"zone": "docs/", "owner": "@sample-organization/platform", "merged": 4, "gated": null, "attested": null, "forced": 0, "answerers": null, "prs": []},
+      {"zone": ".github/workflows/", "owner": "@sample-organization/platform", "merged": 2, "gated": null, "attested": null, "forced": 0, "answerers": null, "prs": []}
     ]
   }
 }
