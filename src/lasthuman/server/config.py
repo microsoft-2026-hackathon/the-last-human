@@ -143,10 +143,19 @@ class GatewaySettings:
     positive_ttl_seconds: int = 60
     negative_ttl_seconds: int = 15
     max_model_calls: int = 4
+    demo_seed: Path | None = None
+    demo_seed_repository_id: int | None = None
 
     def __post_init__(self) -> None:
         if self.registration_mode != "first-event" or self.workflow_ref != _DEFAULT_WORKFLOW_REF:
             raise ConfigurationError("first-event registration requires the trusted main workflow")
+        if (self.demo_seed is None) != (self.demo_seed_repository_id is None):
+            raise ConfigurationError("TLH_DEMO_SEED and TLH_DEMO_SEED_REPOSITORY_ID must be configured together")
+        if self.demo_seed_repository_id is not None:
+            _context_positive_int(self.demo_seed_repository_id, "TLH_DEMO_SEED_REPOSITORY_ID")
+        if self.demo_seed is not None:
+            if not isinstance(self.demo_seed, Path) or _optional_path(str(self.demo_seed)) is None:
+                raise ConfigurationError("TLH_DEMO_SEED must point to an existing file")
         for name, value, bounds in (
             ("max_registered_repositories", self.max_registered_repositories, (1, 256)),
             ("positive_ttl_seconds", self.positive_ttl_seconds, (5, 3600)),
@@ -243,6 +252,7 @@ class GatewaySettings:
             presentation_reason_limit=self.presentation_reason_limit,
             presentation_detail_limit=self.presentation_detail_limit,
             presentation_paths_per_group=self.presentation_paths_per_group,
+            demo_seed=self.demo_seed if repository_id == self.demo_seed_repository_id else None,
             path_prefix=f"/repos/{repository_id}", tenant_generation=context.generation,
         )
 
@@ -289,6 +299,15 @@ def _parse_owner_allowlist(raw: str | None) -> frozenset[int]:
     return frozenset(result)
 
 
+def _optional_demo_seed_repository_id(raw: str | None) -> int | None:
+    if raw is None:
+        return None
+    token = raw.strip()
+    if not re.fullmatch(r"[1-9][0-9]{0,18}", token):
+        raise ConfigurationError("TLH_DEMO_SEED_REPOSITORY_ID must be a positive integer less than 2**63")
+    return _context_positive_int(int(token), "TLH_DEMO_SEED_REPOSITORY_ID")
+
+
 def _settings_from_env(
     cls: type[Settings] | type[GatewaySettings], *, registration_mode: RegistrationMode,
 ) -> Settings | GatewaySettings:
@@ -311,8 +330,6 @@ def _settings_from_env(
             "demo_seed": _optional_path(os.environ.get("TLH_DEMO_SEED")),
         }
     else:
-        if os.environ.get("TLH_DEMO_SEED", "").strip():
-            raise ConfigurationError("TLH_DEMO_SEED is fixed-mode only")
         scoped = {
             "registration_mode": "first-event",
             "database": _normalize_path(
@@ -320,6 +337,10 @@ def _settings_from_env(
             ),
             "state_root": _normalize_path(os.environ.get("TLH_STATE_ROOT", "").strip() or str(_DEFAULT_STATE_ROOT)),
             "allowed_owner_ids": _parse_owner_allowlist(os.environ.get("TLH_REGISTRATION_OWNER_ALLOWLIST")),
+            "demo_seed": _optional_path(os.environ.get("TLH_DEMO_SEED")),
+            "demo_seed_repository_id": _optional_demo_seed_repository_id(
+                os.environ.get("TLH_DEMO_SEED_REPOSITORY_ID")
+            ),
         }
         for name, env, default, bounds in (
             ("max_registered_repositories", "TLH_MAX_REGISTERED_REPOSITORIES", 32, (1, 256)),
