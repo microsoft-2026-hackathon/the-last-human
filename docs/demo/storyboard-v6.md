@@ -7,13 +7,14 @@
 | --- | --- | --- |
 | 덱 | [`presentation/index.html`](presentation/index.html) | [`presentation/index.en.html`](presentation/index.en.html) |
 | 나레이션 | `presentation/video/narration.json` | `presentation/video/narration.en.json` |
-| 영상 | `the-last-human-3m30.mp4` · **4:17.9** · 자막 49장 | `the-last-human-en.mp4` · **4:05.7** · 자막 50장 |
+| 기존 렌더 | `the-last-human-3m30.mp4` · **4:17.9** · 자막 49장 | `the-last-human-en.mp4` · **4:05.7** · 자막 50장 |
 | 목소리 | `ko-KR-HyunsuMultilingualNeural` | `en-US-AndrewMultilingualNeural` |
 | 데모 88초 | 앞 103s · 뒤 68s | 앞 95s · 뒤 63s |
 
-**이 문서의 스크립트와 시간은 `narration*.json`과 `manifest*.json`에서 생성했습니다.**
-사람이 옮겨 적지 않으므로 영상과 어긋날 수 없습니다. 문장을 고치면 나레이션을 고치고
-영상을 다시 만드십시오 — 반대 방향으로는 고치지 마십시오.
+슬라이드 구간의 기존 스크립트와 시간은 `narration*.json`과 `manifest*.json`에서 가져왔습니다.
+**DEMO 절은 새로 촬영할 88초 화면 시연의 기준**이며, 이번 음성 시간은 단어 수 기반 예상값입니다.
+기존 MP4·음성이 이 원고로 갱신됐다는 뜻은 아닙니다. 촬영·TTS 후 실제 길이를 측정하고,
+영상 작업본의 나레이션·manifest와 이 문서를 함께 맞춥니다.
 
 ## 1. 한 줄 논지
 
@@ -27,7 +28,9 @@
 
 ## 2. 이 문서로 만든 영상
 
-3장의 스크립트를 그대로 Azure Speech로 합성하고, 덱을 빌드 단계마다 캡처해 이어 붙인 것입니다.
+기존 영상은 슬라이드 대본을 Azure Speech로 합성하고, 덱을 빌드 단계마다 캡처해 이어 붙인 것입니다.
+새 DEMO는 실제 제품 화면을 녹화·편집해 교체합니다. 아래 명령은 해당 스크립트가 있는 영상 작업 사본에서
+실행하는 기존 파이프라인이며, 이번 문서 변경만으로 녹화·음성 생성까지 수행되지는 않습니다.
 
 ```bash
 cd docs/demo/presentation/video
@@ -134,15 +137,170 @@ python build_video.py   # 조립 + 자막 굽기
 **시사점** — 화살표 방향이 제품을 설명합니다. 그리고 **파이프라인 안에서** 돈다는 점이 중요합니다 — 별도 도구가 아닙니다.
 <br>**Why it matters** — The direction of the arrow *is* the product. And it matters that it runs **inside the pipeline** — this is not a separate tool.
 
-### DEMO · 88초 · 말하지 않습니다
+### DEMO · 실제 화면 88초 · English VO
 
-| | 시간 | |
+**목표는 1분 20초–1분 30초, 기준 편집본은 88초입니다.** 아래 타임코드는 데모 시작을 `00:00`으로 둡니다.
+기존 88초 슬롯을 유지하므로 앞뒤 슬라이드의 시간은 바꾸지 않습니다.
+
+| | 전체 영상 안의 위치 | 진행 |
 | --- | --- | --- |
-| 한국어 | 1:43–3:11 · 88s | **배점이 가장 큰 구간입니다.** 해설을 얹으면 "동작 결과물"이 아니라 "설명"으로 읽힙니다 |
-| English | 1:35–3:03 · 88s | **The highest-scoring stretch.** Narrating over it turns working software back into a description |
+| 한국어 덱 | 1:43–3:11 · 88s | 데모의 English VO를 재생하고 발표자는 중복 해설하지 않음 |
+| English deck | 1:35–3:03 · 88s | Play the embedded English VO; do not add live narration |
 
-영상이 끝나면 **바로 07로 넘깁니다.** 88초 동안 다음 문장을 준비하십시오.
-데모 영상 자체는 English VO이며, 내부 구성은 [storyboard-v4.md](storyboard-v4.md)가 단일 출처입니다.
+**이 데모의 연결:** Copilot이 PR을 만듦 → 기존 검사·승인은 있지만 사람의 설명은 대기 → 작성자가 로그인해
+코드 근거로 설명 → Hold 문항을 같은 커밋에서 보완 → 실제 gate 성공과 merge 가능 상태 →
+ORG의 모듈 분포 → repo의 기록·선언된 담당 → 장애 조사에 활용할 문의 경로.
+
+**추가 커밋과 실제 merge 클릭은 하지 않습니다.** 최초 PR 작성 커밋은 필요하지만 면담 중에는 코드를
+바꾸지 않습니다. 바뀌는 것은 작성자의 설명입니다. 알려진 재시도 문제를 고쳤다거나, 확인 통과가
+코드의 안전을 보증한다고 말하지 않습니다. 아래 메시지·촬영 지시는 제작 문서용이며 제품 화면에
+소개 문장·개발 이력·해설 카드를 덧붙이지 않습니다.
+
+#### 장면·메시지·English VO
+
+| 컷 | 데모 시간 | 전달할 메시지 | 화면과 실제 동작 | English VO |
+| --- | --- | --- | --- | --- |
+| D01 | 00:00–00:08 · 8s | 작업 요청에서 실제 PR로 이어짐 | 1920×1080 전체 화면을 터미널/Copilot과 브라우저로 분할. 아래 영어 요청을 입력하고 실행. 요청의 `ensure_fresh`, `Add tests`, `open a pull request`를 읽을 수 있게 터미널을 잠깐 확대. 작업 대기는 편집으로 줄이고, 실제 생성된 PR 링크로 끝냄 | Copilot prepares a pull request to make token refresh more resilient. |
+| D02 | 00:08–00:12 · 4s | 결과물이 검토 흐름에 들어옴 | GitHub PR 목록으로 이동. 방금 생성한 PR 한 행의 제목·작성자·브랜치를 확인하고 클릭. 전체 목록의 다른 PR은 강조하지 않음 | The change appears in the review queue. |
+| D03 | 00:12–00:19 · 7s | 기존 검사와 사람의 변경 설명은 별개 | PR의 실제 테스트·린트 성공, 다른 리뷰어의 Approve를 먼저 보여 줌. 이어 `last-human/human-verified`의 pending / Awaiting author explanation, Required, 비활성 merge 영역을 한 화면에 둠. 마지막 2초는 gate와 merge 영역에 집중 | Tests pass. A reviewer approves. The author still needs to explain the change. |
+| D04 | 00:19–00:24 · 5s | 작성자 자신의 신원으로 설명함 | PR 카드의 `Check this change` → GitHub의 `Authorize the-last-human-app` 계정 선택 화면 → PR 작성자 계정의 `Continue` → 면담 화면. GitHub와 App 아이콘, 제목, Continue를 중심으로 크롭 | The author signs in with GitHub. |
+| D05 | 00:24–00:34 · 10s | 선택만이 아니라 근거를 제출함 | 두 문항과 근거 입력칸을 보여 줌. 둘 다 답해 한 번에 `Submit answers`. 실제 채점 뒤 첫 문항 `Accepted`, 둘째 `Hold`를 차례로 강조. Hold를 failure나 개인 점수로 바꾸지 않음 | Both answers are submitted. One is accepted. The other needs another look. |
+| D06 | 00:34–00:46 · 12s | 답은 변경 밖의 호출 관계에도 있음 | Hold의 힌트와 `http_client.py` 발췌를 열어 기존 반복문·`MAX_ATTEMPTS = 3`을 읽음. 변경된 바깥 반복과 나란히 보여 준 뒤, 둘째 문항의 보기·근거만 정정. 코드 편집기에서 파일을 수정하거나 커밋하지 않음 | The hint reveals another retry loop. Three attempts here, three there: up to nine requests. |
+| D07 | 00:46–00:55 · 9s | 설명 확인 뒤에도 최종 결정은 사람에게 있음 | 재제출 → 두 문항 Accepted → 독립 검증 완료 → 같은 SHA의 `Human-verified`와 실제 필수 status success → 활성 `Merge pull request`. 검증 대기는 실제 성공 이후 장면으로 컷 연결. merge 버튼을 보여 주되 클릭하지 않음 | The explanation is corrected. Verification completes. The merge decision stays with the author. |
+| D08 | 00:55–01:05 · 10s | 조직은 개인 순위가 아니라 모듈 분포를 봄 | ORG 대시보드 Demo. 출처 배지와 저장소 범위를 유지. 0명·1명·2명 이상 기록을 가진 **모듈 수** 카드 → 한 카드 선택 → 관련 모듈 행을 보여 줌. 카드 숫자를 조직의 인원 합계처럼 읽지 않음 | Across repositories, these cards count modules with zero, one, or several authors on record. |
+| D09 | 01:05–01:16 · 11s | 확인 근거와 공식 문의처를 함께 찾음 | 저장소명을 클릭해 기존 the-last-human repo 대시보드의 Demo로 이동. 대상 저장소명·Demo 배지를 숨기지 않음. Actual data로 전환하고 auth 모듈의 기록·Declared owner를 확인. 실제 자료가 적으면 그 상태 그대로 보여 줌 | A declared owner tells us where to ask. The coverage tells us what has been checked. |
+| D10 | 01:16–01:28 · 12s | 사고 시 살펴볼 코드와 상의할 출발점을 찾음 | repo 화면을 유지하며 첫 문장 동안 GitHub 사후 분석의 짧은 재시도 문구·출처를 약 4–5초 제시. 이어 auth 모듈 → 현재 CODEOWNERS의 선언된 담당 → 관련 코드로 이동. 마지막은 담당·코드가 함께 보이는 화면. 아래 선택안에서는 이 구간만 Copilot 질의 화면으로 교체 | GitHub's outage showed how retries can amplify recovery traffic. Here, module records and declared owners guide the investigation. |
+
+#### D01 · Copilot에 입력할 요청
+
+```text
+In sample-app, add up to three retries with exponential backoff to ensure_fresh()
+for transient identity-provider errors. Return the existing token after exhaustion,
+but raise permanent errors. Keep post_json() unchanged, add tests, and open a pull request.
+```
+
+질문의 문구·보기·정답이나 `3 × 3 = 9`를 요청에 넣지 않습니다. 녹화한 요청에서 생성된 실제 PR을
+이후 장면 전체에 사용합니다. 다른 PR로 바꿔 놓고 같은 작업의 결과처럼 이어 붙이지 않습니다.
+준비된 재시도 샘플은 리허설 기준으로 활용하되, 실제 생성된 diff와 질문이 다르면 장면·대사를 먼저 맞춥니다.
+
+#### D04–D07 · 로그인과 같은 커밋에서의 보완
+
+- D04는 **사용자 OAuth의 계정 선택 화면**입니다. App 설치 화면이나 이미 인증이 끝난 화면으로
+  설명하지 않습니다. 실제 PR 작성자 계정을 선택하고 후속 승인 화면이 있으면 같은 흐름에 포함합니다.
+- 사용하지 않는 계정 행, 브라우저 주소의 OAuth code/state, 터미널의 토큰·환경 파일은 촬영하지 않습니다.
+  계정 선택이 이미 유지돼 해당 화면이 생략된다면, 리허설에서 정상 로그인 경로를 준비합니다.
+- 첫 답변은 변경 안의 실제 반환 동작에 근거합니다. 둘째는 피호출자가 재시도하지 않는다고 오해한
+  선택을 한 뒤, 보류 근거를 읽고 설명을 고칩니다. **실제 생성 문항과 정답 위치를 먼저 확인**하며,
+  예상과 다르게 나온 문항에 녹화된 정답·배지를 덮어씌우지 않습니다.
+- 재시도 관계가 실제 문항일 때의 보완 근거 예시:
+  `ensure_fresh calls refresh up to three times; post_json can make three attempts per call.`
+  이는 두 계층이 재시도 대상 실패에 대해 끝까지 반복하는 경우의 상한입니다. 모든 요청이 항상
+  아홉 번 실행된다는 뜻은 아닙니다.
+- Accepted 문항은 그대로 두고 Hold 문항을 보완합니다. 촬영 중 head SHA뿐 아니라 PR 제목·본문,
+  base·정책도 바꾸지 않아 같은 snapshot을 유지합니다. 새 커밋 후 재확인 장면은 이번 컷에 없습니다.
+- 문항 Accepted, receipt 생성, Actions 검증, GitHub status success는 다른 단계입니다.
+  D07은 **실제 게시된 현재 SHA의 성공 상태**와 기존 리뷰·CI 조건까지 충족됐을 때 촬영합니다.
+
+#### D08–D10 · 대시보드의 순서와 가치
+
+**기본 순서는 ORG → repo → 선언된 담당입니다.** 먼저 여러 저장소를 포함한 관측 범위와 모듈 분포를
+보여 주고, 한 저장소로 좁혀 기록과 문의처를 확인합니다. repo만 보여 주는 것보다 조직이 얻는 가치를
+드러내면서도, 마지막에는 실제 코드와 협업 경로로 돌아올 수 있습니다.
+
+| 보여 줄 정보 | 관객이 이해할 가치 | 말하지 않을 것 |
+| --- | --- | --- |
+| ORG의 모듈 분포 | 확인 기록이 어디에 쌓이고 어디를 더 살펴볼지 파악 | 조직에서 검증된 전문가가 총 몇 명이라는 주장 |
+| repo의 확인 건수·근거 | 담당 선언과 별도로, 어떤 변경에 확인 기록이 있는지 파악 | 높은 비율만으로 코드 전체가 안전하다는 주장 |
+| 현재 Declared owner / CODEOWNERS | 질문을 보낼 공식 담당자·팀을 찾음 | 해당 담당자가 익명 확인 기록의 작성자라는 추정 |
+| 실제·데모 전환 | 같은 제품 화면에서 예제와 실제 연결 범위를 구분 | 예제의 숫자를 실측·고객 실적으로 소개 |
+
+ORG Demo의 가상 저장소명은 진입 기준인 the-last-human repo 대시보드로 연결됩니다.
+이는 가상 저장소의 실데이터를 여는 것이 아니므로, 이동 후 실제 대상 이름과 Demo 배지를 계속 보여 줍니다.
+Actual에서는 실제로 수집된 기록만 사용합니다. **D07에서 merge를 클릭하지 않으므로 이 PR 때문에
+Can answer가 0→1로 변하는 연출은 하지 않습니다.** 확인이 완료됐더라도 모듈 집계는 적격한 확인 뒤
+머지 사실이 기록돼야 반영됩니다.
+
+현재 담당자가 화면에서 확인되지 않으면 최신 `.github/CODEOWNERS`를 열어 확인합니다.
+과거 스냅샷의 담당을 현재 담당처럼 단정하거나 비공개 receipt에서 사람 이름을 역추적하지 않습니다.
+
+#### D10 선택안 · Copilot과 상의할 출발점 찾기
+
+**기본안은 담당·코드를 직접 여는 장면입니다.** Copilot 질의 장면을 쓰려면 D10의 같은 12초를
+교체합니다. 추가 컷으로 붙여 88초를 넘기지 않습니다.
+
+```text
+Read .github/CODEOWNERS and the token-refresh code.
+Who is the declared owner to consult, and which functions should we inspect first?
+```
+
+코드가 있는 작업공간에서 실제 질의를 실행하고 나온 결과만 촬영합니다. 결과는
+`Declared owner: <current CODEOWNERS entry>`와 `Inspect: ensure_fresh / post_json`처럼
+근거 파일·함수를 짧게 보여 주는 형태가 적합합니다. 특정 답변을 제품이 자동으로 낸 것처럼 합성하지 않습니다.
+
+Copilot이 TLH의 비공개 대시보드나 receipt를 자동 조회하는 연동은 이 장면의 전제가 아닙니다.
+필요한 공개 코드·CODEOWNERS 또는 사용자가 확인한 자료를 명시적으로 제공해야 합니다.
+“이 사람이 인증을 통과했으니 전문가”가 아니라 **선언된 문의처와 조사할 코드**를 찾습니다.
+실제 결과가 이 조건을 충족하지 않으면 기본안으로 촬영합니다.
+
+GitHub 사례의 연결점은 **복구 중 재시도가 트래픽을 증폭할 수 있다는 점**입니다.
+짧게 인용할 문구는 `a client-side retry loop that increased traffic during recovery`입니다.
+출처는 [GitHub 사후 분석](https://github.blog/news-insights/company-news/the-august-17-outage-and-the-work-ahead/).
+원래 장애의 주원인은 용량 문제이며, 이 샘플 PR이 그 장애를 일으켰다거나 TLH가 이를 예방했을 것이라고
+말하지 않습니다. 대시보드는 진단·협업의 출발점을 제공하지 장애를 자동으로 해결하지 않습니다.
+
+#### 음성을 입혔을 때의 길이
+
+위 English VO는 **125단어**입니다. 코드·화면 라벨·입력 프롬프트는 따로 읽지 않습니다.
+v4와 같은 `en-US-AndrewMultilingualNeural`, **rate 0%**를 기준으로 준비하되 아래 수치는
+TTS 실측이 아니라 **150 words/minute 가정의 계산값**입니다.
+
+| 컷 | 화면 예산 | VO 단어 수 | 발화 예상 · 150 wpm | 화면 동작·읽기에 남는 시간 |
+| --- | ---: | ---: | ---: | ---: |
+| D01 | 8s | 11 | 4.4s | 3.6s |
+| D02 | 4s | 7 | 2.8s | 1.2s |
+| D03 | 7s | 13 | 5.2s | 1.8s |
+| D04 | 5s | 6 | 2.4s | 2.6s |
+| D05 | 10s | 12 | 4.8s | 5.2s |
+| D06 | 12s | 15 | 6.0s | 6.0s |
+| D07 | 9s | 13 | 5.2s | 3.8s |
+| D08 | 10s | 14 | 5.6s | 4.4s |
+| D09 | 11s | 16 | 6.4s | 4.6s |
+| D10 | 12s | 18 | 7.2s | 4.8s |
+| **합계** | **88s** | **125** | **50.0s** | **38.0s** |
+
+- 계산식은 `단어 수 ÷ 분당 단어 수 × 60`입니다. 145–165 wpm에서는 발화만 **45.5–51.7초**입니다.
+- D06에서 코드 관계를 읽는 침묵 2초, D07의 활성 merge 화면 0.5초, D10 끝 1초를 확보합니다.
+  이 3.5초를 포함한 음성 트랙의 발화·명시 침묵은 약 **49.0–55.2초**이며, 문장 호흡은 실제 TTS에 따라 달라집니다.
+- **음성은 화면 위에 겹치므로 최종 영상은 88초입니다.** 88초에 음성 길이를 더하지 않습니다.
+  남은 시간에는 입력·클릭·코드 읽기·상태 확인을 보여 줍니다. 대시보드·장애 대응에 마지막 **33초**를 배정했습니다.
+- 음성은 각 컷 진입 후 약 0.3–0.5초에 시작합니다. 보완 문장을 끝내기 전에 하이라이트를 풀거나
+  스크롤하지 않습니다. TTS가 길면 대본을 줄이고, 음성 속도를 올려 맞추지 않습니다.
+- 80초 축약본은 D01·D08·D09·D10에서 각각 2초씩 줄입니다. 90초까지 필요하면 D04와 D10에
+  각각 1초를 더합니다. 이 경우 전체 영상의 뒤쪽 타임코드도 함께 다시 계산합니다.
+- 촬영 후 컷별 음성을 실제 합성해 길이를 측정하고 이 표의 예상값을 실측으로 교체합니다.
+  전체 덱의 3분 30초 초과 문제는 별도이며, 이번 88초 슬롯 유지로 해결됐다고 표시하지 않습니다.
+
+#### 촬영 단위와 편집 원칙
+
+| 테이크 | 컷 | 확보할 실제 화면 |
+| --- | --- | --- |
+| T1 | D01–D03 | 분할 작업 화면, 실제 생성 PR, 목록 한 행, CI·Approve·필수 gate 대기 |
+| T2 | D04 | GitHub 계정 선택·승인과 실제 면담 진입 |
+| T3 | D05–D06 | 일괄 제출, Accepted/Hold, 근거 발췌, 같은 커밋에서 설명 보완 |
+| T4 | D07 | 보완 제출 이후 실제 검증·게시 완료와 merge 가능 상태 |
+| T5 | D08–D09 | ORG Demo의 필터·저장소 이동, repo Demo와 Actual, 대상·출처 유지 |
+| T6 | D10 | 출처가 있는 장애 문구, 선언된 담당·코드 또는 실제 Copilot 질의 결과 |
+
+- v4의 `.work/demo-v4/rec/out/T1–T7.mp4`와 `rec/edit/T*.json`은 화면 강조·읽기 속도의 참고입니다.
+  새 컷의 기준은 이 DEMO 절이며, v4의 코드 수정·새 커밋·merge·0→1 장면을 그대로 재사용하지 않습니다.
+- 원본은 1920×1080으로 녹화하고 최종본은 30fps로 맞춥니다. 첫 분할 화면 이후에는 한 번에 하나의
+  관심 영역을 보여 줍니다. 줌·클릭 링·행 강조는 실제 요소 위치를 따라갑니다.
+- 생성·채점·검증의 대기는 성공이 확인된 실제 장면 사이의 컷으로 줄입니다. 이를 실시간 응답이나
+  성능 수치로 주장하지 않습니다. 가짜 Approved·Accepted·success·Merge 상태는 합성하지 않습니다.
+- 자막은 위 VO의 문장만 사용하고 상태 배지·코드 근거를 가리지 않습니다. 계정 비밀, 제작 메모,
+  이전 PR 번호, `TBC`, 개발·브랜치 이력, 안내 오버레이는 영상에 노출하지 않습니다.
+
+영상이 끝나면 **바로 07로 넘깁니다.**
 
 ### 07 · 우리 PR에 먼저 걸었고, 우리가 멈췄습니다 · `We Went First` — 4단계
 
@@ -207,7 +365,14 @@ python build_video.py   # 조립 + 자막 굽기
 ## 4. 리허설 지침
 
 - 손이 꼬이면 **`↓`** 를 누르십시오. 빌드를 건너뛰고 슬라이드가 완성된 상태로 넘어갑니다.
-- 데모 88초 동안 **발표자는 말하지 않습니다.**
+- 데모 88초에는 **내장 English VO만 재생**하고 발표자는 중복 해설하지 않습니다.
+- 촬영 전에 실제 테스트·린트 성공과 다른 리뷰어의 Approve를 확보합니다. 작성자의 자기 승인을
+  리뷰 승인처럼 사용하지 않습니다.
+- `last-human/human-verified`를 기대 발급 App과 함께 실제 필수 상태로 설정해야 D03의 merge 차단을
+  촬영할 수 있습니다. 2026-09-17 준비 조회에서는 필수 상태·리뷰 규칙이 설정돼 있지 않았습니다.
+  이는 촬영 전 운영자가 확인·설정할 전제이지, 이번 문서 커밋으로 변경한 설정이 아닙니다.
+- 질문 2개, 필요한 사용자 OAuth 화면, 같은 snapshot, 대시보드 Actual/Demo와 현재 CODEOWNERS 문의처를
+  리허설에서 확인합니다. 설정·로그인·자료가 준비되지 않으면 성공 화면을 만들어 대신하지 않습니다.
 - 발표 전 **`M`으로 타이머와 진행바를, `H`로 안내를** 끄십시오.
 - 시간이 밀리면 자르는 순서 — **03 마지막 문장 → 06의 Step 설명 → 09의 기반 밴드 설명.**
 - 부록은 `A` 키입니다 — A1 데이터 흐름 · A2 고객과 가치 · A3 제약과 다음 수. 시간 예산 밖입니다.
@@ -222,14 +387,14 @@ PYTHONIOENCODING=utf-8 python docs/demo/presentation/verify_claims.py
 
 | 주장 · Claim | 실측 · Measured | 근거 · Source |
 | --- | --- | --- |
-| 데모 PR은 gate가 켜집니다<br>The demo PR trips the gate | **55 / 40 → 발동** (중요 경로 +30 · `except\s` +10 · `async`/`await` +15)<br>**55 / 40 → fires** (critical path +30 · `except\s` +10 · `async`/`await` +15) | `.lasthuman.yml` + `risk.score()` |
+| 위험 fixture는 gate가 켜집니다<br>The risk fixture trips the gate | **55 / 40 → 발동**은 기존 fixture 값. 실제 촬영 PR은 변경량을 포함한 현재 snapshot의 점수·사유를 사용하며 이 값을 고정 자막으로 쓰지 않음<br>**55 / 40 → fires** is the existing fixture result, not a guaranteed score for the recorded PR | `.lasthuman.yml` + `risk.score()` · 실제 촬영은 PR 카드의 현재 평가<br>Use the current PR evaluation for footage |
 | 저위험 문서 PR은 지나갑니다<br>A low-risk docs PR passes through | **0 / 40 → 미발동**<br>**0 / 40 → does not fire** | 같음<br>same |
 | 인증 경로 −2줄은 못 잡습니다<br>A −2-line auth change is missed | **30 / 40 → 미발동**<br>**30 / 40 → does not fire** | 같음. 07의 근거<br>same. The evidence behind 07 |
 | 임계값 40 · 중요 경로 auth 30 / db 20 / migrations 30<br>Threshold 40 · critical paths auth 30 / db 20 / migrations 30 | 설정 그대로<br>exactly as configured | `.lasthuman.yml` |
 | 판단 3파일은 각각 +30<br>The three judgment files are +30 each | `risk.py` · `interview.py` · `attest.py` | `.lasthuman.yml` |
 | 검증은 5단계<br>Verification is five steps | 워크플로에 5개 step<br>5 steps in the workflow | `.github/workflows/lasthuman-app.yml` |
 | 필수 status 식별자<br>Required status identifier | `last-human/human-verified` | `src/lasthuman/server/config.py:21` |
-| 데모 PR을 Copilot이 썼습니다<br>Copilot wrote the demo PR | `Co-authored-by: Copilot` | `docs/runbooks/first-demo-macos.md` |
+| Copilot의 작업이 데모 PR로 이어집니다<br>The Copilot task produces the demo PR | D01의 실제 작업과 생성된 PR 링크를 D02로 연결. 공동 작성 trailer만으로 실제 작성 과정을 증명하지 않음<br>Record the task and follow its resulting PR; a coauthor trailer alone is not proof of the workflow | DEMO D01–D02 |
 | 규모 — commit 109 · PR 36 · test 519 · workflow 4<br>Scale — 109 commits · 36 PRs · 519 tests · 4 workflows | `git rev-list --count HEAD` 등<br>`git rev-list --count HEAD` and friends | 2026-09-16 기준<br>as of 2026-09-16 |
 
 ### gate 이력 — 07의 근거 · the evidence behind 07
@@ -258,6 +423,7 @@ required check를 계속 걸어 두지 않았기 때문입니다. 물으면 그�
 | `backdata_2` — 예측은 speedup, 관측은 +19% slowdown<br>`backdata_2` — forecasts said speedup, measurement said +19% slowdown | METR RCT · metr.org · CC-BY | 03 |
 | `backdata_4` — 45.4% · 28.3% vs 80.0% · 3.5× · PR-MCI verification mechanisms | Gong, Pinna, Bian, Zhang · arXiv 2026-01-26 · agentic PR 23,247건<br>Gong, Pinna, Bian, Zhang · arXiv 2026-01-26 · 23,247 agentic PRs | 04 |
 | `backdata_3` — AI cannot take responsibility | Godot 기여 정책 2026-06<br>Godot contribution policy 2026-06 | 05 |
+| 복구 중 재시도 트래픽 증폭<br>Retry amplification during recovery | [GitHub: The August 17 outage, and the work ahead](https://github.blog/news-insights/company-news/the-august-17-outage-and-the-work-ahead/) · 2026-08-20. 주원인은 용량 문제이며 이 샘플과 동일한 장애라는 뜻이 아님<br>The primary cause was capacity; the sample is not a recreation of the incident | DEMO D10 |
 
 `backdata_1`은 사내 자료라 **공개 저장소에 커밋하지 않았습니다.** 팀원에게는 파일을 따로 전달하십시오.
 *`backdata_1` is internal material and is not committed to the public repository.*
@@ -267,10 +433,12 @@ required check를 계속 걸어 두지 않았기 때문입니다. 물으면 그�
 | 질문 · Question | 답 · Answer |
 | --- | --- |
 | "gate도 AI한테 물어보면 되지 않습니까?"<br>"Couldn't you just ask an AI to pass the gate?" | 코드와 질문을 함께 주면 상당수 맞힙니다 — 사실입니다. 다만 **어떤 코드를 줄지 먼저 알아야** 합니다. 질문은 특정 hunk를 가리키고 근거로 코드 위치를 요구합니다. 목표는 부정행위 차단이 아니라 **승인 전 최소 한 번은 코드를 보게 만드는 것**이고, 지금은 그 한 번조차 없습니다.<br>Give a model the code and the question and it gets many of them right — that is true. But **you have to know which code to give it first.** The questions point at a specific hunk and demand a code location as evidence. The goal is not to stop cheating; it is to make someone look at the code **at least once** before approving. Today there is not even that once. |
-| "모든 PR을 막으면 개발이 마비되지 않습니까?"<br>"Won't blocking every PR paralyze development?" | 전수 적용하지 않습니다. 임계값 미달은 `Not required`로 지나갑니다. 데모 안에서 문서 PR이 그대로 merge되는 장면으로 증명됩니다.<br>We do not apply it to everything. Anything below the threshold passes as `Not required`. The demo proves it — a docs PR merges untouched. |
-| "모델이 죽으면 어떻게 됩니까?"<br>"What happens if the model goes down?" | 사람을 막지 않습니다. **실패 방향에 일관성이 있습니다** — 사람이 답을 빠뜨리면 막고, 인프라가 죽으면 통과시킵니다. 미통과는 failure가 아니라 pending입니다.<br>It does not block people. **Failure has a consistent direction** — if a person skips the answer it blocks; if the infrastructure dies it lets through. Not-yet-passed is pending, not failure. |
+| "모든 PR을 막으면 개발이 마비되지 않습니까?"<br>"Won't blocking every PR paralyze development?" | 전수 적용하지 않습니다. 임계값 미달은 `Not required`로 지나갑니다. 이번 88초는 확인 대상 변경에 집중하며 저위험 문서 PR은 별도 근거로 제시합니다.<br>Below-threshold changes pass as `Not required`. This 88-second sequence focuses on a gated change; a low-risk PR is separate evidence. |
+| "모델이 죽으면 어떻게 됩니까?"<br>"What happens if the model goes down?" | 처리 오류를 자동 통과로 바꾸지 않습니다. 유효한 확인이 없으면 필수 gate는 성공하지 않으며, 정상 복구와 재시도가 필요합니다. 인프라 오류는 작성자의 감점 기록이 아닙니다.<br>An infrastructure error is not converted into a pass. The required gate does not succeed without valid confirmation; recovery and retry are needed. Infrastructure failure is not a personal penalty. |
 | "보안은 어떻습니까?"<br>"What about security?" | App private key · client secret · 모델 자격은 **서버에만** 둡니다. 경계를 넘는 것은 단기 OIDC와 metadata뿐입니다. 다만 **"비밀이 전혀 없다"고는 말하지 않습니다** — Actions도 단기 GitHub 자격은 갖습니다.<br>The App private key, client secret, and model credentials stay **on the server only.** All that crosses the boundary is short-lived OIDC and metadata. But **we never claim "no secrets at all"** — Actions holds short-lived GitHub credentials too. |
-| "서버 하나로 여러 저장소가 됩니까?"<br>"Can one server cover many repositories?" | 지금은 **서버 1대 = 저장소 1개** 바인딩입니다. 패키징에서 정리 중이고 숨기지 않습니다.<br>Today it is **one server to one repository.** We are addressing that in packaging and we are not hiding it. |
+| "서버 하나로 여러 저장소가 됩니까?"<br>"Can one server cover many repositories?" | 기본 fixed 모드는 저장소 하나이며, first-event 모드는 등록된 저장소를 분리해 처리합니다. ORG Actual은 연결·인가된 범위이고 Demo는 별도 예제입니다. 조직의 모든 저장소를 자동 수집한다고 말하지 않습니다.<br>Fixed mode serves one repository. First-event mode isolates registered repositories. Organization Actual shows connected, authorized records; Demo is separate sample data, not a complete organization inventory. |
+| "코드가 그대로인데 통과하면 문제가 해결된 것입니까?"<br>"Does passing without a code change mean the problem is fixed?" | 아닙니다. 이번에는 같은 변경의 설명을 보완해 merge 가능 상태까지만 보여 줍니다. 실제 merge는 하지 않으며, 버그 수정·코드 안전 보증과 이해 확인은 구분합니다.<br>No. The author corrects the explanation of the same change. We show merge readiness, not an actual merge or a bug fix. |
+| "누구에게 물어볼지는 TLH가 검증한 사람을 추천합니까?"<br>"Does the dashboard recommend a verified expert?" | 아닙니다. 확인 작성자 수와 CODEOWNERS의 선언된 담당은 별개입니다. 담당을 문의 경로로 사용하며 비공개 면담 이력에서 전문가 명단을 만들지 않습니다.<br>No. Anonymous confirmation counts and declared CODEOWNERS contacts are separate. We use the declared contact, not a private interview-derived expert list. |
 | "사내망에도 둘 수 있습니까?"<br>"Can it run on an internal network?" | webhook 수신자가 아니라 **relay** 구조라 가능합니다. self-hosted runner와 사내 접속 경로가 필요하고, 대가는 runner 기동 지연 20–40초입니다.<br>Yes, because it is a **relay** rather than a webhook receiver. It needs a self-hosted runner and an internal route, and it costs 20–40 seconds of runner start-up. |
 | "Copilot과 경쟁하는 것입니까?"<br>"Are you competing with Copilot?" | 아닙니다. **Copilot이 연 PR을 조직이 받아들일 수 있게 만드는 층**입니다. 신뢰 층이 없으면 조직은 rubber-stamp하거나 금지하는데, 어느 쪽이든 Copilot의 생산성은 실현되지 않습니다.<br>No. This is **the layer that makes a Copilot-opened PR acceptable to an organization.** Without a trust layer an org either rubber-stamps or bans, and neither realizes Copilot's productivity. |
 | "Global 진출은 가능합니까?"<br>"Would this work globally?" | GitHub PR 흐름 위에서만 동작해 지역·언어 종속이 없습니다. 정책은 `.lasthuman.yml` 한 파일이고, 모델은 조직이 고른 Azure 리전을 씁니다. 다만 구조 분석은 현재 **Python 중심**입니다.<br>It runs purely on the GitHub PR flow, so it has no regional or language dependency. Policy is one file, `.lasthuman.yml`, and the model runs in whichever Azure region the organization picks. Structural analysis, though, is currently **Python-centric.** |
@@ -291,5 +459,6 @@ required check를 계속 걸어 두지 않았기 때문입니다. 물으면 그�
 ---
 
 덱 조작법은 [presentation/README.md](presentation/README.md), 영상 파이프라인은
-[presentation/video/README.md](presentation/video/README.md), 데모 영상 내부는
-[storyboard-v4.md](storyboard-v4.md), 도입 절차는 [onboarding.md](../runbooks/onboarding.md)입니다.
+[presentation/video/README.md](presentation/video/README.md)입니다. 새 데모의 컷·대사는 이 문서의
+DEMO 절을 따르고, [storyboard-v4.md](storyboard-v4.md)는 이전 녹화·편집의 참고로만 사용합니다.
+도입 절차는 [onboarding.md](../runbooks/onboarding.md)입니다.
