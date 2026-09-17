@@ -259,7 +259,7 @@ def read_authorized_repository(
     settings: Settings, service: BotService, github: GitHubClient, *,
     user_token: str, repository_info: dict[str, object], as_of: datetime,
 ) -> RepositoryView:
-    """Caller holds only this tenant's lifecycle lock and has checked its identity."""
+    """Caller keeps this tenant admitted and has checked its identity."""
     base = RepositoryView(
         str(settings.repository_id), settings.repository, settings.path_prefix + "/dashboard?data=repo",
     )
