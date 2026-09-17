@@ -75,7 +75,7 @@ def test_supported_model_limits_load(integration: Integration, monkeypatch: pyte
 
 @pytest.mark.parametrize("claims", [
     {"repository_id": True}, {"repository_owner_id": False}, {"aud": ["acme/one", "foreign/repo"]},
-    {"ref": "refs/heads/feature"}, {"sub": "repo:acme/one:pull_request"},
+    {"ref": "refs/heads/feature"}, {"sub": "repo:acme/one:environment:production"},
     {"run_id": ""}, {"run_attempt": "0"},
 ])
 def test_real_rsa_verifier_rejects_invalid_claim_contracts(integration: Integration, claims: dict[str, object]) -> None:
