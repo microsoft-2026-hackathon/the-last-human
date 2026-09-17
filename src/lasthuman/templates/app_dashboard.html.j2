@@ -32,6 +32,7 @@
   "col_answer": "Can answer",
   "col_gated": "Gated",
   "col_verified": "Verified",
+  "demo_small_sample": "Sample too small",
   "col_exc": "Exc.",
   "col_evidence": "Evidence",
   "no_zones": "No CODEOWNERS zones have been seen yet. The first analysed pull request fills this table.",
@@ -233,14 +234,14 @@
           <tr>
             <td class="zone">{{ zone.zone }}</td>
             <td class="owner">{% if zone.owner %}{{ zone.owner }}{% else %}<span class="none">—</span>{% endif %}</td>
-            <td>
+            <td>{% if source == 'demo' and zone.answerers is none %}—{% else %}
               <span class="people">
                 <span class="marks" aria-hidden="true">{% for i in range(3) %}<i{% if i >= zone.answerers %} class="off"{% endif %}></i>{% endfor %}</span>
                 <span class="n{% if zone.answerers == 0 %} zero{% if not zone.gated %} quiet{% endif %}{% endif %}">{{ zone.answerers }}</span>
-              </span>
+              </span>{% endif %}
             </td>
             <td class="num">{% if zone.gated %}{{ zone.gated }}{% else %}—{% endif %}</td>
-            <td class="num">{% if zone.gated %}{{ zone.attested }}<span class="of">/ {{ zone.gated }}{% if zone.rate is not none %} · {{ (zone.rate * 100)|round|int }}%{% endif %}</span>{% else %}—{% endif %}</td>
+            <td class="num">{% if zone.gated %}{{ zone.attested }}<span class="of">/ {{ zone.gated }}{% if zone.rate is not none %} · {{ (zone.rate * 100)|round|int }}%{% endif %}</span>{% if source == 'demo' and zone.low_sample|default(false) %} <span class="chip low">{{ copy.demo_small_sample }}</span>{% endif %}{% else %}—{% endif %}</td>
             <td class="num">{% if zone.forced %}<span class="forced">{{ zone.forced }}</span>{% else %}0{% endif %}</td>
             <td class="prs">{% for pr in zone.prs %}{% if source == 'demo' %}<span class="mono">#{{ pr }} </span>{% else %}<a href="https://github.com/{{ repo }}/pull/{{ pr }}">#{{ pr }}</a>{% endif %}{% endfor %}</td>
           </tr>

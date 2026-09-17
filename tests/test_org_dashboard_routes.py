@@ -23,6 +23,7 @@ from werkzeug.test import TestResponse
 from registration_transport import Call, Integration, Repository, integration, response
 from test_app_http import FakeOAuth, FakeReader, FakeVerifier, FakeGitHub, make_settings, make_snapshot, login
 from test_org_dashboard import repository_demo_zone, set_repository_demo_zones
+from test_org_dashboard_render import Page
 from lasthuman.server.app import create_app
 from lasthuman.server.auth import AuthError, normalize_next_path
 from lasthuman.server.gateway import GatewayRuntimeError, TenantContainer, _rewrite_location
@@ -465,7 +466,7 @@ def test_source_isolation_legacy_seed_and_org_demo_repo_demo_then_actual_journey
     ])
     start = len(harness.runtime.http.calls)
     _, demo = rendered_view(browser, ORG + "?source=demo&bucket=many")
-    assert demo.summary == Summary(zero=1, one=1, many=2)
+    assert demo.summary == Summary(zero=1, one=1, many=5)
     assert all(repo.dashboard_url == "/repos/101/dashboard?data=demo" for repo in demo.repositories)
     assert not any(call.path.startswith("/repos/acme/two") for call in harness.runtime.http.calls[start:])
     destination = browser.get(demo.repositories[0].dashboard_url)
@@ -507,6 +508,91 @@ def test_source_isolation_legacy_seed_and_org_demo_repo_demo_then_actual_journey
     assert reset.source == "actual" and reset.selected_repository == reset.selected_bucket == "all"
     _, selected = rendered_view(browser, ORG + "?source=actual&repository=101&bucket=zero")
     assert selected.summary == Summary(zero=1) and [repo.id for repo in selected.repositories] == ["101"]
+
+
+def test_bundled_demo_routes_preserve_six_zone_payload_and_org_filters_without_actual_reads(
+    organization_runtime: OrganizationHarness, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    harness = organization_runtime
+    tenants = (harness.register(101), harness.register(102))
+    browser, csrf = harness.browser()
+    before = [database_contents(tenant) for tenant in tenants]
+    images = [tenant.settings.database.read_bytes() for tenant in tenants]
+    for tenant in tenants:
+        monkeypatch.setattr(tenant.service, "dashboard", lambda **_kwargs: pytest.fail("Demo read Actual metrics"))
+        monkeypatch.setattr(
+            tenant.service.store, "load_merges_since", lambda **_kwargs: pytest.fail("Demo read Actual merges"),
+        )
+    monkeypatch.setattr(
+        harness.runtime.registry, "list_registered", lambda: pytest.fail("Demo enumerated Actual repositories"),
+    )
+    start = len(harness.runtime.http.calls)
+    result, demo = rendered_view(browser, ORG + "?source=demo")
+    page = Page(result.get_data(as_text=True))
+    assert demo.summary == Summary(zero=1, one=1, many=5)
+    assert len(demo.repositories) == 4 and sum(len(repo.modules) for repo in demo.repositories) == 8
+    assert [card.words for card in page.by_class("a", "summary-card")] == [
+        "0 confirmed authors 1 module", "1 confirmed author 1 module", "2+ confirmed authors 5 modules",
+    ]
+    for bucket, expected in (
+        ("zero", [("sample-orders", "shipping/")]),
+        ("one", [("sample-identity", "auth/")]),
+        ("many", [
+            ("sample-identity", "session/"), ("sample-orders", "checkout/"),
+            ("sample-payments", "billing/"), ("sample-payments", "ledger/"), ("sample-platform", "jobs/"),
+        ]),
+    ):
+        filtered_html, filtered = rendered_view(browser, demo.links[bucket])
+        assert filtered.summary == demo.summary
+        assert [(repo.id, module.zone) for repo in filtered.repositories for module in repo.modules] == expected
+        assert len(Page(filtered_html.get_data(as_text=True)).select("th", scope="row")) == len(expected)
+    for repository, summary, zones in (
+        ("sample-payments", Summary(many=2), []),
+        ("sample-identity", Summary(one=1, many=1), ["auth/"]),
+    ):
+        _, filtered = rendered_view(browser, ORG + f"?source=demo&repository={repository}&bucket=one")
+        assert filtered.summary == summary and len(filtered.repository_options) == 4
+        assert [repo.id for repo in filtered.repositories] == [repository]
+        assert [module.zone for module in filtered.repositories[0].modules] == zones
+    _, platform = rendered_view(browser, ORG + "?source=demo&repository=sample-platform")
+    assert [(module.zone, module.status) for module in platform.repositories[0].modules] == [
+        ("events/", "Collection delayed"), ("jobs/", "Sample too small"),
+    ]
+    destination = browser.get("/repos/101/dashboard?data=demo")
+    assert destination.status_code == 200
+    html = destination.get_data(as_text=True)
+    repo_page = Page(html)
+    assert [span.words for span in repo_page.by_class("span", "v")] == ["21/ 28 gated 75%", "3", "0"]
+    assert len(repo_page.by_class("td", "zone")) == 6
+    assert [span.words for span in repo_page.by_class("span", "low")] == ["Sample too small"]
+    assert [cell.words for cell in repo_page.select("td")[2::7]] == ["1", "2", "3", "4", "—", "—"]
+    visible_text = repo_page.select("body")[0].words
+    assert all(value in visible_text for value in ("83%", "86%", "20%"))
+    assert "100%" not in visible_text and "/pull/" not in html and "/receipts/" not in html
+    assert repo_page.by_class("td", "prs")[3].words == "#48 #45 #41 #38 #34 #30"
+    api_response = browser.get("/repos/101/api/dashboard?data=demo", headers={"X-CSRF-Token": csrf})
+    assert api_response.status_code == 200
+    payload = api_response.get_json()
+    assert payload["source"] == "demo" and payload["repo"] == tenants[0].settings.repository
+    assert payload["zone_count"] == 6 and payload["zero_answerer_zones"] == 0
+    assert payload["attested_rate"] == 0.75
+    assert (payload["merged_total"], payload["gated_total"], payload["attested_total"],
+            payload["forced_total"], payload["waiting_total"]) == (34, 28, 21, 3, 1)
+    assert (payload["measured_total"], payload["unmeasured_total"]) == (34, 0)
+    for field in ("merged", "gated", "attested", "forced"):
+        assert payload[f"{field}_total"] == sum(row[field] or 0 for row in payload["zones"])
+    assert [row["zone"] for row in payload["zones"]] == [
+        "sample-app/app/auth/", "sample-app/migrations/", "sample-app/app/orders/",
+        "sample-app/app/ledger/", "docs/", ".github/workflows/",
+    ]
+    assert [row["rate"] for row in payload["zones"]] == [0.2, None, 6 / 7, 10 / 12, None, None]
+    assert payload["zones"][1]["low_sample"] is True
+    for row in payload["zones"][-2:]:
+        assert row["gated"] is None and row["attested"] is None and row["answerers"] is None
+        assert row["prs"] == [] and row["forced"] == 0
+    assert before == [database_contents(tenant) for tenant in tenants]
+    assert images == [tenant.settings.database.read_bytes() for tenant in tenants]
+    assert not any(call.path.startswith("/repos/acme/two") for call in harness.runtime.http.calls[start:])
 
 
 def test_actual_captures_one_utc_as_of_for_both_real_aggregations(

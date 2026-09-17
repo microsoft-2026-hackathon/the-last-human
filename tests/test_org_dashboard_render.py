@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from dataclasses import dataclass, replace
+from dataclasses import asdict, dataclass, replace
 from html.parser import HTMLParser
 from pathlib import Path
 from urllib.parse import parse_qs, urlencode, urlsplit
@@ -10,7 +10,7 @@ from jinja2 import Environment, FileSystemLoader, StrictUndefined
 
 from test_app_service import make_settings
 from test_org_dashboard import repository_demo_zone, set_repository_demo_zones
-from lasthuman.server.organization import repository_demo
+from lasthuman.server.organization import OrganizationQuery, organization_view, repository_demo
 
 TEMPLATE_DIR = Path(__file__).resolve().parents[1] / "src" / "lasthuman" / "templates"
 ORG_PATH = "/repos/41/dashboard/organization"
@@ -108,13 +108,14 @@ def _view(**overrides: object) -> dict[str, object]:
         "organization": "sample-organization",
         "demo_enabled": True,
         "repository_options": [
+            {"id": "sample-identity", "name": "sample-identity"},
+            {"id": "sample-orders", "name": "sample-orders"},
             {"id": "sample-payments", "name": "sample-payments"},
             {"id": "sample-platform", "name": "sample-platform"},
-            {"id": "sample-commerce", "name": "sample-commerce"},
         ],
         "selected_repository": "all",
         "selected_bucket": "all",
-        "summary": {"zero": 1, "one": 1, "many": 2},
+        "summary": {"zero": 1, "one": 1, "many": 5},
         "repositories": [_repository()],
         "notice": "",
         **overrides,
@@ -194,11 +195,11 @@ def test_organization_product_labels_and_module_count_cards() -> None:
     assert page.select("h1")[0].words == "sample-organization"
     assert page.by_class("span", "period")[0].words == "Last 30 days"
     assert page.by_class("span", "source-badge")[0].words == "Demo data"
-    assert page.by_class("span", "selection-name")[0].words == "3 sample repositories"
+    assert page.by_class("span", "selection-name")[0].words == "4 sample repositories"
     assert [card.words for card in page.by_class("a", "summary-card")] == [
         "0 confirmed authors 1 module",
         "1 confirmed author 1 module",
-        "2+ confirmed authors 2 modules",
+        "2+ confirmed authors 5 modules",
     ]
     assert [heading.words for heading in page.select("th", scope="col")] == [
         "Module", "Verified before merge", "Can answer", "Declared owner", "Data status",
@@ -206,10 +207,12 @@ def test_organization_product_labels_and_module_count_cards() -> None:
 
 
 def test_bucket_links_preserve_repository_without_recalculating_summary() -> None:
-    page = Page(_render_org(_view(selected_repository="sample-payments", selected_bucket="one")))
+    page = Page(_render_org(_view(
+        selected_repository="sample-payments", selected_bucket="one", summary={"zero": 0, "one": 0, "many": 2},
+    )))
     cards = page.by_class("a", "summary-card")
     assert [card.words for card in cards] == [
-        "0 confirmed authors 1 module", "1 confirmed author 1 module", "2+ confirmed authors 2 modules",
+        "0 confirmed authors 0 modules", "1 confirmed author 0 modules", "2+ confirmed authors 2 modules",
     ]
     assert [card.attrs.get("aria-current") for card in cards] == [None, "true", None]
     for card, bucket in zip(cards, ("zero", "one", "many"), strict=True):
@@ -338,13 +341,13 @@ def test_fake_repository_groups_all_open_actual_target_in_sample_mode() -> None:
             _view(
                 repositories=[
                     _repository(id=name, name=name)
-                    for name in ("sample-payments", "sample-platform", "sample-commerce")
+                    for name in ("sample-identity", "sample-orders", "sample-payments", "sample-platform")
                 ]
             )
         )
     )
     links = page.by_class("a", "repository-link")
-    assert len(links) == 3
+    assert len(links) == 4
     assert {link.attrs["href"] for link in links} == {f"{REPO_PATH}?data=demo"}
     assert all(link.attrs["title"] == "Open repository dashboard" for link in links)
     destination = Page(_render_repo(dashboard_source="demo"))
@@ -502,6 +505,106 @@ def test_repository_optional_empty_controls_and_autoescaping() -> None:
     assert page.select("style")[0].attrs["nonce"] == "repo-render-nonce"
 
 
+def test_bundled_demo_renders_six_zones_with_coherent_cards_and_unknowns(tmp_path: Path) -> None:
+    dashboard = repository_demo(replace(make_settings(tmp_path), org_demo_enabled=True))
+    page = Page(_render_repo(dashboard=dashboard, dashboard_source="demo"))
+    assert [span.words for span in page.by_class("span", "v")] == ["21/ 28 gated 75%", "3", "0"]
+    assert page.by_class("span", "l")[0].words == "Human-verified before merge"
+    assert page.by_class("span", "d")[0].words == "34 merged · 28 gated · 1 waiting"
+    assert len(page.select("tr")) == 7
+    assert [cell.words for cell in page.by_class("td", "zone")] == [
+        "sample-app/app/auth/", "sample-app/migrations/", "sample-app/app/orders/",
+        "sample-app/app/ledger/", "docs/", ".github/workflows/",
+    ]
+    assert [cell.words for cell in page.by_class("td", "owner")] == [
+        "@sample-organization/payments", "@sample-organization/platform", "@sample-organization/orders",
+        "@sample-organization/payments", "@sample-organization/platform", "@sample-organization/platform",
+    ]
+    cells = page.select("td")
+    assert [cell.words for cell in cells[2::7]] == ["1", "2", "3", "4", "—", "—"]
+    assert [cell.words for cell in cells[3::7]] == ["5", "4", "7", "12", "—", "—"]
+    assert [cell.words for cell in cells[4::7]] == [
+        "1/ 5 · 20%", "4/ 4 Sample too small", "6/ 7 · 86%", "10/ 12 · 83%", "—", "—",
+    ]
+    assert sum(int(cell.words) for cell in cells[3::7] if cell.words != "—") == 28
+    assert sum(int(cell.words) for cell in cells[5::7]) == 3
+    assert len(page.by_class("span", "people")) == 4
+    assert [span.words for span in page.by_class("span", "low")] == ["Sample too small"]
+    assert all("100%" not in row.words and "None" not in row.words for row in page.select("tr"))
+    assert [cell.words for cell in page.by_class("td", "prs")] == [
+        "#46 #43 #39", "#42 #37 #33 #29", "#47 #44 #40 #36", "#48 #45 #41 #38 #34 #30", "", "",
+    ]
+    assert not any("github.com" in (link.attrs.get("href") or "") for link in page.select("a"))
+    assert [span.words for span in page.by_class("span", "z")] == [
+        "sample-app/app/auth/", "sample-app/app/ledger/",
+    ]
+    assert [span.words for span in page.by_class("span", "a")] == [
+        "Verify 2 exceptions after the fact · owner @sample-organization/payments",
+        "Verify 1 exception after the fact · owner @sample-organization/payments",
+    ]
+
+
+def test_bundled_org_demo_renders_four_repositories_and_only_one_delayed_module(tmp_path: Path) -> None:
+    view = organization_view(
+        replace(make_settings(tmp_path), org_demo_enabled=True), OrganizationQuery("demo"),
+        user_token="unused", provider=lambda _token, _end: pytest.fail("Demo called Actual"),
+    )
+    page = Page(_render_org(asdict(view)))
+    assert page.by_class("span", "selection-name")[0].words == "4 sample repositories"
+    assert [card.words for card in page.by_class("a", "summary-card")] == [
+        "0 confirmed authors 1 module", "1 confirmed author 1 module", "2+ confirmed authors 5 modules",
+    ]
+    assert len(page.by_class("a", "repository-link")) == 4
+    assert len(page.select("th", scope="row")) == 8
+    rows = page.select("tr")
+    assert [row.words.split()[0] for row in rows if "Collection delayed" in row.words] == ["events/"]
+    assert [row.words.split()[0] for row in rows if "Sample too small" in row.words] == ["jobs/"]
+    assert all("100%" not in row.words for row in rows if "jobs/" in row.words)
+    assert all(contact.attrs.get("href") is None for contact in page.by_class("span", "contact"))
+
+
+@pytest.mark.parametrize("source", ["repo", "legacy"])
+@pytest.mark.parametrize("empty", [False, True])
+def test_actual_and_legacy_small_sample_and_empty_markup_stay_unchanged(source: str, empty: bool) -> None:
+    dashboard = {
+        "demo_seeded": False, "window_days": 30, "generated_at": "2026-09-17T00:00:00Z",
+        "attested_total": 0 if empty else 4, "gated_total": 0 if empty else 4, "attested_rate": None,
+        "min_sample": 5, "merged_total": 0 if empty else 4, "waiting_total": 0,
+        "forced_total": 0, "zero_answerer_zones": 0, "actions": [],
+        "zones": [] if empty else [{
+            "zone": "app/auth/", "owner": "@acme/security", "answerers": 2, "gated": 4,
+            "attested": 4, "rate": None, "low_sample": True, "forced": 0, "prs": [31],
+        }],
+    }
+    html = _render_repo(dashboard=dashboard, dashboard_source=source)
+    page = Page(html)
+    visible_text = page.select("body")[0].words
+    assert "Sample too small" not in visible_text and "100%" not in visible_text
+    assert [span.words for span in page.by_class("span", "low")] == ["sample < 5"]
+    assert [span.words for span in page.by_class("span", "v")] == [
+        f"{0 if empty else 4}/ {0 if empty else 4} gated sample < 5", "0", "0",
+    ]
+    if empty:
+        assert not page.select("table") and not page.by_class("span", "people")
+        assert [item.words for item in page.by_class("p", "empty")] == [
+            "No CODEOWNERS zones have been seen yet. The first analysed pull request fills this table.",
+        ]
+        assert [item.words for item in page.by_class("li", "none")] == [
+            "No gated merges in this window yet. The first verified merge lights a zone.",
+        ]
+    else:
+        assert [cell.words for cell in page.select("td")] == [
+            "app/auth/", "@acme/security", "2", "4", "4/ 4", "0", "#31",
+        ]
+        assert len(page.select("i")) == 3 and len(page.by_class("i", "off")) == 1
+        assert [link.attrs["href"] for link in page.select("a")] == [
+            "https://github.com/acme/the-last-human/pull/31",
+        ]
+        assert [item.words for item in page.by_class("li", "none")] == [
+            "Nothing to raise: no exceptions, and every gated zone has at least two people who can answer.",
+        ]
+
+
 @pytest.mark.parametrize("source", ["demo", "repo", "legacy"])
 def test_repository_metadata_actions_and_evidence_keep_source_specific_rendering(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, source: str,
@@ -562,7 +665,7 @@ def test_repository_action_empty_copy_is_shared_by_demo_actual_and_legacy(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, source: str, gated: int, message: str,
 ) -> None:
     set_repository_demo_zones(monkeypatch, [
-        repository_demo_zone(gated=gated, attested=0, answerers=2 if gated else 0),
+        repository_demo_zone(gated=gated, attested=2 if gated else 0, answerers=2 if gated else 0),
     ])
     dashboard = repository_demo(replace(make_settings(tmp_path), org_demo_enabled=True))
     dashboard["gated_total"] = gated

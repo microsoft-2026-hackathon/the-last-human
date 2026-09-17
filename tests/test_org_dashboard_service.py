@@ -13,6 +13,7 @@ from unittest.mock import Mock
 import pytest
 from test_app_service import FakeClock, make_pull, make_questions, make_service, make_snapshot
 
+from lasthuman.server.organization import Summary, demo_repositories, repository_demo, summarize
 from lasthuman.server.service import BotError, BotService
 from lasthuman.server.snapshot import Snapshot
 from lasthuman.server.store import ReceiptAnswer, Store, StoredSnapshot
@@ -195,6 +196,43 @@ def test_actual_skips_configured_seed_and_default_remains_additive(
 
     seed_path.unlink()
     assert dashboard_service.dashboard(include_seed=False, as_of=AS_OF) == actual
+
+
+@pytest.mark.parametrize("measured", [False, True])
+def test_expanded_demo_leaves_empty_and_measured_actual_service_and_store_unchanged(
+    dashboard_service: BotService, monkeypatch: pytest.MonkeyPatch, measured: bool,
+) -> None:
+    if measured:
+        record = save_snapshot(dashboard_service, 31)
+        save_merge(dashboard_service.store, 31, MERGED_AT, record)
+        save_receipt(dashboard_service, record, 7, (AUTH_ANCHOR,))
+    actual = dashboard_service.dashboard(include_seed=False, as_of=AS_OF)
+    image = dashboard_service.store.path.read_bytes()
+    with monkeypatch.context() as demo_only:
+        demo_only.setattr(
+            dashboard_service, "dashboard", lambda **_kwargs: pytest.fail("Demo invoked Actual service"),
+        )
+        demo_only.setattr(
+            dashboard_service.store, "load_merges_since", lambda **_kwargs: pytest.fail("Demo read Actual records"),
+        )
+        demo = repository_demo(replace(dashboard_service.settings, org_demo_enabled=True), as_of=AS_OF)
+        repos = demo_repositories("/dashboard?data=demo")
+        assert len(demo["zones"]) == 6 and demo["attested_rate"] == 0.75
+        assert demo["gated_total"] == 28 and demo["attested_total"] == 21 and demo["forced_total"] == 3
+        assert len(repos) == 4 and sum(len(repo.modules) for repo in repos) == 8
+        assert summarize(repos) == Summary(zero=1, one=1, many=5)
+    monkeypatch.setattr(
+        "lasthuman.server.organization._demo_fixture", lambda: pytest.fail("Actual loaded Demo fixture"),
+    )
+    assert dashboard_service.dashboard(include_seed=False, as_of=AS_OF) == actual
+    assert dashboard_service.store.path.read_bytes() == image
+    assert actual["merged_total"] == actual["gated_total"] == actual["attested_total"] == int(measured)
+    assert actual["demo_seeded"] is False and actual["attested_rate"] is None
+    if measured:
+        assert zone_rows(actual)["app/auth/"]["prs"] == [31]
+        assert zone_rows(actual)["app/auth/"]["answerers"] == 1
+        assert "private-actor-" not in json.dumps(actual)
+    assert not any(row["zone"].startswith("sample-app/") for row in actual["zones"])
 
 
 def test_pinned_actual_preserves_premerge_anchor_and_distinct_actor_semantics(

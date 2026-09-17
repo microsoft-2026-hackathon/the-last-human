@@ -392,7 +392,7 @@ def _demo_fixture() -> dict[str, object]:
 
 def demo_repositories(dashboard_url: str) -> tuple[RepositoryView, ...]:
     raw_repositories = _demo_fixture().get("repositories")
-    if not isinstance(raw_repositories, list) or len(raw_repositories) != 3:
+    if not isinstance(raw_repositories, list) or len(raw_repositories) < 2:
         raise ValueError("Invalid demo repositories")
     repositories: list[RepositoryView] = []
     for raw in raw_repositories:
@@ -428,9 +428,13 @@ def demo_repositories(dashboard_url: str) -> tuple[RepositoryView, ...]:
                 )
             modules.append(module)
         repositories.append(RepositoryView(repo_id, name, dashboard_url, tuple(modules)))
-    if len({repo.id for repo in repositories}) != 3 or sum(len(repo.modules) for repo in repositories) != 5:
+    if (
+        len({repo.id for repo in repositories}) != len(repositories)
+        or sum(len(repo.modules) for repo in repositories) < 4
+    ):
         raise ValueError("Invalid demo identities")
-    if summarize(repositories) != Summary(zero=1, one=1, many=2):
+    summary = summarize(repositories)
+    if summary.zero < 1 or summary.one < 1:
         raise ValueError("Invalid demo distribution")
     return tuple(repositories)
 
@@ -454,15 +458,19 @@ def repository_demo(settings: Settings, *, as_of: datetime | None = None) -> dic
             isinstance(pr, bool) or not isinstance(pr, int) or pr <= 0 for pr in prs
         ):
             raise ValueError("Invalid repository demo PRs")
-        gated = _count(0 if row.get("gated") is None else row["gated"])
-        attested = _count(0 if not gated and row.get("attested") is None else row.get("attested"))
-        if attested > gated:
-            raise ValueError("Invalid repository demo counters")
+        if row.get("gated") is None:
+            if row.get("attested") is not None or row.get("answerers") is not None:
+                raise ValueError("Invalid unknown repository demo row")
+            gated = attested = answerers = 0
+        else:
+            gated, attested, answerers = (_count(row.get(key)) for key in ("gated", "attested", "answerers"))
+            if attested > gated or bool(attested) != bool(answerers):
+                raise ValueError("Invalid repository demo counters")
         counts = ZoneCounts(
             zone=zone, owner=owner, prs=sorted(prs, reverse=True),
             merged=_count(row.get("merged")), gated=gated, attested=attested,
             forced=_count(row.get("forced")),
-            answerers=_count(0 if not gated and row.get("answerers") is None else row.get("answerers")),
+            answerers=answerers,
         )
         rows.append((counts, {
             **row, "prs": counts.prs, "owner": owner, "rate": None if gated < MIN_SAMPLE else attested / gated,
@@ -473,6 +481,8 @@ def repository_demo(settings: Settings, *, as_of: datetime | None = None) -> dic
     zones = [zone for _counts, zone in rows]
     gated = _count(raw.get("gated_total"))
     attested = _count(raw.get("attested_total"))
+    if attested > gated:
+        raise ValueError("Invalid repository demo counters")
     return {
         **raw, "zones": zones, "actions": actions_for(counts for counts, _zone in rows),
         "repo": settings.repository, "source": "demo",
