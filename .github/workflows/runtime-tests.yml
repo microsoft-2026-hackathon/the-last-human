@@ -1,0 +1,50 @@
+name: Runtime tests
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "src/lasthuman/**"
+      - "tests/**"
+      - "pyproject.toml"
+      - ".github/workflows/runtime-tests.yml"
+  pull_request:
+    paths:
+      - "src/lasthuman/**"
+      - "tests/**"
+      - "pyproject.toml"
+      - ".github/workflows/runtime-tests.yml"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  pytest:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.11", "3.12"]
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v6
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Install uv and runtime test dependencies
+        run: |
+          python -m pip install uv
+          uv venv --python python
+          uv pip install --python .venv/bin/python -e '.[dev,bot]'
+
+      - name: Run runtime tests
+        run: .venv/bin/python -m pytest -q tests

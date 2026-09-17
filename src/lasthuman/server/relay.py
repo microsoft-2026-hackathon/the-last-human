@@ -46,6 +46,7 @@ _HEX64_RE = re.compile(r"^[0-9a-f]{64}$")
 _RECEIPT_ID_RE = re.compile(r"^[A-Za-z0-9._-]{1,128}$")
 _ERROR_CODE_RE = re.compile(r"^[a-z0-9_-]{1,64}$")
 _TIMESTAMP_RE = re.compile(r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?Z$")
+_REPOSITORY_PATH_RE = re.compile(r"^/repos/[1-9][0-9]*$")
 _PR_ACTIONS = frozenset({"opened", "synchronize", "reopened", "edited", "labeled", "unlabeled", "closed"})
 _BINDING_KEYS = frozenset(
     {"repository_id", "pr", "head_sha", "base_sha", "policy_version", "snapshot_id", "score", "triggered"}
@@ -86,6 +87,7 @@ _BASE_STATE_KEYS = frozenset(
         "run_attempt",
         "origin",
         "audience",
+        "repository_path",
         "receipt",
     }
 )
@@ -348,14 +350,14 @@ def _relay_receipt_verification(
         token_request_token,
         settings.oidc_audience,
     )
-    receipt = _request_json(
+    receipt_payload = _request_json(
         session,
         "GET",
         f"{settings.bot_url}{receipt_path}",
         token=read_token,
         expected_statuses=(200,),
     )
-    receipt = _require_receipt_metadata(receipt, receipt_id, settings)
+    receipt, _repository_path = _require_receipt_envelope(receipt_payload, receipt_id, settings)
     binding = cast(JsonObject, receipt["binding"])
     pr = _require_positive_int(binding.get("pr"), "binding.pr")
     snapshot = SnapshotReader(github, cache_dir).read(pr)
@@ -457,14 +459,14 @@ def _verification_receipt_step(
     )
     if status_code == 404:
         raise RelayError("publication endpoint is not supported by backend or receipt was not found")
-    receipt, _verified_at, gate = _require_publication_view(
+    receipt, _verified_at, gate, repository_path = _require_publication_view(
         payload,
         receipt_id,
         context.settings,
     )
     if gate["state"] in {"missing", "unavailable", "skipped", "invalid"}:
         raise RelayError(f"receipt publication is {gate['state']}")
-    state = _new_verification_state(context, "receipt", receipt)
+    state = _new_verification_state(context, "receipt", receipt, repository_path=repository_path)
     _write_verification_state(state_file, state)
 
 
@@ -596,12 +598,17 @@ def _verification_publication_step(
             attempts=1,
             timeout=timeout,
         )
-        current_receipt, verified_at, gate = _require_publication_view(
+        repository_path = _state_repository_path(state, context.settings)
+        current_receipt, verified_at, gate, current_repository_path = _require_publication_view(
             payload,
             receipt_id,
             context.settings,
+            expected_repository_path=repository_path,
         )
-        if current_receipt != receipt or verified_at != expected_verified_at:
+        if (
+            current_receipt != receipt or verified_at != expected_verified_at
+            or current_repository_path != repository_path
+        ):
             raise RelayError("receipt publication view is stale")
         gate_state = cast(str, gate["state"])
         if gate_state == "waiting_publication":
@@ -798,6 +805,16 @@ def _require_receipt_metadata(
     }
 
 
+def _require_receipt_envelope(
+    value: object, expected_receipt_id: str, settings: ActionSettings,
+) -> tuple[JsonObject, str | None]:
+    if not isinstance(value, dict):
+        raise RelayError("receipt metadata shape is invalid")
+    repository_path = _optional_repository_path(value, settings)
+    candidate = {key: item for key, item in value.items() if key != "repository_path"}
+    return _require_receipt_metadata(candidate, expected_receipt_id, settings), repository_path
+
+
 def _compare_receipt_snapshot(
     receipt: JsonObject,
     snapshot: Snapshot,
@@ -835,13 +852,18 @@ def _require_publication_view(
     value: object,
     expected_receipt_id: str,
     settings: ActionSettings,
-) -> tuple[JsonObject, str | None, JsonObject]:
-    if not isinstance(value, dict) or frozenset(value) != {
-        "receipt",
-        "verified_at",
-        "gate",
-    }:
+    *,
+    expected_repository_path: str | None = None,
+) -> tuple[JsonObject, str | None, JsonObject, str | None]:
+    if not isinstance(value, dict):
         raise RelayError("publication response shape is invalid")
+    if not set(value).issubset({"receipt", "verified_at", "gate", "repository_path"}) or not {
+        "receipt", "verified_at", "gate",
+    }.issubset(value):
+        raise RelayError("publication response shape is invalid")
+    repository_path = _optional_repository_path(value, settings)
+    if expected_repository_path is not None and repository_path != expected_repository_path:
+        raise RelayError("publication repository path mismatch")
     receipt = _require_receipt_metadata(
         value.get("receipt"),
         expected_receipt_id,
@@ -859,9 +881,7 @@ def _require_publication_view(
     gate = cast(JsonObject, raw_gate)
     context = _require_limited_string(gate.get("context"), "gate.context", 128)
     target_url = _require_https_url_value(gate.get("target_url"), "gate.target_url")
-    expected_target = (
-        f"{settings.bot_url}/receipts/{quote(expected_receipt_id, safe='')}"
-    )
+    expected_target = _expected_receipt_target(settings, expected_receipt_id, repository_path)
     if target_url != expected_target:
         raise RelayError("publication target URL mismatch")
     state = _require_nonempty_string(gate.get("state"), "gate.state")
@@ -895,6 +915,7 @@ def _require_publication_view(
             "status_id": status_id,
             "error_code": error_code,
         },
+        repository_path,
     )
 
 
@@ -902,9 +923,11 @@ def _new_verification_state(
     context: ActionContext,
     stage: str,
     receipt: JsonObject,
+    *,
+    repository_path: str | None = None,
 ) -> JsonObject:
     run_id, run_attempt = _require_context_run_identity(context)
-    return {
+    state: JsonObject = {
         "schema_version": _STATE_SCHEMA_VERSION,
         "stage": stage,
         "repository": context.settings.repository,
@@ -918,6 +941,9 @@ def _new_verification_state(
         "audience": context.settings.oidc_audience,
         "receipt": receipt,
     }
+    if repository_path is not None:
+        state["repository_path"] = _require_repository_path(repository_path, context.settings)
+    return state
 
 
 def _load_verification_state(
@@ -947,6 +973,8 @@ def _validate_verification_state(
 ) -> None:
     normalized_receipt_id = _require_receipt_id(receipt_id)
     expected_keys = set(_BASE_STATE_KEYS)
+    if "repository_path" not in state:
+        expected_keys.remove("repository_path")
     if expected_stage in {"snapshot", "compare", "verify", "publication"}:
         expected_keys.add("snapshot")
     if expected_stage in {"verify", "publication"}:
@@ -975,6 +1003,7 @@ def _validate_verification_state(
     for key, expected in expected_context.items():
         if state.get(key) != expected:
             raise RelayError("verification state context mismatch")
+    repository_path = _state_repository_path(state, context.settings)
     receipt = _require_receipt_metadata(
         state.get("receipt"),
         normalized_receipt_id,
@@ -1011,10 +1040,7 @@ def _validate_verification_state(
             "publication.target_url",
         )
         _require_positive_int(publication.get("status_id"), "publication.status_id")
-        expected_target = (
-            f"{context.settings.bot_url}/receipts/"
-            f"{quote(normalized_receipt_id, safe='')}"
-        )
+        expected_target = _expected_receipt_target(context.settings, normalized_receipt_id, repository_path)
         if publication.get("target_url") != expected_target:
             raise RelayError("verification publication target mismatch")
 
@@ -1491,6 +1517,29 @@ def _require_receipt_id(value: object) -> str:
     if not isinstance(value, str) or not _RECEIPT_ID_RE.fullmatch(value):
         raise RelayError("receipt_id is invalid")
     return value
+
+
+def _optional_repository_path(payload: Mapping[str, object], settings: ActionSettings) -> str | None:
+    if "repository_path" not in payload:
+        return None
+    return _require_repository_path(payload["repository_path"], settings)
+
+
+def _state_repository_path(state: Mapping[str, object], settings: ActionSettings) -> str | None:
+    return _optional_repository_path(state, settings)
+
+
+def _require_repository_path(value: object, settings: ActionSettings) -> str:
+    if not isinstance(value, str) or not _REPOSITORY_PATH_RE.fullmatch(value):
+        raise RelayError("repository path is invalid")
+    if value != f"/repos/{settings.repository_id}":
+        raise RelayError("repository path mismatch")
+    return value
+
+
+def _expected_receipt_target(settings: ActionSettings, receipt_id: str, repository_path: str | None) -> str:
+    prefix = "" if repository_path is None else _require_repository_path(repository_path, settings)
+    return f"{settings.bot_url}{prefix}/receipts/{quote(_require_receipt_id(receipt_id), safe='')}"
 
 
 def _require_timestamp(value: object, field_name: str) -> str:
