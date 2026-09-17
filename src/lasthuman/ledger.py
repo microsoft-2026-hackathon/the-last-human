@@ -233,7 +233,9 @@ CODEOWNERS_PATHS = (
 )
 
 
-def parse_codeowners(text: str) -> list[tuple[str, str]]:
+def parse_codeowners(
+    text: str, *, include_unowned: bool = False, preserve_patterns: bool = False,
+) -> list[tuple[str, str]]:
     """(경로 패턴, 담당) 목록. 마지막에 일치하는 규칙이 이기는 것이 CODEOWNERS 규칙이다."""
     out: list[tuple[str, str]] = []
     for line in text.splitlines():
@@ -241,10 +243,10 @@ def parse_codeowners(text: str) -> list[tuple[str, str]]:
         if not line:
             continue
         parts = line.split()
-        if len(parts) < 2:
+        if len(parts) < 2 and not include_unowned:
             continue
         pattern, owners = parts[0], parts[1:]
-        out.append((pattern.lstrip("/"), " ".join(owners)))
+        out.append((pattern if preserve_patterns else pattern.lstrip("/"), " ".join(owners)))
     return out
 
 

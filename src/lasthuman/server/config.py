@@ -81,10 +81,13 @@ class Settings:
     demo_seed: Path | None = None
     path_prefix: str = ""
     tenant_generation: int | None = None
+    org_demo_enabled: bool = False
 
     session_ttl: ClassVar[timedelta] = timedelta(minutes=30)
 
     def __post_init__(self) -> None:
+        if not isinstance(self.org_demo_enabled, bool):
+            raise ConfigurationError("TLH_ORG_DEMO_ENABLED must be a boolean")
         if self.path_prefix:
             expected = f"/repos/{_context_positive_int(self.repository_id, 'repository_id')}"
             if self.path_prefix != expected:
@@ -145,10 +148,13 @@ class GatewaySettings:
     max_model_calls: int = 4
     demo_seed: Path | None = None
     demo_seed_repository_id: int | None = None
+    org_demo_enabled: bool = False
 
     def __post_init__(self) -> None:
         if self.registration_mode != "first-event" or self.workflow_ref != _DEFAULT_WORKFLOW_REF:
             raise ConfigurationError("first-event registration requires the trusted main workflow")
+        if not isinstance(self.org_demo_enabled, bool):
+            raise ConfigurationError("TLH_ORG_DEMO_ENABLED must be a boolean")
         if (self.demo_seed is None) != (self.demo_seed_repository_id is None):
             raise ConfigurationError("TLH_DEMO_SEED and TLH_DEMO_SEED_REPOSITORY_ID must be configured together")
         if self.demo_seed_repository_id is not None:
@@ -253,6 +259,7 @@ class GatewaySettings:
             presentation_detail_limit=self.presentation_detail_limit,
             presentation_paths_per_group=self.presentation_paths_per_group,
             demo_seed=self.demo_seed if repository_id == self.demo_seed_repository_id else None,
+            org_demo_enabled=self.org_demo_enabled,
             path_prefix=f"/repos/{repository_id}", tenant_generation=context.generation,
         )
 
@@ -388,6 +395,9 @@ def _settings_from_env(
             "TLH_QUESTION_COUNT", os.environ.get("TLH_QUESTION_COUNT"), default=3, bounds=_QUESTION_COUNT_RANGE,
         ),
         checks_enabled=_parse_strict_bool(os.environ.get("TLH_CHECK_RUNS", "false"), "TLH_CHECK_RUNS"),
+        org_demo_enabled=_parse_strict_bool(
+            os.environ.get("TLH_ORG_DEMO_ENABLED", "false"), "TLH_ORG_DEMO_ENABLED",
+        ),
         check_name=check_name,
         presentation_name=_validate_display_name(
             os.environ.get("TLH_PRESENTATION_NAME", _DEFAULT_PRESENTATION_NAME), "TLH_PRESENTATION_NAME",

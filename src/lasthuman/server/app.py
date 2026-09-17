@@ -14,7 +14,7 @@ from concurrent.futures import Future, ThreadPoolExecutor
 from dataclasses import dataclass, field
 from pathlib import Path
 from threading import Event, Lock, RLock, Thread
-from urllib.parse import urlsplit
+from urllib.parse import urlencode, urlsplit
 
 from flask import Flask, Response, g, jsonify, redirect, render_template, request, url_for
 from jinja2 import select_autoescape
@@ -26,6 +26,10 @@ from .auth import AuthError, AuthManager, AuthorizedSession, normalize_next_path
 from .config import GatewaySettings, Settings, load_settings
 from .events import ActionsIdentity, EventError, OIDCError, OIDCVerifier, decode_event
 from .github import GitHubClient, GitHubError
+from .organization import (
+    OrganizationError, OrganizationProvider, OrganizationQuery, fixed_organization_provider,
+    organization_view, repository_demo, repository_query,
+)
 from .service import BotError, BotService
 from .snapshot import SnapshotError, SnapshotReader
 from .store import Store
@@ -631,6 +635,7 @@ def create_app(
     oauth: object | None = None,
     verifier: OIDCVerifier | None = None,
     start_worker: bool = True,
+    organization_provider: OrganizationProvider | None = None,
 ) -> Flask:
     if settings is None and service is None and github is None:
         settings = load_settings()
@@ -673,6 +678,9 @@ def create_app(
     app.extensions["verifier"] = resolved_verifier
     app.extensions["runtime"] = runtime
     app.extensions["drain_events"] = runtime.drain_events
+    read_organization = organization_provider or fixed_organization_provider(
+        resolved_settings, resolved_service, resolved_github,
+    )
 
     @app.before_request
     def _assign_request_nonce() -> None:
@@ -774,12 +782,20 @@ def create_app(
 
     @app.get("/dashboard")
     def dashboard() -> Response:
-        session, failure = _authorize_html(auth, next_path="/dashboard")
+        try:
+            source, days = repository_query(request.args.items(multi=True))
+        except OrganizationError as error:
+            return _text_error(str(error), error.status_code)
+        encoded_query = urlencode(list(request.args.items(multi=True)))
+        next_path = "/dashboard" + ("?" + encoded_query if encoded_query else "")
+        session, failure = _authorize_html(auth, next_path=next_path)
         if failure is not None:
             return failure
         assert session is not None
         try:
-            payload = resolved_service.dashboard(days=_requested_days())
+            payload = _dashboard_payload(source, days)
+        except OrganizationError as error:
+            return _text_error(str(error), error.status_code)
         except BotError as error:
             return _bot_error_response(error, as_json=False)
         return Response(
@@ -791,6 +807,11 @@ def create_app(
                 csrf_token=session.csrf_token,
                 csp_nonce=g.csp_nonce,
                 mode_label=_mode_label(resolved_settings),
+                organization_url=url_for("organization_dashboard", source="demo" if source == "demo" else "actual"),
+                dashboard_source=source,
+                dashboard_source_links={
+                    "actual": url_for("dashboard", data="repo"), "demo": url_for("dashboard", data="demo"),
+                } if resolved_settings.org_demo_enabled else {},
             ),
             mimetype="text/html",
         )
@@ -803,12 +824,50 @@ def create_app(
         assert session is not None
         try:
             auth.validate_csrf(session.sid, _csrf_token_from_request())
-            payload = resolved_service.dashboard(days=_requested_days())
+            source, days = repository_query(request.args.items(multi=True))
+            payload = _dashboard_payload(source, days)
+        except OrganizationError as error:
+            return _json_error(str(error), error.status_code)
         except AuthError as error:
             return _json_error(str(error), error.status_code)
         except BotError as error:
             return _bot_error_response(error, as_json=True)
         return jsonify(payload)
+
+    def _dashboard_payload(source: str, days: int) -> dict[str, object]:
+        if source == "demo":
+            return repository_demo(resolved_settings)
+        if source == "repo":
+            return {**resolved_service.dashboard(days=days, include_seed=False), "source": "repo"}
+        return resolved_service.dashboard(days=days)
+
+    @app.get("/dashboard/organization")
+    def organization_dashboard() -> Response:
+        try:
+            query = OrganizationQuery.parse(request.args.items(multi=True))
+        except OrganizationError as error:
+            return _text_error(str(error), error.status_code)
+        session, failure = _authorize_html(auth, next_path=query.url("/dashboard/organization"))
+        if failure is not None:
+            return failure
+        assert session is not None
+        try:
+            view = organization_view(
+                resolved_settings, query, user_token=session.access_token, provider=read_organization,
+            )
+            auth.authorize(session.sid)
+        except (OrganizationError, AuthError) as error:
+            if error.status_code == 401:
+                auth.logout(session.sid)
+            return _text_error(str(error), error.status_code)
+        return Response(
+            render_template(
+                "app_organization_dashboard.html.j2", view=view, csp_nonce=g.csp_nonce,
+                organization_path=url_for("organization_dashboard"),
+                repo_dashboard_url=url_for("dashboard", data="demo" if query.source == "demo" else "repo"),
+            ),
+            mimetype="text/html",
+        )
 
     @app.get("/prs/<int:pr>")
     def pr_page(pr: int) -> Response:

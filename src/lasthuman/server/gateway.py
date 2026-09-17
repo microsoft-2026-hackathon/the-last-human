@@ -11,6 +11,7 @@ import time
 from collections.abc import Callable, Mapping
 from concurrent.futures import Future, ThreadPoolExecutor
 from dataclasses import dataclass, field
+from datetime import datetime
 from io import BytesIO
 from threading import BoundedSemaphore, Event, Lock, RLock, Thread
 from typing import TYPE_CHECKING, Protocol, TypeVar, cast
@@ -27,6 +28,9 @@ from .events import (
     ActionsIdentity, DynamicOIDCVerifier, EventError, OIDCError, VerifiedActionsIdentity, decode_event_for_identity,
 )
 from .github import GitHubClient, GitHubError, GitHubInstallationDiscovery
+from .organization import (
+    OrganizationError, RepositoryRead, RepositoryView, authorized_repository_info, read_authorized_repository,
+)
 from .registration import (
     RegistrationDeniedError, RegistrationError, RegistrationNotFoundError, RepositoryContext,
 )
@@ -85,9 +89,32 @@ class TenantContainer:
             self.access_guard()
 
     def dispatch(self, environ: dict[str, object]) -> Response:
+        if environ.get("PATH_INFO") == "/dashboard/organization":
+            # This read-only page visits peers. Never nest anchor and peer
+            # lifecycle locks: simultaneous A->B and B->A requests would deadlock.
+            with self._lifecycle_lock:
+                self._require_open()
+            response = Response.from_app(self.app, environ, buffered=True)
+            with self._lifecycle_lock:
+                self._require_open()
+            return response
         with self._lifecycle_lock:
             self._require_open()
             return Response.from_app(self.app, environ, buffered=True)
+
+    def organization_read(self, user_token: str, as_of: datetime) -> RepositoryView:
+        with self._lifecycle_lock:
+            self._require_open()
+            info = authorized_repository_info(self.settings, self.github, user_token)
+            self._require_open()
+            result = read_authorized_repository(
+                self.settings, self.service, self.github,
+                user_token=user_token, repository_info=info, as_of=as_of,
+            )
+            self._require_open()
+            authorized_repository_info(self.settings, self.github, user_token)
+            self._require_open()
+            return result
 
     def tick_once(self) -> int:
         with self._lifecycle_lock:
@@ -299,6 +326,67 @@ class TenantManager:
     def resolve(self, repository_id: int) -> TenantContainer:
         return self.container_for_context(self.registry.resolve(repository_id))
 
+    def organization_read(
+        self, anchor: RepositoryContext, user_token: str, as_of: datetime,
+    ) -> RepositoryRead:
+        """Project authorized aggregates without creating any peer login session."""
+        repositories: list[RepositoryView] = []
+        included: list[RepositoryContext] = []
+        incomplete = False
+        try:
+            self.registry.require_current(anchor)
+            contexts = self.registry.list_registered()
+        except (RegistrationError, GatewayRuntimeError, sqlite3.Error, OSError):
+            raise OrganizationError("Organization data is unavailable", status_code=503) from None
+        for context in contexts:
+            if context.owner_id != anchor.owner_id:
+                continue
+            try:
+                self.registry.require_current(anchor)
+                self._authorize_organization_context(context, user_token)
+                container = self.resolve(context.repository_id)
+                if container.context != context:
+                    incomplete = True
+                    continue
+                result = container.organization_read(user_token, as_of)
+                self.registry.require_current(context)
+            except GitHubError as error:
+                if error.status_code == 401:
+                    raise OrganizationError("Sign in required", status_code=401) from None
+                if error.status_code != 404:
+                    incomplete = True
+                continue
+            except (RegistrationError, GatewayRuntimeError, sqlite3.Error, OSError, requests.RequestException):
+                incomplete = True
+                continue
+            repositories.append(result)
+            included.append(context)
+        # A previously read tenant may retire while a later peer is being read.
+        current: list[RepositoryView] = []
+        for context, result in zip(included, repositories):
+            try:
+                self.registry.require_current(context)
+            except (RegistrationError, sqlite3.Error, OSError):
+                incomplete = True
+                continue
+            current.append(result)
+        try:
+            self.registry.require_current(anchor)
+        except (RegistrationError, sqlite3.Error, OSError):
+            raise OrganizationError("Organization data is unavailable", status_code=503) from None
+        return RepositoryRead(tuple(current), incomplete)
+
+    def _authorize_organization_context(self, context: RepositoryContext, user_token: str) -> None:
+        settings = self.settings.tenant_settings(context, prepare=False)
+        session = requests.Session() if self.github_session_factory is None else self.github_session_factory()
+        try:
+            client = GitHubClient(
+                settings, session, access_guard=lambda: self._require_current_as_github_error(context),
+            )
+            authorized_repository_info(settings, client, user_token)
+        finally:
+            session.close()
+
     def require_identity_context(
         self, identity: VerifiedActionsIdentity, repository_id: int | None = None,
     ) -> TenantContainer:
@@ -395,6 +483,7 @@ class TenantManager:
             child = create_app(
                 settings, service=service, github=github, oauth=oauth,
                 verifier=TenantOIDCVerifier(settings, self.verifier), start_worker=False,
+                organization_provider=lambda token, as_of: self.organization_read(context, token, as_of),
             )
             runtime = cast("AppRuntime", child.extensions["runtime"])
             return TenantContainer(
@@ -667,7 +756,7 @@ def _rewrite_location(response: Response, prefix: str) -> None:
         raise GatewayRuntimeError("invalid local redirect", status_code=400)
     if parsed.path == prefix or parsed.path.startswith(prefix + "/"):
         return
-    if parsed.path == "/" or parsed.path == "/dashboard" or any(
+    if parsed.path in {"/", "/dashboard", "/dashboard/organization"} or any(
         parsed.path.startswith(candidate) for candidate in ("/auth/", "/prs/", "/receipts/", "/api/")
     ):
         response.headers["Location"] = prefix + location
