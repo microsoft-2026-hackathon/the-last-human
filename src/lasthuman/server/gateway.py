@@ -26,6 +26,7 @@ from lasthuman.models import Answer, Hunk, Question
 from .config import GatewaySettings, Settings
 from .events import (
     ActionsIdentity, DynamicOIDCVerifier, EventError, OIDCError, VerifiedActionsIdentity, decode_event_for_identity,
+    expected_actions_subjects,
 )
 from .github import GitHubClient, GitHubError, GitHubInstallationDiscovery
 from .organization import (
@@ -818,6 +819,8 @@ def _verified_identity_matches_settings(identity: VerifiedActionsIdentity, setti
         identity.repository_id == settings.repository_id and identity.repository == settings.repository
         and identity.owner_id == settings.owner_id
         and identity.workflow_ref == expected_workflow
-        and identity.sub == f"repo:{settings.repository}:ref:{settings.workflow_ref}"
+        and identity.sub in expected_actions_subjects(
+            settings.repository, settings.repository_id, settings.owner_id, settings.workflow_ref,
+        )
         and identity.audience in {settings.oidc_audience, settings.repository}
     )

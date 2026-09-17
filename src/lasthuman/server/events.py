@@ -183,8 +183,10 @@ class DynamicOIDCVerifier:
         audience = _require_signed_audience(
             claims.get("aud"), common_audience=self.settings.oidc_audience, repository=repository,
         )
-        sub = _require_nonempty_string(claims.get("sub"), "sub")
-        if sub != f"repo:{repository}:ref:{self.settings.workflow_ref}":
+        sub = claims.get("sub")
+        if not isinstance(sub, str) or sub not in expected_actions_subjects(
+            repository, repository_id, owner_id, self.settings.workflow_ref,
+        ):
             raise OIDCError("GitHub Actions source is untrusted")
         return VerifiedActionsIdentity(
             event_name=_require_event_name(claims.get("event_name")),
@@ -193,6 +195,17 @@ class DynamicOIDCVerifier:
             jti=_require_nonempty_string(claims.get("jti"), "jti"), workflow_ref=workflow_ref,
             repository=repository, repository_id=repository_id, owner_id=owner_id, sub=sub, audience=audience,
         )
+
+
+def expected_actions_subjects(
+    repository: str, repository_id: int, owner_id: int, workflow_ref: str,
+) -> tuple[str, str]:
+    """Exact GitHub default subjects for already-validated repository claims."""
+    owner, name = repository.split("/", 1)
+    return (
+        f"repo:{repository}:ref:{workflow_ref}",
+        f"repo:{owner}@{owner_id}/{name}@{repository_id}:ref:{workflow_ref}",
+    )
 
 
 def _require_signed_audience(value: object, *, common_audience: str, repository: str) -> str:

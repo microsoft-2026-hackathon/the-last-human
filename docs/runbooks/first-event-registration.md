@@ -135,6 +135,21 @@ subject, or workflow claims. The trusted workflow identity is exactly:
 <owner>/<repo>/.github/workflows/lasthuman-app.yml@refs/heads/main
 ```
 
+The default OIDC subject may use either GitHub's legacy name-only format or its
+[immutable subject format](https://docs.github.com/en/actions/reference/security/oidc#immutable-subject-claims):
+
+```text
+repo:<owner>/<repo>:ref:refs/heads/main
+repo:<owner>@<owner_id>/<repo>@<repository_id>:ref:refs/heads/main
+```
+
+Both are compared exactly, in initial and tenant-bound verification, against
+the signed repository name, numeric IDs and trusted ref. Different IDs/names,
+other refs, environment subjects and arbitrary custom subject templates are
+not accepted. Signature, issuer, time, audience and workflow checks remain
+required. Do not disable immutable subjects or relax validation to resolve a
+legacy-format mismatch.
+
 It rejects malformed bodies and repository bindings before discovery. Discovery
 uses an App JWT, checks the App/installation/owner, requires an active installation
 and core permissions, requests a token scoped to exactly the numeric repository
