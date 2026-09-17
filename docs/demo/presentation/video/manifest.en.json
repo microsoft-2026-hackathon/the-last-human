@@ -1,0 +1,383 @@
+{
+  "voice": "en-US-AndrewMultilingualNeural",
+  "slides": [
+    {
+      "id": "00",
+      "budget": 13,
+      "rate": 0,
+      "segments": [
+        {
+          "step": 0,
+          "text": "Copilot opens pull requests far faster than teams can verify them, and they reach production unverified. We built The Last Human to get from agentic coding to trusted agentic coding.",
+          "wav": "00_00.wav",
+          "sec": 12.175
+        }
+      ]
+    },
+    {
+      "id": "01",
+      "budget": 13,
+      "rate": 10,
+      "segments": [
+        {
+          "step": 0,
+          "text": "Agentic AI rests on one premise above all others.",
+          "wav": "01_00.wav",
+          "sec": 3.827
+        },
+        {
+          "step": 1,
+          "text": "AI has to stay under human control.",
+          "wav": "01_01.wav",
+          "sec": 2.204
+        },
+        {
+          "step": 2,
+          "text": "Without that, we lose permission to operate at all.",
+          "wav": "01_02.wav",
+          "sec": 2.886
+        },
+        {
+          "step": 3,
+          "text": "And the method proposed is observability at every layer.",
+          "wav": "01_03.wav",
+          "sec": 3.818
+        }
+      ]
+    },
+    {
+      "id": "02",
+      "budget": 14,
+      "rate": 15,
+      "segments": [
+        {
+          "step": 0,
+          "text": "Agents are already in every stage of the SDLC.",
+          "wav": "02_00.wav",
+          "sec": 3.489
+        },
+        {
+          "step": 1,
+          "text": "Copilot writes the implementation,",
+          "wav": "02_01.wav",
+          "sec": 2.13
+        },
+        {
+          "step": 2,
+          "text": "tests and review run automatically,",
+          "wav": "02_02.wav",
+          "sec": 2.793
+        },
+        {
+          "step": 3,
+          "text": "deploy and operate leave records too.",
+          "wav": "02_03.wav",
+          "sec": 2.358
+        },
+        {
+          "step": 4,
+          "text": "Merge alone records nothing.",
+          "wav": "02_04.wav",
+          "sec": 1.847
+        },
+        {
+          "step": 5,
+          "text": "The load lands here.",
+          "wav": "02_05.wav",
+          "sec": 1.206
+        }
+      ]
+    },
+    {
+      "id": "03",
+      "budget": 11,
+      "rate": 10,
+      "segments": [
+        {
+          "step": 0,
+          "text": "This judgment has been left to intuition. Everyone predicted AI would make them faster.",
+          "wav": "03_00.wav",
+          "sec": 5.545
+        },
+        {
+          "step": 1,
+          "text": "Measured, they were nineteen percent slower. Self-report is not evidence.",
+          "wav": "03_01.wav",
+          "sec": 4.908
+        }
+      ]
+    },
+    {
+      "id": "04",
+      "budget": 22,
+      "rate": 0,
+      "segments": [
+        {
+          "step": 0,
+          "text": "The gaps in agentic coding are already being measured.",
+          "wav": "04_00.wav",
+          "sec": 3.3
+        },
+        {
+          "step": 1,
+          "text": "A paper this year analyzed twenty-three thousand agentic pull requests.",
+          "wav": "04_01.wav",
+          "sec": 5.712
+        },
+        {
+          "step": 2,
+          "text": "Descriptions often did not match the code, and twenty-eight percent of those PRs were approved anyway.",
+          "wav": "04_02.wav",
+          "sec": 6.55
+        },
+        {
+          "step": 3,
+          "text": "The authors call for a mechanism to verify this.",
+          "wav": "04_03.wav",
+          "sec": 3.35
+        },
+        {
+          "step": 4,
+          "text": "We took that as our starting point and built one.",
+          "wav": "04_04.wav",
+          "sec": 2.812
+        }
+      ]
+    },
+    {
+      "id": "05",
+      "budget": 14,
+      "rate": 0,
+      "segments": [
+        {
+          "step": 0,
+          "text": "Parts of the industry answered by banning AI contributions.",
+          "wav": "05_00.wav",
+          "sec": 3.937
+        },
+        {
+          "step": 1,
+          "text": "Simple, but it gives up the productivity along with the risk.",
+          "wav": "05_01.wav",
+          "sec": 3.737
+        },
+        {
+          "step": 2,
+          "text": "Instead of banning, we verify only the risky changes and keep the understanding.",
+          "wav": "05_02.wav",
+          "sec": 5.475
+        }
+      ]
+    },
+    {
+      "id": "06",
+      "budget": 12,
+      "rate": 0,
+      "segments": [
+        {
+          "step": 0,
+          "text": "So we reversed the direction of explanation.",
+          "wav": "06_00.wav",
+          "sec": 2.787
+        },
+        {
+          "step": 1,
+          "text": "Other tools have the model explain.",
+          "wav": "06_01.wav",
+          "sec": 2.162
+        },
+        {
+          "step": 2,
+          "text": "Here the person answers the model.",
+          "wav": "06_02.wav",
+          "sec": 2.15
+        },
+        {
+          "step": 3,
+          "text": "And that answer binds to the commit.",
+          "wav": "06_03.wav",
+          "sec": 2.537
+        },
+        {
+          "step": 4,
+          "text": "Let me show you it working.",
+          "wav": "06_04.wav",
+          "sec": 1.425
+        }
+      ]
+    },
+    {
+      "id": "DEMO",
+      "video": "Demo_thelasthuman.mp4",
+      "budget": 88,
+      "segments": []
+    },
+    {
+      "id": "07",
+      "budget": 17,
+      "rate": 0,
+      "segments": [
+        {
+          "step": 0,
+          "text": "We put this gate on our own pull requests first.",
+          "wav": "07_00.wav",
+          "sec": 3.012
+        },
+        {
+          "step": 1,
+          "text": "It fired on twenty-six, and fifteen of them stopped.",
+          "wav": "07_01.wav",
+          "sec": 3.325
+        },
+        {
+          "step": 2,
+          "text": "Every file carrying judgment stopped us.",
+          "wav": "07_02.wav",
+          "sec": 2.775
+        },
+        {
+          "step": 3,
+          "text": "Deleting authentication code stays under the threshold.",
+          "wav": "07_03.wav",
+          "sec": 3.662
+        },
+        {
+          "step": 4,
+          "text": "And twelve merged while pending. We report that too.",
+          "wav": "07_04.wav",
+          "sec": 3.512
+        }
+      ]
+    },
+    {
+      "id": "08",
+      "budget": 18,
+      "rate": 5,
+      "segments": [
+        {
+          "step": 0,
+          "text": "This is the path one pull request travels.",
+          "wav": "08_00.wav",
+          "sec": 2.807
+        },
+        {
+          "step": 1,
+          "text": "Actions recomputes the risk itself.",
+          "wav": "08_01.wav",
+          "sec": 2.759
+        },
+        {
+          "step": 2,
+          "text": "Below the threshold it merges with no check.",
+          "wav": "08_02.wav",
+          "sec": 3.142
+        },
+        {
+          "step": 3,
+          "text": "Above it, the author answers from the code.",
+          "wav": "08_03.wav",
+          "sec": 2.493
+        },
+        {
+          "step": 4,
+          "text": "The receipt binds to the commit.",
+          "wav": "08_04.wav",
+          "sec": 2.082
+        },
+        {
+          "step": 5,
+          "text": "Only a match opens the gate.",
+          "wav": "08_05.wav",
+          "sec": 1.939
+        },
+        {
+          "step": 6,
+          "text": "The server's word alone is not enough.",
+          "wav": "08_06.wav",
+          "sec": 2.452
+        }
+      ]
+    },
+    {
+      "id": "09",
+      "budget": 13,
+      "rate": 5,
+      "segments": [
+        {
+          "step": 0,
+          "text": "Adoption runs on three tracks.",
+          "wav": "09_00.wav",
+          "sec": 2.309
+        },
+        {
+          "step": 1,
+          "text": "An operator stands up the server once,",
+          "wav": "09_01.wav",
+          "sec": 2.523
+        },
+        {
+          "step": 2,
+          "text": "three files per repository, required check last.",
+          "wav": "09_02.wav",
+          "sec": 3.402
+        },
+        {
+          "step": 3,
+          "text": "The author answers two questions.",
+          "wav": "09_03.wav",
+          "sec": 2.332
+        },
+        {
+          "step": 4,
+          "text": "There are no long-lived secrets.",
+          "wav": "09_04.wav",
+          "sec": 1.935
+        }
+      ]
+    },
+    {
+      "id": "10",
+      "budget": 13,
+      "rate": 0,
+      "segments": [
+        {
+          "step": 0,
+          "text": "AI cannot take responsibility, but a person can.",
+          "wav": "10_00.wav",
+          "sec": 3.462
+        },
+        {
+          "step": 1,
+          "text": "For that, understanding has to be on record.",
+          "wav": "10_01.wav",
+          "sec": 2.787
+        },
+        {
+          "step": 2,
+          "text": "Not slowing down, but raising the speed we can carry.",
+          "wav": "10_02.wav",
+          "sec": 3.787
+        },
+        {
+          "step": 3,
+          "text": "It is running on this repository right now.",
+          "wav": "10_03.wav",
+          "sec": 2.675
+        }
+      ]
+    },
+    {
+      "id": "TAG",
+      "budget": 4,
+      "rate": 0,
+      "segments": [
+        {
+          "step": 0,
+          "text": "AI-generated code. Human-owned decisions.",
+          "wav": "TAG_00.wav",
+          "sec": 3.412
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,210 @@
+1
+00:00:00,000 --> 00:00:06,996
+Copilot opens pull requests far faster than teams can
+verify them, and they reach production unverified.
+
+2
+00:00:06,996 --> 00:00:12,175
+We built The Last Human to get from agentic coding to
+trusted agentic coding.
+
+3
+00:00:12,175 --> 00:00:16,002
+Agentic AI rests on one premise above all others.
+
+4
+00:00:16,002 --> 00:00:18,206
+AI has to stay under human control.
+
+5
+00:00:18,206 --> 00:00:21,092
+Without that, we lose permission to operate at all.
+
+6
+00:00:21,092 --> 00:00:24,910
+And the method proposed is observability at every
+layer.
+
+7
+00:00:24,910 --> 00:00:28,399
+Agents are already in every stage of the SDLC.
+
+8
+00:00:28,399 --> 00:00:30,529
+Copilot writes the implementation,
+
+9
+00:00:30,529 --> 00:00:33,322
+tests and review run automatically,
+
+10
+00:00:33,322 --> 00:00:35,680
+deploy and operate leave records too.
+
+11
+00:00:35,680 --> 00:00:37,527
+Merge alone records nothing.
+
+12
+00:00:37,527 --> 00:00:38,733
+The load lands here.
+
+13
+00:00:38,733 --> 00:00:44,278
+This judgment has been left to intuition. Everyone
+predicted AI would make them faster.
+
+14
+00:00:44,278 --> 00:00:49,186
+Measured, they were nineteen percent slower.
+Self-report is not evidence.
+
+15
+00:00:49,186 --> 00:00:52,486
+The gaps in agentic coding are already being measured.
+
+16
+00:00:52,486 --> 00:00:58,198
+A paper this year analyzed twenty-three thousand
+agentic pull requests.
+
+17
+00:00:58,198 --> 00:01:04,294
+Descriptions often did not match the code, and
+twenty-eight percent of those PRs were approved
+
+18
+00:01:04,294 --> 00:01:04,748
+anyway.
+
+19
+00:01:04,748 --> 00:01:08,098
+The authors call for a mechanism to verify this.
+
+20
+00:01:08,098 --> 00:01:10,910
+We took that as our starting point and built one.
+
+21
+00:01:10,910 --> 00:01:14,847
+Parts of the industry answered by banning AI
+contributions.
+
+22
+00:01:14,847 --> 00:01:18,584
+Simple, but it gives up the productivity along with
+the risk.
+
+23
+00:01:18,584 --> 00:01:24,059
+Instead of banning, we verify only the risky changes
+and keep the understanding.
+
+24
+00:01:24,059 --> 00:01:26,846
+So we reversed the direction of explanation.
+
+25
+00:01:26,846 --> 00:01:29,008
+Other tools have the model explain.
+
+26
+00:01:29,008 --> 00:01:31,158
+Here the person answers the model.
+
+27
+00:01:31,158 --> 00:01:33,695
+And that answer binds to the commit.
+
+28
+00:01:33,695 --> 00:01:35,120
+Let me show you it working.
+
+29
+00:03:03,120 --> 00:03:06,132
+We put this gate on our own pull requests first.
+
+30
+00:03:06,132 --> 00:03:09,457
+It fired on twenty-six, and fifteen of them stopped.
+
+31
+00:03:09,457 --> 00:03:12,232
+Every file carrying judgment stopped us.
+
+32
+00:03:12,232 --> 00:03:15,894
+Deleting authentication code stays under the
+threshold.
+
+33
+00:03:15,894 --> 00:03:19,406
+And twelve merged while pending. We report that too.
+
+34
+00:03:19,406 --> 00:03:22,213
+This is the path one pull request travels.
+
+35
+00:03:22,213 --> 00:03:24,972
+Actions recomputes the risk itself.
+
+36
+00:03:24,972 --> 00:03:28,114
+Below the threshold it merges with no check.
+
+37
+00:03:28,114 --> 00:03:30,607
+Above it, the author answers from the code.
+
+38
+00:03:30,607 --> 00:03:32,689
+The receipt binds to the commit.
+
+39
+00:03:32,689 --> 00:03:34,628
+Only a match opens the gate.
+
+40
+00:03:34,628 --> 00:03:37,080
+The server's word alone is not enough.
+
+41
+00:03:37,080 --> 00:03:39,389
+Adoption runs on three tracks.
+
+42
+00:03:39,389 --> 00:03:41,912
+An operator stands up the server once,
+
+43
+00:03:41,912 --> 00:03:45,314
+three files per repository, required check last.
+
+44
+00:03:45,314 --> 00:03:47,646
+The author answers two questions.
+
+45
+00:03:47,646 --> 00:03:49,581
+There are no long-lived secrets.
+
+46
+00:03:49,581 --> 00:03:53,043
+AI cannot take responsibility, but a person can.
+
+47
+00:03:53,043 --> 00:03:55,830
+For that, understanding has to be on record.
+
+48
+00:03:55,830 --> 00:03:59,617
+Not slowing down, but raising the speed we can carry.
+
+49
+00:03:59,617 --> 00:04:02,292
+It is running on this repository right now.
+
+50
+00:04:02,292 --> 00:04:05,704
+AI-generated code. Human-owned decisions.

@@ -230,3 +230,12 @@ out/
 .venv/
 .work/
 site/
+
+# 발표 영상 파이프라인 산출물 — narration.json에서 언제든 다시 만듭니다.
+# (make_tts.py → make_shots.py → build_video.py)
+/docs/demo/presentation/video/audio/
+/docs/demo/presentation/video/audio-en/
+/docs/demo/presentation/video/shots/
+/docs/demo/presentation/video/shots-en/
+/docs/demo/presentation/video/work*/
+/docs/demo/presentation/video/*.mp4

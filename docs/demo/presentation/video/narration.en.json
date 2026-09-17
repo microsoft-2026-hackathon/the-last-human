@@ -1,0 +1,135 @@
+{
+  "_comment": "English narration for the video. segments[k] is the line spoken at build step k, and the counts map 1:1 to the deck's build steps — do not change them. v2 rewrite — context, then evidence, then response, instead of a list of one-liners. The slides that carry the argument (00, 01, 03, 04, 05, 10) keep full sentences; the slides whose screen explains itself (02, 06, 08, 09) are trimmed to captions to buy the time back. budget here is this video's per-segment target and is separate from the deck's data-dur, which is the 3:30 plan for a live presenter. Andrew runs about 15 characters per second at +0%.",
+  "deck": "index.en.html",
+  "voice": "en-US-AndrewMultilingualNeural",
+  "rate": "+0%",
+  "slides": [
+    {
+      "id": "00",
+      "budget": 13,
+      "segments": [
+        "Copilot opens pull requests far faster than teams can verify them, and they reach production unverified. We built The Last Human to get from agentic coding to trusted agentic coding."
+      ]
+    },
+    {
+      "id": "01",
+      "budget": 13,
+      "segments": [
+        "Agentic AI rests on one premise above all others.",
+        "AI has to stay under human control.",
+        "Without that, we lose permission to operate at all.",
+        "And the method proposed is observability at every layer."
+      ]
+    },
+    {
+      "id": "02",
+      "budget": 14,
+      "segments": [
+        "Agents are already in every stage of the SDLC.",
+        "Copilot writes the implementation,",
+        "tests and review run automatically,",
+        "deploy and operate leave records too.",
+        "Merge alone records nothing.",
+        "The load lands here."
+      ]
+    },
+    {
+      "id": "03",
+      "budget": 11,
+      "segments": [
+        "This judgment has been left to intuition. Everyone predicted AI would make them faster.",
+        "Measured, they were nineteen percent slower. Self-report is not evidence."
+      ]
+    },
+    {
+      "id": "04",
+      "budget": 22,
+      "segments": [
+        "The gaps in agentic coding are already being measured.",
+        "A paper this year analyzed twenty-three thousand agentic pull requests.",
+        "Descriptions often did not match the code, and twenty-eight percent of those PRs were approved anyway.",
+        "The authors call for a mechanism to verify this.",
+        "We took that as our starting point and built one."
+      ]
+    },
+    {
+      "id": "05",
+      "budget": 14,
+      "segments": [
+        "Parts of the industry answered by banning AI contributions.",
+        "Simple, but it gives up the productivity along with the risk.",
+        "Instead of banning, we verify only the risky changes and keep the understanding."
+      ]
+    },
+    {
+      "id": "06",
+      "budget": 12,
+      "segments": [
+        "So we reversed the direction of explanation.",
+        "Other tools have the model explain.",
+        "Here the person answers the model.",
+        "And that answer binds to the commit.",
+        "Let me show you it working."
+      ]
+    },
+    {
+      "id": "DEMO",
+      "budget": 88,
+      "video": "Demo_thelasthuman.mp4",
+      "segments": []
+    },
+    {
+      "id": "07",
+      "budget": 17,
+      "segments": [
+        "We put this gate on our own pull requests first.",
+        "It fired on twenty-six, and fifteen of them stopped.",
+        "Every file carrying judgment stopped us.",
+        "Deleting authentication code stays under the threshold.",
+        "And twelve merged while pending. We report that too."
+      ]
+    },
+    {
+      "id": "08",
+      "budget": 18,
+      "segments": [
+        "This is the path one pull request travels.",
+        "Actions recomputes the risk itself.",
+        "Below the threshold it merges with no check.",
+        "Above it, the author answers from the code.",
+        "The receipt binds to the commit.",
+        "Only a match opens the gate.",
+        "The server's word alone is not enough."
+      ]
+    },
+    {
+      "id": "09",
+      "budget": 13,
+      "segments": [
+        "Adoption runs on three tracks.",
+        "An operator stands up the server once,",
+        "three files per repository, required check last.",
+        "The author answers two questions.",
+        "There are no long-lived secrets."
+      ]
+    },
+    {
+      "id": "10",
+      "budget": 13,
+      "segments": [
+        "AI cannot take responsibility, but a person can.",
+        "For that, understanding has to be on record.",
+        "Not slowing down, but raising the speed we can carry.",
+        "It is running on this repository right now."
+      ]
+    },
+    {
+      "id": "TAG",
+      "budget": 4,
+      "hold": 5,
+      "segments": [
+        "AI-generated code. Human-owned decisions."
+      ]
+    }
+  ]
+}

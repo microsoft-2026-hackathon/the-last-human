@@ -1,9 +1,9 @@
 <!doctype html>
-<html lang="ko">
+<html lang="en">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>The Last Human — 발표 덱</title>
+<title>The Last Human — Presentation Deck</title>
 <link rel="preconnect" href="https://cdn.jsdelivr.net">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -30,7 +30,7 @@
   .mono { font-family:var(--mono); }
   .hl { color:var(--amber); } .gr { color:var(--green); } .rd { color:var(--red); }
 
-  /* 배경 */
+  /* background */
   .aurora { position:fixed; inset:0; z-index:0; overflow:hidden; pointer-events:none; transition:opacity .6s var(--ease); }
   .aurora i { position:absolute; display:block; border-radius:50%; filter:blur(100px); opacity:.16; }
   .aurora .a1 { width:54vw; height:54vw; left:-14vw; top:-18vw;  background:#2b5f8f; animation:d1 30s ease-in-out infinite alternate; }
@@ -41,7 +41,7 @@
   @keyframes d3 { to { transform:translate3d(6vw,-12vh,0) scale(1.22); } }
   body.demo-on .aurora { opacity:0; }
 
-  /* 슬라이드 */
+  /* slides */
   .slide {
     position:absolute; inset:0; z-index:1;
     padding:clamp(1.5rem,4.2vh,2.9rem) clamp(1.9rem,5.2vw,4.8rem);
@@ -62,11 +62,11 @@
     .aurora i { animation:none; }
   }
 
-  /* 타이포 */
+  /* type */
   .eyebrow { font-family:var(--mono); font-size:clamp(.74rem,1.68vh,1rem); letter-spacing:.1em;
              color:var(--neutral); margin-bottom:clamp(.5rem,1.4vh,.95rem);
              display:flex; align-items:center; gap:.6rem; flex-wrap:wrap; }
-  /* 심사 항목 배지 — 이 슬라이드가 어느 배점을 받는지 */
+  /* criteria badge — which judging area this slide earns */
   .crit { display:inline-flex; align-items:center; gap:.35rem; padding:.2rem .6rem; border-radius:4px;
           font-size:.86em; letter-spacing:.14em; text-transform:uppercase; font-weight:500; white-space:nowrap; }
   .crit.c1 { background:rgba(111,183,238,.16); color:var(--cool); }
@@ -81,12 +81,12 @@
   .kicker { font-size:clamp(.88rem,2vh,1.2rem); color:var(--neutral); line-height:1.5; }
   strong { font-weight:700; color:var(--type); }
 
-  /* 근거 카드 */
+  /* evidence cards */
   .cite { font-family:var(--mono); color:var(--dim); font-size:clamp(.62rem,1.38vh,.8rem); line-height:1.55; letter-spacing:.02em; }
   .quote { border-left:3px solid var(--amber); padding-left:clamp(.8rem,1.8vw,1.2rem);
            font-size:clamp(.95rem,2.2vh,1.38rem); line-height:1.5; color:var(--type); font-weight:500; }
 
-  /* 이미지 근거 */
+  /* image evidence */
   .shot { border:1px solid var(--line); border-radius:8px; overflow:hidden; background:#000;
           box-shadow:0 12px 40px rgba(0,0,0,.45); }
   .shot img { display:block; width:100%; height:auto; }
@@ -96,13 +96,13 @@
   .ev .shot { max-height:62vh; }
   .ev .shot img { max-height:62vh; object-fit:contain; object-position:top; }
 
-  /* 수치 */
+  /* figures */
   .figs { display:flex; gap:clamp(1rem,3vw,2.4rem); flex-wrap:wrap; margin-top:clamp(.6rem,1.6vh,1.1rem); }
   .fig .n { display:block; font-weight:800; font-size:clamp(1.7rem,6vh,3.2rem); line-height:1;
             letter-spacing:-.035em; font-variant-numeric:tabular-nums; }
   .fig .k { display:block; font-size:clamp(.78rem,1.75vh,1rem); color:var(--neutral); margin-top:.35rem; line-height:1.35; }
 
-  /* 카드 그리드 */
+  /* card grid */
   .grid { display:grid; gap:clamp(.7rem,1.9vw,1.5rem); margin-top:clamp(.6rem,1.7vh,1.2rem); }
   .g2 { grid-template-columns:1fr 1fr; } .g3 { grid-template-columns:repeat(3,1fr); } .g4 { grid-template-columns:repeat(4,1fr); }
   .card { border:1px solid var(--line); border-radius:8px; background:rgba(17,23,34,.72);
@@ -120,7 +120,7 @@
                 padding:.16rem 0 .16rem .95rem; position:relative; }
   ul.tight li::before { content:"·"; position:absolute; left:.15rem; color:var(--dim); }
 
-  /* 방향 반전 비교 */
+  /* direction-reversal comparison */
   .rev { display:grid; gap:clamp(.4rem,1.1vh,.7rem); margin-top:clamp(.6rem,1.6vh,1.1rem); }
   .rev .r { display:flex; align-items:center; gap:clamp(.5rem,1.2vw,1rem); border:1px solid var(--line);
             border-radius:8px; padding:clamp(.5rem,1.3vh,.8rem) clamp(.7rem,1.5vw,1.1rem); background:rgba(17,23,34,.7); }
@@ -140,7 +140,7 @@
   .rev .note { font-size:clamp(.74rem,1.65vh,.96rem); color:var(--dim); flex:none; }
   .rev .r.hot .note { color:var(--neutral); }
 
-  /* 파이프라인 */
+  /* pipeline */
   .pipe { display:flex; align-items:stretch; gap:clamp(.25rem,.7vw,.5rem); margin-top:clamp(.5rem,1.4vh,.9rem); }
   .pipe .p { flex:1; border:1px solid var(--line); border-radius:7px; background:rgba(17,23,34,.72);
              padding:clamp(.45rem,1.2vh,.75rem) clamp(.5rem,1.1vw,.8rem); }
@@ -150,7 +150,7 @@
   .pipe .p span { display:block; font-size:clamp(.72rem,1.6vh,.92rem); color:var(--neutral); margin-top:.25rem; line-height:1.36; }
   .pipe .sep { display:flex; align-items:center; color:#5e6a79; font-family:var(--mono); font-size:1.1rem; }
 
-  /* 도입 스윔레인 */
+  /* adoption swimlanes */
   .swim { display:grid; gap:clamp(.4rem,1.1vh,.65rem); margin-top:clamp(.6rem,1.6vh,1.1rem); }
   .swim .lane { display:grid; grid-template-columns:clamp(7rem,13vw,11rem) 1fr; gap:clamp(.5rem,1.2vw,1rem); align-items:center; }
   .swim .who { border-left:3px solid var(--line); padding-left:.6rem; }
@@ -166,14 +166,14 @@
   .swim .s i { font-family:var(--mono); font-style:normal; color:var(--amber); font-size:.9em; }
   .swim .ar { color:#5e6a79; font-family:var(--mono); }
 
-  /* 기반 밴드 */
+  /* foundation band */
   .found { display:grid; grid-template-columns:repeat(4,1fr); gap:clamp(.5rem,1.3vw,1rem);
            margin-top:clamp(.6rem,1.6vh,1.1rem); padding-top:clamp(.5rem,1.3vh,.8rem); border-top:2px solid var(--line); }
   .found .f { font-size:clamp(.78rem,1.75vh,1rem); font-weight:700; }
   .found .f.hot { color:var(--amber); }
   .found .f span { display:block; font-weight:400; font-size:.86em; color:var(--neutral); margin-top:.2rem; line-height:1.36; }
 
-  /* SDLC 스트립 — agent가 들어온 단계와 기록이 없는 지점 */
+  /* SDLC strip — where agents already are, and where no record exists */
   .sdlc { display:grid; grid-template-columns:repeat(7,1fr); gap:clamp(.3rem,.8vw,.6rem);
           margin-top:clamp(.7rem,1.9vh,1.3rem); align-items:stretch; }
   .sdlc .st { border:1px solid var(--line); border-radius:7px; background:rgba(17,23,34,.72);
@@ -190,7 +190,7 @@
   .sdlc .st.gap.in { animation:pulse 2.4s ease-in-out .4s infinite; }
   .sdlc .arrow { display:flex; align-items:center; justify-content:center; color:var(--dim); font-family:var(--mono); }
 
-  /* 관측 가능 목록 */
+  /* observability list */
   .layers { margin-top:clamp(.6rem,1.7vh,1.2rem); max-width:70ch; }
   .layers .row { display:flex; align-items:center; gap:.75rem; padding:clamp(.3rem,.85vh,.52rem) clamp(.7rem,1.5vw,1.05rem);
                  border:1px solid var(--line); border-radius:6px; margin-bottom:.34rem;
@@ -202,7 +202,7 @@
   .layers .row.gap.in { animation:pulse 2.4s ease-in-out .4s infinite; }
   @keyframes pulse { 0%,100%{box-shadow:0 0 0 0 rgba(232,177,85,0)} 50%{box-shadow:0 0 0 7px rgba(232,177,85,.09)} }
 
-  /* 타이틀 */
+  /* title card */
   .title-card { justify-content:center; align-items:flex-start; }
   .title-card .venue { font-family:var(--mono); color:var(--dim); font-size:clamp(.74rem,1.75vh,1.05rem); letter-spacing:.2em; text-transform:uppercase; }
   .title-card h1 { font-weight:800; font-size:clamp(2.8rem,11.5vh,7.6rem); line-height:.98; letter-spacing:-.045em; margin-top:clamp(.7rem,2vh,1.4rem); }
@@ -210,7 +210,7 @@
   .title-card .en { font-family:var(--mono); color:var(--amber); font-size:clamp(.8rem,1.9vh,1.2rem); letter-spacing:.08em; }
   .title-card .ko { font-size:clamp(.95rem,2.3vh,1.5rem); color:var(--neutral); margin-top:.45rem; }
 
-  /* 마크 */
+  /* mark */
   .mark rect.f { fill:var(--green); }
   .mark rect.e { fill:none; stroke:var(--amber); stroke-width:3; stroke-dasharray:4 4; }
   .slide.on .mark rect.f { animation:barIn .48s var(--ease) backwards; }
@@ -220,7 +220,7 @@
   .slide.on .mark rect.e { animation:barIn .48s var(--ease) .54s backwards; }
   @keyframes barIn { from { opacity:0; transform:translateX(-10px); } }
 
-  /* 데모 */
+  /* demo */
   .demo { justify-content:center; align-items:center; padding:0; background:#000; }
   .demo video { width:100%; height:100%; object-fit:contain; background:#000; }
   .demo-card { display:flex; flex-direction:column; justify-content:center; align-items:center; width:100%; height:100%;
@@ -229,7 +229,7 @@
   .demo-card .cue { font-family:var(--mono); color:var(--dim); font-size:clamp(.76rem,1.7vh,1rem); line-height:1.95; text-align:center; max-width:76ch; }
   .demo-card .cue b { color:var(--neutral); font-weight:500; }
 
-  /* 아키텍처 — 도면을 최대한 크게 */
+  /* architecture — give the diagram as much room as possible */
   .arch { padding-left:clamp(1rem,2.4vw,2rem); padding-right:clamp(1rem,2.4vw,2rem); }
   .arch h2 { font-size:clamp(1.3rem,3.3vh,2.05rem); }
   .arch .eyebrow { margin-bottom:clamp(.3rem,.8vh,.6rem); }
@@ -274,7 +274,7 @@
   .tag h2 { font-family:var(--mono); font-weight:400; font-size:clamp(1.2rem,3.4vh,2.3rem); letter-spacing:.03em; }
   .tag .sub { font-size:clamp(.85rem,2vh,1.2rem); color:var(--dim); }
 
-  /* 부록 */
+  /* appendix */
   .appx table { width:100%; border-collapse:collapse; font-size:clamp(.72rem,1.58vh,.93rem); }
   .appx th,.appx td { padding:.22rem .4rem; border-bottom:1px solid var(--line); text-align:left; vertical-align:top; }
   .appx th { font-family:var(--mono); font-size:clamp(.55rem,1.25vh,.7rem); letter-spacing:.1em; color:var(--dim); text-transform:uppercase; font-weight:400; }
@@ -297,9 +297,9 @@
 
 <div class="aurora" aria-hidden="true"><i class="a1"></i><i class="a2"></i><i class="a3"></i></div>
 
-<!-- ══════ 00 · 타이틀 ══════ -->
-<section class="slide title-card" data-dur="11">
-  <svg class="mark rise" style="--d:0" width="112" height="70" viewBox="0 0 120 74" aria-label="다섯 줄은 차 있고 여섯째 줄은 비어 있는 마크">
+<!-- ══════ 00 · title ══════ -->
+<section class="slide title-card" data-dur="12">
+  <svg class="mark rise" style="--d:0" width="112" height="70" viewBox="0 0 120 74" aria-label="A mark of six lines: five filled, the sixth left empty">
     <rect class="f" x="0" y="0"  width="86" height="8" rx="4"/>
     <rect class="f" x="0" y="13" width="72" height="8" rx="4"/>
     <rect class="f" x="0" y="26" width="94" height="8" rx="4"/>
@@ -311,14 +311,14 @@
   <h1 class="rise" style="--d:2">The Last Human</h1>
   <div class="bar rise" style="--d:3"></div>
   <p class="en rise" style="--d:4">Comprehension Gate for Agentic Merges</p>
-  <p class="ko rise" style="--d:5">merge 직전, 그 변경을 이해한 사람이 있는지 확인합니다</p>
-  <p class="ko rise" style="--d:6;color:var(--dim);font-size:clamp(.85rem,2vh,1.2rem)">검증되지 못한 Copilot PR이 production으로 가는 것을 막습니다 · <strong>Agentic Coding → Trusted Agentic Coding</strong></p>
+  <p class="ko rise" style="--d:5">Before a risky change merges, confirm someone understood it</p>
+  <p class="ko rise" style="--d:6;color:var(--dim);font-size:clamp(.85rem,2vh,1.2rem)">Stops unverified Copilot PRs from reaching production · <strong>agentic coding → trusted agentic coding</strong></p>
 </section>
 
-<!-- ══════ 01 · 설계 목표 (backdata_1) ══════ -->
-<section class="slide top" data-dur="15">
-  <p class="eyebrow rise" style="--d:0"><span class="crit c1">The Mandate</span> 01 · Agentic AI의 가장 중요한 전제</p>
-  <h2 class="rise" style="--d:1">Agentic AI의 <span class="hl">가장 중요한 전제</span></h2>
+<!-- ══════ 01 · the mandate (backdata_1) ══════ -->
+<section class="slide top" data-dur="13">
+  <p class="eyebrow rise" style="--d:0"><span class="crit c1">The Mandate</span> 01 · The one premise Agentic AI rests on</p>
+  <h2 class="rise" style="--d:1">The <span class="hl">one premise</span> Agentic AI rests on</h2>
   <div class="ev l">
     <div>
       <div class="quote frag" data-frag="1">
@@ -333,67 +333,67 @@
         <span class="hl">observability at every layer of stack</span> and use to enforce
         <span class="hl">governance and containment.</span>
       </div>
-      <p class="cite frag" data-frag="3" style="margin-top:.8rem">Satya Nadella · Employee News &amp; Events · 사내 공지</p>
+      <p class="cite frag" data-frag="3" style="margin-top:.8rem">Satya Nadella · Employee News &amp; Events · internal announcement</p>
     </div>
     <div class="shot rise" style="--d:2">
-      <img src="backdata_1.png" alt="Satya Nadella의 사내 공지 원문. human control, lose permission to operate, observability at every layer of stack 문장에 형광 표시가 되어 있습니다.">
+      <img src="backdata_1.png" alt="The original internal announcement from Satya Nadella, with the phrases human control, lose permission to operate, and observability at every layer of stack highlighted.">
     </div>
   </div>
 </section>
 
-<!-- ══════ 02 · SDLC와 관측되지 않는 지점 ══════ -->
-<section class="slide" data-dur="16">
-  <p class="eyebrow rise" style="--d:0"><span class="crit c1">Where the Gap Is</span> 02 · agent는 이미 SDLC 전 단계에 있습니다</p>
-  <h2 class="rise" style="--d:1">모든 단계가 관측됩니다.<br><span class="hl">merge의 신뢰만 빼고.</span></h2>
+<!-- ══════ 02 · the SDLC and the unobserved point ══════ -->
+<section class="slide" data-dur="14">
+  <p class="eyebrow rise" style="--d:0"><span class="crit c1">Where the Gap Is</span> 02 · Agents are already in every stage of the SDLC</p>
+  <h2 class="rise" style="--d:1">Every stage leaves a record.<br><span class="hl">Every stage but merge.</span></h2>
   <div class="sdlc">
-    <div class="st frag" data-frag="1"><div class="n">Plan</div><div class="h">계획</div>
-      <div class="a">issue 분류 · 설계 초안을 agent가 만듭니다</div><div class="rec">✓ issue · 스레드</div></div>
-    <div class="st frag" data-frag="1"><div class="n">Code</div><div class="h">구현</div>
-      <div class="a"><strong>GitHub Copilot coding agent</strong>가 PR을 엽니다</div><div class="rec">✓ diff · commit</div></div>
-    <div class="st frag" data-frag="2"><div class="n">Test</div><div class="h">테스트</div>
-      <div class="a">테스트를 생성하고 CI에서 실행합니다</div><div class="rec">✓ CI 결과</div></div>
-    <div class="st frag" data-frag="2"><div class="n">Review</div><div class="h">리뷰</div>
-      <div class="a">AI reviewer가 코멘트를 답니다</div><div class="rec">✓ 코멘트</div></div>
-    <div class="st gap frag" data-frag="4"><div class="n">Merge</div><div class="h">merge 결정</div>
-      <div class="a"><strong>사람이 책임을 집니다.</strong> 이 한 번의 결정이 나머지 전부를 확정합니다</div>
-      <div class="rec">? 이해 — 기록 없음</div></div>
-    <div class="st frag" data-frag="3"><div class="n">Deploy</div><div class="h">배포</div>
-      <div class="a">파이프라인이 자동으로 내보냅니다</div><div class="rec">✓ 배포 로그</div></div>
-    <div class="st frag" data-frag="3"><div class="n">Operate</div><div class="h">운영</div>
-      <div class="a">모니터링과 인시던트 대응이 붙어 있습니다</div><div class="rec">✓ 알림 · 포스트모템</div></div>
+    <div class="st frag" data-frag="1"><div class="n">Plan</div><div class="h">Agents draft</div>
+      <div class="a">Issue triage and design drafts come from agents</div><div class="rec">✓ issues · threads</div></div>
+    <div class="st frag" data-frag="1"><div class="n">Code</div><div class="h">Copilot writes</div>
+      <div class="a"><strong>GitHub Copilot coding agent</strong> opens the PR</div><div class="rec">✓ diff · commits</div></div>
+    <div class="st frag" data-frag="2"><div class="n">Test</div><div class="h">CI runs</div>
+      <div class="a">Tests are generated and run in CI</div><div class="rec">✓ CI results</div></div>
+    <div class="st frag" data-frag="2"><div class="n">Review</div><div class="h">AI comments</div>
+      <div class="a">An AI reviewer leaves comments</div><div class="rec">✓ comments</div></div>
+    <div class="st gap frag" data-frag="4"><div class="n">Merge</div><div class="h">A human decides</div>
+      <div class="a"><strong>A person takes responsibility.</strong> This one decision locks in everything else</div>
+      <div class="rec">? understanding — no record</div></div>
+    <div class="st frag" data-frag="3"><div class="n">Deploy</div><div class="h">Pipeline ships</div>
+      <div class="a">The pipeline ships it automatically</div><div class="rec">✓ deploy logs</div></div>
+    <div class="st frag" data-frag="3"><div class="n">Operate</div><div class="h">Monitors watch</div>
+      <div class="a">Monitoring and incident response are attached</div><div class="rec">✓ alerts · postmortems</div></div>
   </div>
   <p class="lede frag" data-frag="5">
-    여섯 단계는 자동화되었고 전부 기록이 남습니다. <strong>merge만 사람의 판단이고, 그 판단의 근거는 남지 않습니다.</strong>
-    Copilot이 PR을 여는 속도만큼 이 한 지점에 부하가 쌓입니다.
+    Six stages are automated and every one of them leaves a record. <strong>Merge is the only human judgment, and the basis for it is recorded nowhere.</strong>
+    Load piles up at this single point as fast as Copilot opens PRs.
   </p>
 </section>
 
-<!-- ══════ 03 · 직관은 틀렸습니다 (backdata_2) ══════ -->
-<section class="slide top" data-dur="13">
-  <p class="eyebrow rise" style="--d:0"><span class="crit c1">Feeling Is Not Evidence</span> 03 · 우리 감은 틀렸습니다</p>
-  <h2 class="rise" style="--d:1">우리는 이 층을 <span class="hl">감으로 판단해 왔습니다.</span> 그 감은 틀렸습니다</h2>
+<!-- ══════ 03 · intuition was wrong (backdata_2) ══════ -->
+<section class="slide top" data-dur="10">
+  <p class="eyebrow rise" style="--d:0"><span class="crit c1">Feeling Is Not Evidence</span> 03 · Our intuition was wrong</p>
+  <h2 class="rise" style="--d:1">We have judged this layer <span class="hl">by feel.</span> That feel was wrong</h2>
   <div class="shot rise" style="--d:2;margin-top:.7rem;max-width:min(100%,76vw);align-self:center">
-    <img src="backdata_2.png" alt="METR 무작위 대조 실험 결과. 경제학 전문가 -38%, ML 전문가 -40%, 개발자 사전 예측 -24%, 실험 후 자기보고 -20%로 모두 speedup을 예측했으나 실제 관측값은 +19% slowdown이었습니다." style="max-height:52vh;object-fit:contain">
+    <img src="backdata_2.png" alt="Results of the METR randomized controlled trial. Economics experts at -38%, ML experts at -40%, developer forecasts at -24%, and developer self-reports after the trial at -20% all predicted a speedup, while the observed result was a +19% slowdown." style="max-height:52vh;object-fit:contain">
   </div>
   <p class="lede frag" data-frag="1" style="text-align:center;max-width:none;align-self:center">
-    전문가도, 개발자 본인도 <strong>빨라진다</strong>고 예측했습니다. 실험이 끝난 뒤에도 20% 빨라졌다고 <strong>믿었습니다.</strong>
-    실제로는 <span class="rd">19% 느렸습니다.</span> 자기 보고는 근거가 되지 못합니다.
+    Experts and the developers themselves predicted they would be <strong>faster.</strong> Even after the trial they <strong>believed</strong> they had been 20% faster.
+    They were in fact <span class="rd">19% slower.</span> Self-report is not evidence.
   </p>
 </section>
 
-<!-- ══════ 04 · 이름이 붙은 공백 (backdata_4) ══════ -->
-<section class="slide top" data-dur="23">
-  <p class="eyebrow rise" style="--d:0"><span class="crit c1">The Bottleneck, Named</span> 04 · 불완전함은 이미 측정되고 있습니다</p>
-  <h2 class="rise" style="--d:1">Agentic Coding의 불완전함은 <span class="hl">이미 측정되었습니다</span><br>병목은 코드 생성이 아니라 merge의 신뢰입니다</h2>
+<!-- ══════ 04 · the gap already has a name (backdata_4) ══════ -->
+<section class="slide top" data-dur="22">
+  <p class="eyebrow rise" style="--d:0"><span class="crit c1">The Bottleneck, Named</span> 04 · The gaps are already measured</p>
+  <h2 class="rise" style="--d:1">The gaps in agentic coding are <span class="hl">already measured</span><br>The bottleneck is not code generation — it is trust at merge</h2>
   <div class="ev r">
     <div class="shot rise" style="--d:2">
-      <img src="backdata_4.png" alt="AI 코딩 에이전트가 작성한 Pull Request의 message-code inconsistency를 분석한 논문. 23,247건의 agentic PR을 분석했습니다.">
+      <img src="backdata_4.png" alt="A paper analyzing message-code inconsistency in pull requests authored by AI coding agents, across 23,247 agentic PRs.">
     </div>
     <div>
       <div class="figs">
-        <div class="fig frag" data-frag="1"><span class="n hl">45.4%</span><span class="k">가장 흔한 유형은<br><strong>구현되지 않은 변경을 설명이 주장</strong>하는 것</span></div>
-        <div class="fig frag" data-frag="2"><span class="n rd">28.3%</span><span class="k">불일치가 큰 PR의 승인율<br>(정상 PR은 80.0%)</span></div>
-        <div class="fig frag" data-frag="2"><span class="n rd">3.5×</span><span class="k">merge까지 걸린 시간<br>55.8시간 vs 16.0시간 — <strong>병목이 여기 쌓입니다</strong></span></div>
+        <div class="fig frag" data-frag="1"><span class="n hl">45.4%</span><span class="k">Most common type:<br>the description <strong>claims a change never implemented</strong></span></div>
+        <div class="fig frag" data-frag="2"><span class="n rd">28.3%</span><span class="k">Approval rate for high-inconsistency PRs<br>(80.0% for consistent PRs)</span></div>
+        <div class="fig frag" data-frag="2"><span class="n rd">3.5×</span><span class="k">Time to merge<br>55.8h vs 16.0h — <strong>the bottleneck piles up here</strong></span></div>
       </div>
       <div class="quote frag" data-frag="3" style="margin-top:1.1rem">
         unreliable PR descriptions undermine trust in AI agents, highlighting the need for
@@ -401,77 +401,77 @@
       </div>
       <p class="cite frag" data-frag="3" style="margin-top:.7rem">
         Gong, Pinna, Bian, Zhang · Analyzing Message-Code Inconsistency in AI Coding<br>
-        Agent-Authored Pull Requests · arXiv, 2026-01-26 · agentic PR 23,247건 분석
+        Agent-Authored Pull Requests · arXiv, 2026-01-26 · 23,247 agentic PRs analyzed
       </p>
       <p class="kicker frag" data-frag="4" style="margin-top:.8rem">
-        코드 생성을 아무리 빠르게 해도 <strong>이 지점에서 되돌아옵니다.</strong>
-        논문이 필요하다고 지목한 그 <strong>verification mechanism</strong>을 만들었습니다.
+        However fast code generation gets, <strong>it comes back at this point.</strong>
+        We built the <strong>verification mechanism</strong> that paper says is needed.
       </p>
     </div>
   </div>
 </section>
 
-<!-- ══════ 05 · 금지가 아니라 확인 (backdata_3) ══════ -->
-<section class="slide top" data-dur="12">
-  <p class="eyebrow rise" style="--d:0"><span class="crit c2">Ban or Check</span> 05 · 금지가 아니라 확인</p>
-  <h2 class="rise" style="--d:1">업계의 답은 <span class="rd">금지</span>였습니다. 우리의 답은 <span class="gr">확인</span>입니다</h2>
+<!-- ══════ 05 · a check, not a ban (backdata_3) ══════ -->
+<section class="slide top" data-dur="13">
+  <p class="eyebrow rise" style="--d:0"><span class="crit c2">Ban or Check</span> 05 · A check, not a ban</p>
+  <h2 class="rise" style="--d:1">The industry answered with a <span class="rd">ban.</span> We answer with a <span class="gr">check</span></h2>
   <div class="ev l" style="align-items:start">
     <div>
       <div class="card frag" data-frag="1" style="border-color:var(--red)">
-        <div class="t" style="color:var(--red)">Godot Engine · 기여 정책 2026</div>
+        <div class="t" style="color:var(--red)">Godot Engine · contribution policy 2026</div>
         <div class="h">AI cannot take responsibility</div>
-        <div class="d">사람이 책임질 수 있는 기여만 받겠다는 결정입니다. 이해하지 못한 기여는 받지 않습니다.</div>
-        <div class="m">금지는 명확합니다. 다만 AI의 생산성까지 함께 버립니다.</div>
+        <div class="d">A decision to accept only contributions a person can answer for. Contributions the author does not understand are refused.</div>
+        <div class="m">A ban is clear. It also throws away the productivity AI gives you.</div>
       </div>
       <div class="card hot frag" data-frag="2" style="margin-top:.8rem">
         <div class="t">The Last Human</div>
-        <div class="h">누가 썼는지가 아니라, 이해했는지를 봅니다</div>
-        <div class="d"><strong>AI 탐지에 의존하지 않습니다.</strong> 변경의 위험도로만 판단하고, 위험한 변경에 한해 작성자에게 코드에 근거한 설명을 요구합니다.</div>
-        <div class="m">금지 대신 위험한 변경만 확인하고, 그 이해를 함께 남깁니다</div>
+        <div class="h">We check understanding, not authorship</div>
+        <div class="d"><strong>We do not rely on AI detection.</strong> We judge on the risk of the change alone, and only for risky changes do we ask the author to explain it from the code.</div>
+        <div class="m">Instead of banning, we check only the risky changes and keep the understanding</div>
       </div>
     </div>
     <div class="shot rise" style="--d:2">
-      <img src="backdata_3.png" alt="Godot 기여 정책 원문. AI는 책임질 수 없고, AI를 많이 쓰는 기여자가 자기 코드를 고칠 만큼 이해한다고 신뢰할 수 없다는 문단이 강조되어 있습니다.">
+      <img src="backdata_3.png" alt="The original Godot contribution policy, highlighting the passage that AI cannot take responsibility and that heavy AI users cannot be trusted to understand their own code well enough to fix it.">
     </div>
   </div>
 </section>
 
-<!-- ══════ 06 · 어떻게 동작합니까 ══════ -->
-<section class="slide" data-dur="13">
-  <p class="eyebrow rise" style="--d:0"><span class="crit c2">Reversing the Flow</span><span class="crit c4">Proof in Motion → 다음 88초</span> 06 · 어떻게 동작합니까</p>
-  <h2 class="rise" style="--d:1">설명의 방향을 <span class="hl">뒤집었습니다</span></h2>
+<!-- ══════ 06 · how it works ══════ -->
+<section class="slide" data-dur="11">
+  <p class="eyebrow rise" style="--d:0"><span class="crit c2">Reversing the Flow</span><span class="crit c4">Proof in Motion → next 88s</span> 06 · How it works</p>
+  <h2 class="rise" style="--d:1">We <span class="hl">reversed</span> the direction of explanation</h2>
   <div class="rev">
     <div class="r frag" data-frag="1">
-      <span class="tag">다른 AI 리뷰 도구</span>
+      <span class="tag">Other AI review tools</span>
       <span class="node">Model</span>
-      <span class="flow"><i></i><em>설명을 전달합니다</em><i></i><b>▶</b></span>
-      <span class="node">사람</span>
-      <span class="note">사람은 읽기만 합니다</span>
+      <span class="flow"><i></i><em>delivers an explanation</em><i></i><b>▶</b></span>
+      <span class="node">Human</span>
+      <span class="note">The human only reads</span>
     </div>
     <div class="r hot frag" data-frag="2">
       <span class="tag">The Last Human</span>
-      <span class="node you">사람</span>
-      <span class="flow"><i></i><em>보기 + 코드 근거 한 줄</em><i></i><b>▶</b></span>
+      <span class="node you">Human</span>
+      <span class="flow"><i></i><em>a choice + one line of code evidence</em><i></i><b>▶</b></span>
       <span class="node">Model</span>
-      <span class="note">사람이 답하고, 그 답이 commit에 남습니다</span>
+      <span class="note">The human answers, and the answer stays on the commit</span>
     </div>
   </div>
   <div class="pipe">
-    <div class="p frag" data-frag="3"><span class="i">STEP 1</span><b>위험도 판정</b><span>순수 함수 · 모델을 부르지 않습니다</span></div>
+    <div class="p frag" data-frag="3"><span class="i">STEP 1</span><b>Risk scoring</b><span>pure function · never calls a model</span></div>
     <span class="sep frag" data-frag="3">▸</span>
-    <div class="p frag" data-frag="3"><span class="i">STEP 2</span><b>질문 생성</b><span>hunk + 그 코드가 호출하는 파일</span></div>
+    <div class="p frag" data-frag="3"><span class="i">STEP 2</span><b>Question generation</b><span>the hunk + the files it calls</span></div>
     <span class="sep frag" data-frag="3">▸</span>
-    <div class="p frag" data-frag="3"><span class="i">STEP 3</span><b>설명과 근거</b><span>코드 어디가 근거인지 한 줄</span></div>
+    <div class="p frag" data-frag="3"><span class="i">STEP 3</span><b>Answer + evidence</b><span>one line naming where in the code</span></div>
     <span class="sep frag" data-frag="3">▸</span>
-    <div class="p frag" data-frag="3"><span class="i">STEP 4</span><b>commit 결속</b><span>head SHA에 묶고, 새 commit이면 무효</span></div>
+    <div class="p frag" data-frag="3"><span class="i">STEP 4</span><b>Bound to commit</b><span>bound to head SHA · void on a new commit</span></div>
   </div>
   <div class="guards frag" data-frag="4">
-    <div class="g"><span class="k">✕</span><span><strong>개인 점수·순위</strong> — 집계는 모듈 단위뿐입니다</span></div>
-    <div class="g"><span class="k">✕</span><span><strong>전수 적용</strong> — 임계값 미달은 Not required로 지나갑니다</span></div>
-    <div class="g"><span class="k">✕</span><span><strong>감점 기록</strong> — 통과한 것만 쌓습니다</span></div>
+    <div class="g"><span class="k">✕</span><span><strong>No individual scores or rankings</strong> — aggregates are per module only</span></div>
+    <div class="g"><span class="k">✕</span><span><strong>No blanket enforcement</strong> — below threshold passes as Not required</span></div>
+    <div class="g"><span class="k">✕</span><span><strong>No penalty records</strong> — only passes accumulate</span></div>
   </div>
   <p class="cite frag" data-frag="4" style="margin-top:.6rem">
-    이 전부가 GitHub Actions와 required status check 안에서 돕니다 — 별도 도구가 아니라 파이프라인의 한 단계입니다
+    All of this runs inside GitHub Actions and a required status check — one stage of the pipeline, not a separate tool
   </p>
 </section>
 
@@ -482,68 +482,68 @@
     <div class="big">DEMO · 88s</div>
     <div class="cue" style="color:var(--red)">PROOF IN MOTION</div>
     <div class="cue">
-      <b>1</b> token refresh PR — 초록 체크는 전부 통과, gate만 대기 ·
-      <b>2</b> 두 문항 제시 ·
-      <b>3</b> 첫째 <span style="color:var(--green)">Accepted</span> ·
-      <b>4</b> 둘째 <span style="color:var(--amber)">Hold</span> — "한 곳 더 보십시오" ·
-      <b>5</b> 옆 파일 <span style="color:var(--neutral)">http_client.py</span>에 이미 있던 retry loop 발견 — <b>3 × 3 = 9</b> ·
-      <b>6</b> GitHub 8·17 장애 사후분석: 같은 종류의 loop ·
-      <b>7</b> 수정 → 새 commit이라 gate가 <b>다시</b> 질문 ·
-      <b>8</b> <span style="color:var(--green)">Human-verified</span> → <b>사람이</b> merge ·
-      <b>9</b> 저위험 문서 PR은 그대로 통과 ·
+      <b>1</b> token refresh PR — every green check passes, only the gate waits ·
+      <b>2</b> two questions presented ·
+      <b>3</b> the first one <span style="color:var(--green)">Accepted</span> ·
+      <b>4</b> the second one <span style="color:var(--amber)">Hold</span> — "one more place to look" ·
+      <b>5</b> a retry loop already sitting in the neighboring <span style="color:var(--neutral)">http_client.py</span> — <b>3 × 3 = 9</b> ·
+      <b>6</b> GitHub Aug 17 outage postmortem: the same kind of loop ·
+      <b>7</b> fix → a new commit, so the gate asks <b>again</b> ·
+      <b>8</b> <span style="color:var(--green)">Human-verified</span> → <b>a person</b> merges ·
+      <b>9</b> the low-risk docs PR goes straight through ·
       <b>10</b> dashboard <span style="color:var(--amber)">Can answer 0 → 1</span>
-      <br><br>Demo_thelasthuman.mp4 를 이 폴더에 두면 자동 재생됩니다
+      <br><br>Put Demo_thelasthuman.mp4 in this folder and it plays automatically
     </div>
   </div>
 </section>
 
-<!-- ══════ 07 · 우리 PR에 먼저 걸었습니다 ══════ -->
-<section class="slide" data-dur="17">
-  <p class="eyebrow rise" style="--d:0"><span class="crit c3">We Went First</span> 07 · 가설 · 실험 · 측정 · 학습</p>
-  <h2 class="rise" style="--d:1">이 gate를 <span class="hl">우리 PR에 먼저 걸었고,</span> 우리가 멈췄습니다</h2>
+<!-- ══════ 07 · we went first ══════ -->
+<section class="slide" data-dur="16">
+  <p class="eyebrow rise" style="--d:0"><span class="crit c3">We Went First</span> 07 · Hypothesis · experiment · measurement · learning</p>
+  <h2 class="rise" style="--d:1">We put this gate on <span class="hl">our own PRs first</span> — and it stopped us</h2>
   <div class="figs">
-    <div class="fig frag" data-frag="1"><span class="n hl count" data-to="26">0</span><span class="k">gate가 발동한 PR</span></div>
-    <div class="fig frag" data-frag="1"><span class="n hl count" data-to="15">0</span><span class="k">설명 대기로 <strong>멈춘</strong> PR</span></div>
-    <div class="fig frag" data-frag="1"><span class="n gr count" data-to="14">0</span><span class="k">통과 기록이 남은 PR</span></div>
-    <div class="fig frag" data-frag="1"><span class="n gr count" data-to="3">0</span><span class="k">멈췄다가 통과한 PR</span></div>
+    <div class="fig frag" data-frag="1"><span class="n hl count" data-to="26">0</span><span class="k">PRs where the gate fired</span></div>
+    <div class="fig frag" data-frag="1"><span class="n hl count" data-to="15">0</span><span class="k">PRs <strong>held</strong> awaiting explanation</span></div>
+    <div class="fig frag" data-frag="1"><span class="n gr count" data-to="14">0</span><span class="k">PRs that left a pass record</span></div>
+    <div class="fig frag" data-frag="1"><span class="n gr count" data-to="3">0</span><span class="k">PRs held, then passed</span></div>
   </div>
   <div class="grid g3">
-    <div class="card hot frag" data-frag="2"><div class="t">가설 → 실험</div><div class="h">판단이 들어간 파일일수록 멈춘다</div>
+    <div class="card hot frag" data-frag="2"><div class="t">Hypothesis → experiment</div><div class="h">The more judgment a file carries, the more it stops us</div>
       <ul class="tight">
-        <li class="mono">risk.py · interview.py · attest.py → 각 <strong>+30</strong></li>
-        <li>그 셋을 고칠 때마다 우리 PR이 설명을 요구받았습니다</li>
+        <li class="mono">risk.py · interview.py · attest.py → <strong>+30</strong> each</li>
+        <li>Every time we touched those three, our own PR was asked to explain itself</li>
       </ul></div>
-    <div class="card frag" data-frag="3"><div class="t">측정 → 학습 ①</div><div class="h">못 잡는 것을 찾았습니다</div>
+    <div class="card frag" data-frag="3"><div class="t">Measurement → learning ①</div><div class="h">We found what it misses</div>
       <ul class="tight">
-        <li>인증 경로 <strong>삭제형</strong> 변경은 <span class="mono">30 / 40</span>으로 발동하지 않습니다</li>
-        <li>중요 경로 최고 가중치가 임계값보다 낮고, 위험 패턴은 <strong>추가된 줄</strong>에만 걸립니다</li>
-        <li>A 가중치 상향 · B 삭제 신호 · <span class="gr">C 무조건 발동 경로 ← 선택</span></li>
+        <li>A <strong>deletion</strong> in an auth path scores <span class="mono">30 / 40</span> and never fires</li>
+        <li>The top critical-path weight sits below the threshold, and risk patterns match <strong>added lines</strong> only</li>
+        <li>A raise weights · B deletion signal · <span class="gr">C always-fire paths ← chosen</span></li>
       </ul></div>
-    <div class="card frag" data-frag="4"><div class="t">측정 → 학습 ②</div><div class="h">숨기지 않습니다</div>
+    <div class="card frag" data-frag="4"><div class="t">Measurement → learning ②</div><div class="h">We are not hiding this</div>
       <ul class="tight">
-        <li>대기 상태로 merge된 PR이 <strong>12건</strong> 있습니다</li>
-        <li>개발 기간이라 required check를 계속 걸어 두지 않았기 때문입니다</li>
-        <li>이 수치도 그대로 보고합니다</li>
+        <li><strong>12</strong> PRs were merged while the gate was still pending</li>
+        <li>During development we did not keep the required check switched on</li>
+        <li>We report that number as it is</li>
       </ul></div>
   </div>
   <p class="cite frag" data-frag="4" style="margin-top:.7rem">
-    commit 109 · PR 36 · test 519 · workflow 4 &nbsp;|&nbsp; 개발 저장소 hunhoon21/the-last-human → 2026-09-15 microsoft-2026-hackathon으로 이관 · 당시 status context는 comprehension-gate
+    109 commits · 36 PRs · 519 tests · 4 workflows &nbsp;|&nbsp; development repo hunhoon21/the-last-human → migrated to microsoft-2026-hackathon on 2026-09-15 · the status context was comprehension-gate at the time
   </p>
 </section>
 
-<!-- ══════ 08 · 아키텍처 ══════ -->
-<section class="slide top arch" data-dur="19">
-  <p class="eyebrow rise" style="--d:0"><span class="crit c5">Trust by Design</span> 08 · Architecture — PR 하나가 지나가는 길</p>
-  <h2 class="rise" style="--d:1">gate를 여는 주체는 <span class="hl">서버 하나</span>, 검증하는 주체는 <span class="hl">Actions</span>입니다</h2>
+<!-- ══════ 08 · architecture ══════ -->
+<section class="slide top arch" data-dur="18">
+  <p class="eyebrow rise" style="--d:0"><span class="crit c5">Trust by Design</span> 08 · Architecture — the path one PR travels</p>
+  <h2 class="rise" style="--d:1">Only <span class="hl">one server</span> can open the gate. <span class="hl">Actions</span> is what verifies it</h2>
   <svg viewBox="0 0 1460 640" role="img"
-       aria-label="PR 하나가 지나가는 길을 네 개의 lane으로 그린 순서도입니다. GitHub lane에서 PR이 열리면 Actions lane의 Relay가 snapshot과 위험도를 재계산해 OIDC 신원과 함께 서버로 보냅니다. 서버 lane에서 위험도를 판정하고 임계값 미달이면 Not required로 바로 merge로 갑니다. 임계값을 넘으면 질문을 생성하고 Awaiting 상태를 발행합니다. 사람 lane에서 작성자가 설명을 제출하면 서버가 receipt를 head SHA에 묶어 저장하고, Actions가 독립적으로 재계산해 receipt와 대조한 뒤에야 서버가 Human-verified를 발행하며 사람이 merge합니다. 모델은 점선 상자로 질문 생성과 채점만 돕고 GitHub 쓰기 권한이 없습니다.">
+       aria-label="A four-lane flowchart of the path one PR travels. In the GitHub lane a PR opens; in the Actions lane the Relay recomputes the snapshot and the risk score and sends them to the server with an OIDC identity. In the server lane the risk is scored, and below the threshold it goes straight to merge as Not required. Above the threshold the server generates questions and publishes an Awaiting status. In the author lane the author submits an explanation, the server stores a receipt bound to the head SHA, and only after Actions independently recomputes and matches the receipt does the server publish Human-verified and a person merges. The model sits in a dashed box, assisting only with question generation and grading, with no write access to GitHub.">
     <defs>
       <marker id="ar" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#8e99a8"/></marker>
       <marker id="as" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#e8b155"/></marker>
       <marker id="ag" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#4ac264"/></marker>
     </defs>
 
-    <!-- lane 배경 -->
+    <!-- lane backgrounds -->
     <g class="frag in" data-frag="0">
       <rect class="lane-bg"  x="150" y="60"  width="1290" height="96"  rx="6"/>
       <rect class="lane-bg2" x="150" y="166" width="1290" height="96"  rx="6"/>
@@ -563,7 +563,7 @@
     <g class="frag" data-frag="1">
       <rect class="nbox" x="170" y="76" width="190" height="64" rx="7"/>
       <circle class="ncirc" cx="188" cy="94" r="11"/><text class="nnum" x="188" y="99" text-anchor="middle">1</text>
-      <text class="ntitle" x="206" y="100">PR · 새 commit</text>
+      <text class="ntitle" x="206" y="100">PR · new commit</text>
       <text class="ntext"  x="182" y="126">pull_request_target</text>
     </g>
 
@@ -573,50 +573,50 @@
       <rect class="nbox" x="366" y="182" width="210" height="64" rx="7"/>
       <circle class="ncirc" cx="384" cy="200" r="11"/><text class="nnum" x="384" y="205" text-anchor="middle">2</text>
       <text class="ntitle" x="402" y="206">Relay</text>
-      <text class="ntext"  x="378" y="232">snapshot · 위험도 재계산</text>
+      <text class="ntext"  x="378" y="232">snapshot · risk recalc</text>
     </g>
 
-    <!-- ③ 위험도 판정 + 미달 분기 -->
+    <!-- 3 risk scoring + below-threshold branch -->
     <g class="frag" data-frag="2">
       <path class="nedge" d="M471 248 L471 282" marker-end="url(#ar)"/>
       <text class="nlab-s" x="486" y="272">OIDC + metadata</text>
       <rect class="nbox" x="366" y="286" width="210" height="88" rx="7"/>
       <circle class="ncirc" cx="384" cy="304" r="11"/><text class="nnum" x="384" y="309" text-anchor="middle">3</text>
-      <text class="ntitle" x="402" y="310">위험도 판정</text>
-      <text class="ntext"  x="378" y="336">순수 함수 · 모델 없음</text>
-      <text class="ntext"  x="378" y="356">같은 입력이면 같은 결과</text>
+      <text class="ntitle" x="402" y="310">Risk scoring</text>
+      <text class="ntext"  x="378" y="336">pure function · no model</text>
+      <text class="ntext"  x="378" y="356">same input, same result</text>
       <path class="nedge-d" d="M578 306 L600 306 L600 40 L1300 40 L1300 72" marker-end="url(#ar)"/>
-      <text class="nlab" x="950" y="32" text-anchor="middle">임계값 미달 → Not required · 확인 없이 그대로 merge</text>
+      <text class="nlab" x="950" y="32" text-anchor="middle">below threshold → Not required · merges with no check at all</text>
     </g>
 
-    <!-- ④ 질문 생성 + Awaiting -->
+    <!-- 4 question generation + Awaiting -->
     <g class="frag" data-frag="3">
       <path class="nedge" d="M578 330 L610 330" marker-end="url(#ar)"/>
       <rect class="nbox" x="614" y="286" width="210" height="88" rx="7"/>
       <circle class="ncirc" cx="632" cy="304" r="11"/><text class="nnum" x="632" y="309" text-anchor="middle">4</text>
-      <text class="ntitle" x="650" y="310">질문 2개 생성</text>
-      <text class="ntext"  x="626" y="336">hunk + 호출하는 파일</text>
+      <text class="ntitle" x="650" y="310">2 questions built</text>
+      <text class="ntext"  x="626" y="336">hunk + files it calls</text>
       <text class="ntext"  x="626" y="356" fill="#e8b155">status: Awaiting</text>
       <path class="nedge" d="M700 284 L700 146" marker-end="url(#ar)"/>
       <rect class="nbox" x="620" y="76" width="240" height="64" rx="7"/>
-      <text class="ntitle" x="634" y="100">merge 불가</text>
+      <text class="ntitle" x="634" y="100">merge blocked</text>
       <text class="ntext"  x="634" y="126">Awaiting author explanation</text>
     </g>
 
-    <!-- ⑤ 작성자 설명 + Model -->
+    <!-- 5 author explains + Model -->
     <g class="frag" data-frag="3">
       <path class="nedge" d="M760 376 L760 408" marker-end="url(#ar)"/>
       <rect class="nbox" x="614" y="412" width="230" height="88" rx="7"/>
       <circle class="ncirc" cx="632" cy="430" r="11"/><text class="nnum" x="632" y="435" text-anchor="middle">5</text>
-      <text class="ntitle" x="650" y="436">작성자가 설명</text>
-      <text class="ntext"  x="626" y="462">보기 + 근거 한 줄 제출</text>
+      <text class="ntitle" x="650" y="436">Author explains</text>
+      <text class="ntext"  x="626" y="462">submits choice + evidence</text>
       <text class="ntext"  x="626" y="482" fill="#e8b155">→ Accepted / Hold</text>
       <rect class="nbox-m" x="170" y="412" width="270" height="88" rx="7"/>
       <text class="ntitle" x="184" y="436" fill="#aab4c2">Model — assist only</text>
-      <text class="ntext"  x="184" y="462">질문 생성 · 근거 대조</text>
+      <text class="ntext"  x="184" y="462">writes questions · grades</text>
       <text class="nno"    x="184" y="482">no GitHub write · no merge</text>
       <path class="nedge-d" d="M610 446 L446 446" marker-end="url(#ar)"/>
-      <text class="nlab" x="528" y="438" text-anchor="middle">보조 요청</text>
+      <text class="nlab" x="528" y="438" text-anchor="middle">assist call</text>
     </g>
 
     <!-- ⑥ receipt -->
@@ -624,9 +624,9 @@
       <path class="nedge" d="M848 446 L868 446 L868 330 L888 330" marker-end="url(#ar)"/>
       <rect class="nbox" x="892" y="286" width="210" height="88" rx="7"/>
       <circle class="ncirc" cx="910" cy="304" r="11"/><text class="nnum" x="910" y="309" text-anchor="middle">6</text>
-      <text class="ntitle" x="928" y="310">receipt 저장</text>
-      <text class="ntext"  x="904" y="336">head SHA에 결속</text>
-      <text class="ntext"  x="904" y="356">새 commit이면 무효</text>
+      <text class="ntitle" x="928" y="310">Receipt stored</text>
+      <text class="ntext"  x="904" y="336">bound to head SHA</text>
+      <text class="ntext"  x="904" y="356">void on a new commit</text>
     </g>
 
     <!-- ⑦ Verify -->
@@ -635,87 +635,87 @@
       <rect class="nbox-s" x="892" y="182" width="220" height="64" rx="7"/>
       <circle class="ncirc" cx="910" cy="200" r="11"/><text class="nnum" x="910" y="205" text-anchor="middle">7</text>
       <text class="ntitle" x="928" y="206">Verify</text>
-      <text class="ntext"  x="904" y="232">독립 재계산 → receipt 대조</text>
+      <text class="ntext"  x="904" y="232">recompute → match receipt</text>
       <path class="nedge" d="M1114 214 L1160 214 L1160 316 L1186 316" marker-end="url(#ar)"/>
-      <text class="nlab-s" x="1155" y="268" text-anchor="end">일치할 때만</text>
+      <text class="nlab-s" x="1155" y="268" text-anchor="end">only if they match</text>
     </g>
 
-    <!-- ⑧ Human-verified → merge -->
+    <!-- 8 Human-verified to merge -->
     <g class="frag" data-frag="5">
       <rect class="nbox-s" x="1190" y="286" width="230" height="88" rx="7"/>
       <circle class="ncirc" cx="1208" cy="304" r="11"/><text class="nnum" x="1208" y="309" text-anchor="middle">8</text>
-      <text class="ntitle" x="1226" y="310">gate 통과</text>
+      <text class="ntitle" x="1226" y="310">Gate opens</text>
       <text class="nok"    x="1202" y="336">last-human/human-verified</text>
-      <text class="ntext"  x="1202" y="356">발행 주체는 서버뿐</text>
+      <text class="ntext"  x="1202" y="356">only the server issues it</text>
       <path id="gateArrow" class="nedge-s" d="M1305 284 L1305 146" marker-end="url(#as)"/>
       <rect class="nbox-s" x="1190" y="76" width="230" height="64" rx="7"/>
-      <text class="ntitle" x="1204" y="100">사람이 merge</text>
+      <text class="ntitle" x="1204" y="100">A person merges</text>
       <text class="nok"    x="1204" y="126">not the bot</text>
     </g>
   </svg>
   <div class="guards frag" data-frag="6">
-    <div class="g"><span class="k">⑦</span><span>서버가 "통과"라고 말해도 gate는 열리지 않습니다. <strong>Actions가 재계산해 대조한 뒤에야</strong> 열립니다.</span></div>
-    <div class="g"><span class="k">🔒</span><span>App private key · client secret · 모델 자격은 <strong>서버에만</strong> 있습니다. 경계를 넘는 것은 단기 OIDC뿐입니다.</span></div>
-    <div class="g"><span class="k">✕</span><span>모델은 질문을 쓰고 근거를 대조할 뿐, <strong>GitHub에 쓰지도 merge하지도 못합니다.</strong></span></div>
+    <div class="g"><span class="k">⑦</span><span>The gate does not open just because the server says "pass." It opens <strong>only after Actions recomputes and matches.</strong></span></div>
+    <div class="g"><span class="k">🔒</span><span>App private key · client secret · model credentials live <strong>on the server only.</strong> All that crosses the boundary is short-lived OIDC.</span></div>
+    <div class="g"><span class="k">✕</span><span>The model writes questions and checks evidence. It <strong>cannot write to GitHub and cannot merge.</strong></span></div>
   </div>
 </section>
 
-<!-- ══════ 09 · 배포 · 보안 · 확장 ══════ -->
+<!-- ══════ 09 · ship · secure · scale ══════ -->
 <section class="slide" data-dur="13">
-  <p class="eyebrow rise" style="--d:0"><span class="crit c5">Ready to Ship</span> 09 · 어떻게 배포하고 확장합니까</p>
-  <h2 class="rise" style="--d:1">도입은 세 갈래, 기반은 <span class="hl">장기 시크릿 0개</span></h2>
+  <p class="eyebrow rise" style="--d:0"><span class="crit c5">Ready to Ship</span> 09 · How it ships and scales</p>
+  <h2 class="rise" style="--d:1">Three adoption tracks, built on <span class="hl">zero long-lived secrets</span></h2>
   <div class="swim">
     <div class="lane frag" data-frag="1">
-      <div class="who"><div class="n">A · 한 번만</div><div class="t">운영자</div></div>
+      <div class="who"><div class="n">A · once</div><div class="t">Operator</div></div>
       <div class="steps">
-        <div class="s"><i>1</i>GitHub App 등록</div><span class="ar">→</span>
-        <div class="s"><i>2</i>서버 배포 · 1 프로세스 + SQLite</div><span class="ar">→</span>
-        <div class="s"><i>3</i>healthz · 모델 호출 확인</div>
+        <div class="s"><i>1</i>Register the GitHub App</div><span class="ar">→</span>
+        <div class="s"><i>2</i>Deploy server · 1 process + SQLite</div><span class="ar">→</span>
+        <div class="s"><i>3</i>Check healthz · model call</div>
       </div>
     </div>
     <div class="lane hot frag" data-frag="2">
-      <div class="who"><div class="n">B · 저장소마다</div><div class="t">저장소 관리자</div></div>
+      <div class="who"><div class="n">B · per repo</div><div class="t">Repo admin</div></div>
       <div class="steps">
-        <div class="s"><i>4</i>App 설치 · 서버에 바인딩</div><span class="ar">→</span>
-        <div class="s"><i>5</i>파일 3개를 PR 하나로</div><span class="ar">→</span>
-        <div class="s"><i>6</i>저장소 변수</div><span class="ar">→</span>
-        <div class="s"><i>7</i>첫 PR로 발행 확인</div><span class="ar">→</span>
-        <div class="s"><i>8</i><strong>그다음에</strong> required check</div>
+        <div class="s"><i>4</i>Install App · bind to server</div><span class="ar">→</span>
+        <div class="s"><i>5</i>Three files in one PR</div><span class="ar">→</span>
+        <div class="s"><i>6</i>Repo variables</div><span class="ar">→</span>
+        <div class="s"><i>7</i>Confirm issuance on the first PR</div><span class="ar">→</span>
+        <div class="s"><i>8</i><strong>Then</strong> required check</div>
       </div>
     </div>
     <div class="lane frag" data-frag="3">
-      <div class="who"><div class="n">C · PR마다</div><div class="t">작성자</div></div>
+      <div class="who"><div class="n">C · per PR</div><div class="t">Author</div></div>
       <div class="steps">
-        <div class="s"><i>9</i>카드 링크로 로그인 · 최초 1회</div><span class="ar">→</span>
-        <div class="s"><i>10</i>두 문항에 답</div><span class="ar">→</span>
-        <div class="s"><i>11</i>Human-verified → 사람이 merge</div>
+        <div class="s"><i>9</i>Sign in from the card link · once</div><span class="ar">→</span>
+        <div class="s"><i>10</i>Answer two questions</div><span class="ar">→</span>
+        <div class="s"><i>11</i>Human-verified → a person merges</div>
       </div>
     </div>
   </div>
   <div class="found frag" data-frag="4">
-    <div class="f">GitHub App<span>저장소에 한정된 installation token</span></div>
-    <div class="f">Actions · OIDC<span>저장소에 묶인 단기 신원</span></div>
-    <div class="f">Azure OpenAI · Entra ID<span>API key 없이 Entra 토큰으로</span></div>
-    <div class="f hot">장기 시크릿 0개<span>경계를 넘는 것은 단기 자격과 metadata뿐</span></div>
+    <div class="f">GitHub App<span>installation token scoped to the repo</span></div>
+    <div class="f">Actions · OIDC<span>short-lived identity bound to the repo</span></div>
+    <div class="f">Azure OpenAI · Entra ID<span>an Entra token instead of an API key</span></div>
+    <div class="f hot">Zero long-lived secrets<span>only short-lived credentials and metadata cross the boundary</span></div>
   </div>
   <p class="cite frag" data-frag="4" style="margin-top:.55rem">
-    webhook 수신자가 아니라 relay 구조이므로 서버를 사내망에 둘 수 있습니다 (self-hosted runner 필요 · 기동 지연 20–40초) ·
-    정책은 .lasthuman.yml 한 파일 · 현재 제약은 서버 1대 = 저장소 1개
+    A relay, not a webhook receiver — so the server can sit on an internal network (self-hosted runner required · 20–40s start-up delay) ·
+    policy is one file, .lasthuman.yml · today’s limit is one server per repo
   </p>
 </section>
 
-<!-- ══════ 10 · Closing ══════ -->
-<section class="slide" data-dur="15">
-  <p class="eyebrow rise" style="--d:0"><span class="crit c1">What Is at Stake</span> 10 · 마무리</p>
-  <h2 class="rise" style="--d:1">AI는 책임질 수 없습니다.<br>사람은 질 수 있습니다.<br><span class="hl">그러려면 이해가 기록되어야 합니다.</span></h2>
+<!-- ══════ 10 · closing ══════ -->
+<section class="slide" data-dur="13">
+  <p class="eyebrow rise" style="--d:0"><span class="crit c1">What Is at Stake</span> 10 · Closing</p>
+  <h2 class="rise" style="--d:1">AI cannot take responsibility.<br>A person can.<br><span class="hl">For that, understanding has to be on record.</span></h2>
   <div class="endnote frag" data-frag="1">
     <div class="q">If not you will anyway <span class="rd">lose permission to operate.</span></div>
-    <div class="s">Satya Nadella — 첫 장에서 인용한 그 문장입니다</div>
+    <div class="s">Satya Nadella — the same line we opened with</div>
   </div>
   <p class="lede frag" data-frag="2">
-    권한을 지키는 방법은 <strong>속도를 줄이는 것이 아닙니다.</strong>
-    개인의 속도가 아니라 <strong>조직이 감당할 수 있는 속도</strong>를 올리는 것입니다.
-    모듈마다 답할 수 있는 사람이 몇 명인지 알면, 조직은 에이전트를 어디까지 열어도 되는지 결정할 수 있습니다.
+    The way to keep that permission is <strong>not to slow down.</strong>
+    It is to raise not an individual’s speed but <strong>the speed an organization can carry.</strong>
+    Once you know how many people can answer for each module, you can decide how far to open the agents.
   </p>
   <div class="cta frag" data-frag="3">
     <svg class="mark" width="140" height="86" viewBox="0 0 120 74" aria-hidden="true">
@@ -727,9 +727,9 @@
       <rect class="e" x="1.5" y="64.5" width="117" height="8" rx="4"/>
     </svg>
     <div>
-      <div class="a">지금 이 저장소에 걸려 있습니다</div>
+      <div class="a">It is running on this repository today</div>
       <div class="b">github.com/microsoft-2026-hackathon/the-last-human</div>
-      <div class="c">required status <span class="hl">last-human/human-verified</span> · 정책은 .lasthuman.yml 한 파일</div>
+      <div class="c">required status <span class="hl">last-human/human-verified</span> · policy is one file, .lasthuman.yml</div>
     </div>
   </div>
 </section>
@@ -745,122 +745,122 @@
   </svg>
   <h2 class="rise" style="--d:6">AI-generated code. Human-owned decisions.</h2>
   <p class="sub rise" style="--d:7">Copilot can fly. <strong>The pilot in command is still responsible.</strong></p>
-  <p class="sub rise" style="--d:8;color:var(--dim)">다섯 줄은 기계가 채웁니다. 여섯째 줄은 사람이 채웁니다.</p>
+  <p class="sub rise" style="--d:8;color:var(--dim)">Five lines are filled by machines. The sixth is filled by a person.</p>
 </section>
 
-<!-- ══════ A1 · 데이터 흐름 상세 ══════ -->
+<!-- ══════ A1 · data flow detail ══════ -->
 <section class="slide top appx" data-dur="0" data-appendix="1">
-  <p class="eyebrow">부록 · Q&amp;A 전용 — 발표 시간 예산에 포함하지 않습니다</p>
-  <h2>데이터 흐름과 신뢰 경계</h2>
+  <p class="eyebrow">Appendix · Q&amp;A only — not counted in the timed budget</p>
+  <h2>Data flow and trust boundaries</h2>
   <div class="grid g2" style="margin-top:.6rem">
     <div>
       <table>
-        <thead><tr><th>#</th><th>구간</th><th>무엇이 움직입니까</th></tr></thead>
+        <thead><tr><th>#</th><th>Hop</th><th>What moves</th></tr></thead>
         <tbody>
-          <tr><td class="n">①</td><td class="f">GitHub → Actions</td><td>PR 열림 / 새 commit이 Relay를 시작합니다. webhook 수신자가 필요 없습니다</td></tr>
-          <tr><td class="n">②</td><td class="f">Relay → Server</td><td>metadata · 재계산한 snapshot binding + <strong>OIDC 신원</strong></td></tr>
-          <tr><td class="n">②′</td><td class="f">Server ↔ Model</td><td>diff 사실 → 질문 2개 · 근거 한 줄 → 평가. GitHub 권한은 없습니다</td></tr>
-          <tr><td class="n">③</td><td class="f">작성자 ↔ Server</td><td>보기 + 근거 → Accepted / Hold. 원문은 공개 PR에 남기지 않습니다</td></tr>
-          <tr><td class="n">④</td><td class="f">Server</td><td>head SHA에 묶인 receipt. 새 commit에 재사용하지 않습니다</td></tr>
-          <tr><td class="n">⑤</td><td class="f">Server → Actions</td><td>Verify dispatch — snapshot · 위험도를 <strong>재계산</strong>해 binding과 비교합니다</td></tr>
-          <tr><td class="n">⑤′</td><td class="f">Actions → Server</td><td>재계산한 binding + OIDC로 검증을 요청합니다</td></tr>
-          <tr><td class="n">⑥</td><td class="f">Server → GitHub</td><td>status · card · 보조 Check. <strong>GitHub에 쓰는 것은 이 하나입니다</strong></td></tr>
-          <tr><td class="n">⑥′</td><td class="f">Actions → GitHub</td><td>현재 SHA의 최신 gate status를 직접 확인합니다</td></tr>
-          <tr><td class="n">⑦</td><td class="f">Store + CODEOWNERS</td><td>구역별 커버리지 · 답할 수 있는 사람 수. 이름 없이 수만 셉니다</td></tr>
-          <tr><td class="n">⑧</td><td class="f">사람 → GitHub</td><td>Merge. bot은 하지 않습니다</td></tr>
-          <tr><td class="n">⑨</td><td class="f">조직 → Server</td><td>dashboard 열람</td></tr>
+          <tr><td class="n">①</td><td class="f">GitHub → Actions</td><td>A PR opening or a new commit starts the Relay. No webhook receiver needed</td></tr>
+          <tr><td class="n">②</td><td class="f">Relay → Server</td><td>metadata · recomputed snapshot binding + <strong>OIDC identity</strong></td></tr>
+          <tr><td class="n">②′</td><td class="f">Server ↔ Model</td><td>diff facts → 2 questions · one line of evidence → grading. No GitHub permissions</td></tr>
+          <tr><td class="n">③</td><td class="f">Author ↔ Server</td><td>choice + evidence → Accepted / Hold. The text is never left on the public PR</td></tr>
+          <tr><td class="n">④</td><td class="f">Server</td><td>A receipt bound to the head SHA. Never reused on a new commit</td></tr>
+          <tr><td class="n">⑤</td><td class="f">Server → Actions</td><td>Verify dispatch — <strong>recomputes</strong> snapshot and risk, then compares to the binding</td></tr>
+          <tr><td class="n">⑤′</td><td class="f">Actions → Server</td><td>Requests verification with the recomputed binding + OIDC</td></tr>
+          <tr><td class="n">⑥</td><td class="f">Server → GitHub</td><td>status · card · helper Check. <strong>This is the only thing that writes to GitHub</strong></td></tr>
+          <tr><td class="n">⑥′</td><td class="f">Actions → GitHub</td><td>Reads the latest gate status for the current SHA directly</td></tr>
+          <tr><td class="n">⑦</td><td class="f">Store + CODEOWNERS</td><td>Coverage per zone · how many people can answer. Counts only, never names</td></tr>
+          <tr><td class="n">⑧</td><td class="f">Person → GitHub</td><td>Merge. Never the bot</td></tr>
+          <tr><td class="n">⑨</td><td class="f">Org → Server</td><td>Reads the dashboard</td></tr>
         </tbody>
       </table>
     </div>
     <div>
       <table>
-        <thead><tr><th>신뢰 경계</th><th>무엇으로 증명합니까</th></tr></thead>
+        <thead><tr><th>Trust boundary</th><th>What proves it</th></tr></thead>
         <tbody>
-          <tr><td class="f">App installation ↔ Server</td><td>선택 저장소에 한정된 installation token</td></tr>
-          <tr><td class="f">GitHub ↔ Actions</td><td>실행 신원 · <span class="mono">pull_request_target</span>은 main 정의만 실행합니다</td></tr>
-          <tr><td class="f">Actions ↔ Server</td><td><strong>OIDC</strong> + binding 대조. 장기 시크릿이 없습니다</td></tr>
-          <tr><td class="f">사람 ↔ Server</td><td>같은 App의 OAuth · 세션은 메모리 30분입니다</td></tr>
+          <tr><td class="f">App installation ↔ Server</td><td>An installation token scoped to the selected repos</td></tr>
+          <tr><td class="f">GitHub ↔ Actions</td><td>Run identity · <span class="mono">pull_request_target</span> runs only the definition on main</td></tr>
+          <tr><td class="f">Actions ↔ Server</td><td><strong>OIDC</strong> + binding match. No long-lived secret</td></tr>
+          <tr><td class="f">Person ↔ Server</td><td>OAuth on the same App · sessions live 30 minutes in memory</td></tr>
         </tbody>
       </table>
       <table style="margin-top:.9rem">
-        <thead><tr><th>정직하게 말할 것</th></tr></thead>
+        <thead><tr><th>What we say honestly</th></tr></thead>
         <tbody>
-          <tr><td>Actions에도 <strong>단기 GitHub · OIDC 자격은 있습니다.</strong> "비밀이 전혀 없다"고 말하지 않습니다</td></tr>
-          <tr><td>코드와 근거는 모델에 전달됩니다. 보관 정책은 <strong>별도로</strong> 다룹니다</td></tr>
-          <tr><td>receipt 결속은 head SHA뿐 아니라 repo/PR · base SHA · 정책 · snapshot · 위험도 · 작성자 · installation · 질문 버전을 포함합니다</td></tr>
-          <tr><td>서버 1대 = 저장소 1개 바인딩입니다 — 패키징에서 정리 중입니다</td></tr>
+          <tr><td>Actions does hold <strong>short-lived GitHub and OIDC credentials.</strong> We never claim "no secrets at all"</td></tr>
+          <tr><td>Code and evidence do reach the model. Retention policy is handled <strong>separately</strong></td></tr>
+          <tr><td>The receipt binds more than the head SHA: repo/PR · base SHA · policy · snapshot · risk · author · installation · question version</td></tr>
+          <tr><td>One server binds to one repo — being addressed in packaging</td></tr>
         </tbody>
       </table>
-      <p class="lede" style="font-size:.95rem;margin-top:.8rem">전체 그림: <a href="architecture-details.html">architecture-details.html</a></p>
+      <p class="lede" style="font-size:.95rem;margin-top:.8rem">Full diagram: <a href="architecture-details.html">architecture-details.html</a></p>
     </div>
   </div>
 </section>
 
-<!-- ══════ A2 · 고객과 가치 ══════ -->
+<!-- ══════ A2 · customer and value ══════ -->
 <section class="slide top appx" data-dur="0" data-appendix="1">
-  <p class="eyebrow">부록 · Q&amp;A — 고객과 가치</p>
-  <h2>누가 쓰고, <span class="hl">무엇이 달라집니까</span></h2>
+  <p class="eyebrow">Appendix · Q&amp;A — customer and value</p>
+  <h2>Who uses it, and <span class="hl">what changes</span></h2>
   <div class="grid g3">
-    <div class="card"><div class="t">누가</div><div class="h">에이전트를 이미 도입한 엔지니어링 조직</div>
-      <div class="d">특히 장애가 비싸고 감사 대응이 필요한 곳입니다 — 금융 · 의료 · 인프라.</div>
-      <div class="m">개인 개발자가 아니라 조직이 고객입니다</div></div>
-    <div class="card"><div class="t">무엇이</div><div class="h">승인 기록 자리에 이해 기록이 생깁니다</div>
-      <div class="d">누가 눌렀는지가 아니라, 어느 모듈에 답할 수 있는 사람이 몇 명인지를 조직이 미리 압니다.</div>
-      <div class="m">merge 전 · commit SHA 결속</div></div>
-    <div class="card"><div class="t">얼마에</div><div class="h">서버 1대와 파일 3개</div>
-      <div class="d">기존 CI · review · branch protection을 바꾸지 않고 check 한 줄을 더합니다. 롤백은 변수 한 줄입니다.</div>
-      <div class="m">작성자 부담은 PR당 두 문항</div></div>
+    <div class="card"><div class="t">Who</div><div class="h">Engineering organizations already running agents</div>
+      <div class="d">Especially where outages are expensive and audits must be answered — finance · healthcare · infrastructure.</div>
+      <div class="m">The customer is the organization, not the individual developer</div></div>
+    <div class="card"><div class="t">What</div><div class="h">A record of understanding where the approval record used to be</div>
+      <div class="d">Not who clicked, but how many people can answer for each module — known in advance.</div>
+      <div class="m">before merge · bound to the commit SHA</div></div>
+    <div class="card"><div class="t">At what cost</div><div class="h">One server and three files</div>
+      <div class="d">Adds one check line without touching existing CI · review · branch protection. Rollback is one variable.</div>
+      <div class="m">The author’s cost is two questions per PR</div></div>
   </div>
   <div class="grid g2" style="margin-top:.9rem">
-    <div class="card"><div class="t">지금 조직이 치르는 비용</div>
+    <div class="card"><div class="t">What organizations pay today</div>
       <ul class="tight">
-        <li>장애 복구 때 <strong>"이 코드 누가 압니까"</strong>를 그 자리에서 찾는 시간</li>
-        <li>CODEOWNERS에 담당자가 적혀 있지만 <strong>그 코드를 이해한 사람은 아닌</strong> 격차</li>
-        <li>불일치가 큰 AI PR의 승인율 28.3% · merge까지 3.5배 — 재작업 비용</li>
+        <li>Time spent mid-incident asking <strong>"who knows this code?"</strong> on the spot</li>
+        <li>The gap where CODEOWNERS names an owner who is <strong>not the person who understood the code</strong></li>
+        <li>28.3% approval and 3.5× time to merge on high-inconsistency AI PRs — the cost of rework</li>
       </ul></div>
-    <div class="card hot"><div class="t">약속하는 것 / 아닌 것</div>
+    <div class="card hot"><div class="t">What we promise / what we do not</div>
       <ul class="tight">
-        <li><strong>약속:</strong> 위험한 변경은 사람의 설명 없이 merge되지 않습니다</li>
-        <li><strong>약속:</strong> 그 기록은 commit에 묶이고 새 commit엔 재사용되지 않습니다</li>
-        <li><strong>아님:</strong> 버그를 찾아 주지 않습니다. 코드 품질을 보증하지 않습니다. 사람을 평가하지 않습니다</li>
+        <li><strong>Promise:</strong> a risky change does not merge without a human explanation</li>
+        <li><strong>Promise:</strong> that record binds to the commit and is never reused on a new one</li>
+        <li><strong>Not:</strong> it does not find bugs. It does not guarantee code quality. It does not evaluate people</li>
       </ul></div>
   </div>
 </section>
 
-<!-- ══════ A3 · 제약과 다음 수 ══════ -->
+<!-- ══════ A3 · limits and next moves ══════ -->
 <section class="slide top appx" data-dur="0" data-appendix="1">
-  <p class="eyebrow">부록 · Q&amp;A — 제약과 다음 수</p>
-  <h2>지금 어디까지 되고, <span class="hl">다음은 무엇입니까</span></h2>
+  <p class="eyebrow">Appendix · Q&amp;A — limits and next moves</p>
+  <h2>What works today, and <span class="hl">what comes next</span></h2>
   <div class="grid g2">
-    <div class="card"><div class="t">현재 제약 — 숨기지 않습니다</div>
+    <div class="card"><div class="t">Today’s limits — we do not hide them</div>
       <ul class="tight">
-        <li>서버 1대 = <strong>저장소 1개</strong> 바인딩입니다</li>
-        <li>구조 분석은 <strong>Python 중심</strong>입니다</li>
-        <li>gate가 status와 보조 Check <strong>두 줄</strong>로 보입니다 (권위는 status)</li>
-        <li>Relay가 대상 저장소에 TLH 소스를 설치해 재계산합니다 — 소스가 없는 저장소엔 별도 verifier가 필요합니다</li>
-        <li>작성자 세션은 메모리 30분이라 서버 재시작 시 재로그인해야 합니다</li>
-        <li>질문 생성은 모델 호출이라 드물게 정답 키가 틀린 세트가 나올 수 있습니다</li>
+        <li>One server binds to <strong>one repository</strong></li>
+        <li>Structural analysis is <strong>Python-centric</strong></li>
+        <li>The gate shows as <strong>two lines</strong> — a status and a helper Check (the status is authoritative)</li>
+        <li>The Relay installs TLH source in the target repo to recompute — repos without the source need a separate verifier</li>
+        <li>Author sessions live 30 minutes in memory, so a server restart forces re-login</li>
+        <li>Question generation is a model call, so a set with a wrong answer key can rarely slip through</li>
       </ul></div>
-    <div class="card hot"><div class="t">다음 수 — 우선순위 순</div>
+    <div class="card hot"><div class="t">Next moves — in priority order</div>
       <ul class="tight">
-        <li><strong>무조건 발동 경로</strong> — 삭제형 고위험을 잡습니다 (슬라이드 07의 C안)</li>
-        <li><strong>버전 고정 verifier 패키지</strong> — 소스 없는 저장소에 설치 템플릿으로 배포합니다</li>
-        <li>다중 저장소 바인딩 · status와 Check를 한 줄로 통합</li>
-        <li>구조 분석 언어 확장</li>
-        <li>PR-MCI 유형별 질문 템플릿 — 논문의 8개 유형을 질문 생성에 반영합니다</li>
+        <li><strong>Always-fire paths</strong> — catches high-risk deletions (option C on slide 07)</li>
+        <li><strong>A version-pinned verifier package</strong> — shipped as an install template for repos without the source</li>
+        <li>Multi-repo binding · merging the status and the Check into one line</li>
+        <li>More languages in structural analysis</li>
+        <li>Question templates per PR-MCI type — folding the paper’s eight types into generation</li>
       </ul></div>
   </div>
   <div class="card frag in" style="margin-top:.9rem">
-    <div class="t">실패 방향의 일관성</div>
-    <div class="d">사람이 답을 빠뜨리면 <strong>막습니다.</strong> 모델이나 연동이 죽으면 <strong>통과시킵니다.</strong> 인프라 장애로 사람을 막지 않습니다. 미통과는 failure가 아니라 pending입니다.</div>
+    <div class="t">Failure has a consistent direction</div>
+    <div class="d">If a person skips the answer, it <strong>blocks.</strong> If the model or an integration dies, it <strong>lets through.</strong> Infrastructure failure never blocks a person. Not-yet-passed is pending, not failure.</div>
   </div>
 </section>
 
 <div id="meta"></div>
 <div id="dots"><i></i></div>
 <div id="hud">
-  <b>→</b> 다음 단계 · 슬라이드 &nbsp; <b>←</b> 뒤로 &nbsp; <b>↓ ↑</b> 슬라이드 통째로<br>
-  <b>F</b> 전체화면 &nbsp; <b>A</b> 부록 &nbsp; <b>M</b> 타이머 &nbsp; <b>H</b> 이 안내
+  <b>→</b> next build · slide &nbsp; <b>←</b> back &nbsp; <b>↓ ↑</b> whole slide<br>
+  <b>F</b> fullscreen &nbsp; <b>A</b> appendix &nbsp; <b>M</b> timer &nbsp; <b>H</b> this help
 </div>
 
 <script>
@@ -918,11 +918,11 @@
   }
   function status() {
     var s = slides[i], t = timed.indexOf(s), ms = maxStep(s);
-    if (t === -1) { meta.innerHTML = "부록 · 시간 예산 외"; bar.style.width = "100%"; return; }
+    if (t === -1) { meta.innerHTML = "Appendix · outside the budget"; bar.style.width = "100%"; return; }
     meta.innerHTML = fmt(starts[t]) + " → " + fmt(starts[t] + Number(s.dataset.dur)) +
       "<br>" + s.dataset.dur + "s &nbsp;·&nbsp; " + (t + 1) + " / " + timed.length +
-      (ms ? "&nbsp;·&nbsp; 단계 " + step + "/" + ms : "") +
-      (s.dataset.demo ? "<br>영상 재생 · 말하지 않습니다" : "");
+      (ms ? "&nbsp;·&nbsp; build " + step + "/" + ms : "") +
+      (s.dataset.demo ? "<br>video plays · do not speak" : "");
     bar.style.width = (100 * (starts[t] + Number(s.dataset.dur)) / acc) + "%";
   }
 
@@ -971,8 +971,8 @@
   });
 
   show(0);
-  hud.innerHTML += "<br>본편 <b>" + fmt(acc) + "</b> · 슬라이드 " + timed.length +
-                   " (+부록 " + (slides.length - timed.length) + ")";
+  hud.innerHTML += "<br>main <b>" + fmt(acc) + "</b> · " + timed.length + " slides (+" +
+                   (slides.length - timed.length) + " appendix)";
 })();
 </script>
 </body>
