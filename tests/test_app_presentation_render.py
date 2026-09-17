@@ -29,12 +29,17 @@ STAGE_LABELS = ("변경 선별", "질문 준비", "작성자 설명", "현재 �
 class RenderSettings:
     repository: str = "octo-org/the-last-human"
     base_url: str = "https://stamp.example.test"
+    path_prefix: str = ""
     presentation_name: str = "The Last Human"
     presentation_locale: str = "ko"
     presentation_max_chars: int = 6000
     presentation_reason_limit: int = 3
     presentation_detail_limit: int = 10
     presentation_paths_per_group: int = 2
+
+    @property
+    def public_base_url(self) -> str:
+        return f"{self.base_url}{self.path_prefix}"
 
 
 def _path(index: int, *, auth_count: int, extra: tuple[str, ...] = ()) -> str:

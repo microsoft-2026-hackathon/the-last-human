@@ -19,6 +19,27 @@ from lasthuman.server.snapshot import Snapshot
 
 _SNAPSHOT_STATES = {"pending", "neutral"}
 _OUTBOX_STATUSES = {"pending", "sent"}
+_RECEIPT_TABLE_DEFINITION = """
+    receipt_id TEXT PRIMARY KEY,
+    snapshot_id TEXT NOT NULL,
+    pr INTEGER NOT NULL,
+    repo TEXT NOT NULL,
+    repo_id INTEGER NOT NULL,
+    head_sha TEXT NOT NULL,
+    base_sha TEXT NOT NULL,
+    policy_version TEXT NOT NULL,
+    question_version TEXT NOT NULL,
+    actor_id INTEGER NOT NULL,
+    actor_login TEXT NOT NULL,
+    app_id INTEGER NOT NULL,
+    installation_id INTEGER NOT NULL,
+    created_at TEXT NOT NULL,
+    verified_at TEXT,
+    successful_answers_json TEXT NOT NULL,
+    tenant_generation INTEGER NOT NULL DEFAULT 0,
+    UNIQUE(snapshot_id, question_version, actor_id, app_id, installation_id, tenant_generation),
+    FOREIGN KEY(snapshot_id) REFERENCES snapshots(snapshot_id)
+"""
 
 
 @dataclass(frozen=True)
@@ -101,6 +122,7 @@ class OutboxEvent:
     last_error_code: str | None
     last_error: str | None
     remote: dict[str, object] | None
+    tenant_generation: int | None = None
 
 
 @dataclass(frozen=True)
@@ -135,10 +157,15 @@ class StoredPresentationCheckRun:
 
 
 class Store:
-    """Durable SQLite store for snapshots, receipts, outbox, and merge facts."""
+    """Durable SQLite store for snapshots, receipts, outbox, and merge facts.
 
-    def __init__(self, path: str | Path) -> None:
+    Receipt generation is private origin metadata, not part of StoredReceipt.
+    Zero denotes fixed/legacy receipts; runtime reads never rebind their origin.
+    """
+
+    def __init__(self, path: str | Path, *, tenant_generation: int | None = None) -> None:
         self.path = Path(path)
+        self.tenant_generation = _validate_tenant_generation(tenant_generation)
         self._lock = RLock()
         self._prepare_path()
         self._initialize()
@@ -360,26 +387,42 @@ class Store:
             raise ValueError("actor_login must not be empty")
         if not answers:
             raise ValueError("successful answers must not be empty")
+        app_id = _positive_int(app_id, "app_id")
+        installation_id = _positive_int(installation_id, "installation_id")
         normalized_answers = tuple(_normalize_receipt_answer(answer) for answer in answers)
         with self._write_connection() as connection:
+            connection.execute("BEGIN IMMEDIATE")
             existing = connection.execute(
                 """
                 SELECT *
                 FROM receipts
                 WHERE snapshot_id = ? AND question_version = ? AND actor_id = ?
+                  AND app_id = ? AND installation_id = ? AND tenant_generation = ?
                 """,
                 (
                     stored_snapshot.snapshot.snapshot_id,
                     stored_snapshot.question_version,
                     actor_id,
+                    app_id,
+                    installation_id,
+                    self.tenant_generation or 0,
                 ),
             ).fetchone()
             if existing is not None:
                 receipt = _stored_receipt_from_row(existing)
+                dispatch = connection.execute(
+                    """SELECT event_id FROM outbox
+                       WHERE receipt_id = ? AND kind = 'verifier_dispatch' AND tenant_generation IS ?
+                       ORDER BY created_at ASC, event_id ASC LIMIT 1""",
+                    (receipt.receipt_id, self.tenant_generation),
+                ).fetchone()
                 self._queue_publication_connection(
                     connection,
                     PublicationRequest(
-                        event_id=f"dispatch:{receipt.receipt_id}",
+                        event_id=(
+                            dispatch["event_id"] if dispatch is not None
+                            else publication_event_id(f"dispatch:{receipt.receipt_id}", self.tenant_generation)
+                        ),
                         kind="verifier_dispatch",
                         pr=receipt.pr,
                         snapshot_id=receipt.snapshot_id,
@@ -409,8 +452,9 @@ class Store:
                     installation_id,
                     created_at,
                     verified_at,
-                    successful_answers_json
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    successful_answers_json,
+                    tenant_generation
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     receipt_id,
@@ -429,12 +473,13 @@ class Store:
                     now,
                     None,
                     _json_dumps(_receipt_answers_payload(normalized_answers)),
+                    self.tenant_generation or 0,
                 ),
             )
             self._queue_publication_connection(
                 connection,
                 PublicationRequest(
-                    event_id=f"dispatch:{receipt_id}",
+                    event_id=publication_event_id(f"dispatch:{receipt_id}", self.tenant_generation),
                     kind="verifier_dispatch",
                     pr=stored_snapshot.snapshot.pr,
                     snapshot_id=stored_snapshot.snapshot.snapshot_id,
@@ -475,17 +520,34 @@ class Store:
         snapshot_id: str,
         question_version: str,
         actor_id: int,
+        *,
+        app_id: int | None = None,
+        installation_id: int | None = None,
     ) -> StoredReceipt | None:
+        query = """
+            SELECT * FROM receipts WHERE snapshot_id = ? AND question_version = ? AND actor_id = ?
+              AND tenant_generation = ?
+        """
+        params: list[object] = [snapshot_id, question_version, actor_id, self.tenant_generation or 0]
+        if app_id is not None:
+            query += " AND app_id = ?"
+            params.append(_positive_int(app_id, "app_id"))
+        if installation_id is not None:
+            query += " AND installation_id = ?"
+            params.append(_positive_int(installation_id, "installation_id"))
+        query += " ORDER BY created_at DESC, rowid DESC LIMIT 1"
+        with self._read_connection() as connection:
+            row = connection.execute(query, params).fetchone()
+        return None if row is None else _stored_receipt_from_row(row)
+
+    def receipt_is_current(self, receipt_id: str) -> bool:
+        """Check immutable receipt provenance without exposing it on the wire."""
         with self._read_connection() as connection:
             row = connection.execute(
-                """
-                SELECT *
-                FROM receipts
-                WHERE snapshot_id = ? AND question_version = ? AND actor_id = ?
-                """,
-                (snapshot_id, question_version, actor_id),
+                "SELECT 1 FROM receipts WHERE receipt_id = ? AND tenant_generation = ?",
+                (receipt_id, self.tenant_generation or 0),
             ).fetchone()
-        return None if row is None else _stored_receipt_from_row(row)
+        return row is not None
 
     def load_receipts_for_snapshot(
         self,
@@ -520,11 +582,13 @@ class Store:
         with self._read_connection() as connection:
             row = connection.execute(
                 """
-                SELECT *
-                FROM outbox
-                WHERE receipt_id = ?
-                  AND kind = 'verifier_dispatch'
-                ORDER BY created_at ASC, event_id ASC
+                SELECT o.*
+                FROM outbox o
+                JOIN receipts r ON r.receipt_id = o.receipt_id
+                WHERE o.receipt_id = ?
+                  AND o.kind = 'verifier_dispatch'
+                  AND o.tenant_generation IS NULLIF(r.tenant_generation, 0)
+                ORDER BY o.created_at DESC, o.event_id ASC
                 LIMIT 1
                 """,
                 (receipt_id,),
@@ -539,6 +603,13 @@ class Store:
         now: str,
     ) -> StoredReceipt:
         with self._write_connection() as connection:
+            connection.execute("BEGIN IMMEDIATE")
+            row = connection.execute(
+                "SELECT 1 FROM receipts WHERE receipt_id = ? AND tenant_generation = ?",
+                (receipt_id, self.tenant_generation or 0),
+            ).fetchone()
+            if row is None:
+                raise ValueError("receipt not found in current tenant generation")
             connection.execute(
                 """
                 UPDATE receipts
@@ -777,10 +848,14 @@ class Store:
         sent_before: str,
         max_attempts: int,
         limit: int = 20,
+        tenant_generation: int | None = None,
+        repo: str | None = None,
+        repo_id: int | None = None,
+        app_id: int | None = None,
+        installation_id: int | None = None,
     ) -> int:
         with self._write_connection() as connection:
-            rows = connection.execute(
-                """
+            query = """
                 SELECT o.event_id
                 FROM outbox o
                 JOIN receipts r ON r.receipt_id = o.receipt_id
@@ -789,11 +864,23 @@ class Store:
                   AND o.updated_at <= ?
                   AND o.attempts < ?
                   AND r.verified_at IS NULL
+                  AND o.tenant_generation IS ?
+                  AND r.tenant_generation = COALESCE(o.tenant_generation, 0)
+            """
+            params: list[object] = [sent_before, max_attempts, _validate_tenant_generation(tenant_generation)]
+            if repo is not None:
+                query += " AND lower(r.repo) = lower(?)"
+                params.append(repo)
+            for column, value in (("repo_id", repo_id), ("app_id", app_id), ("installation_id", installation_id)):
+                if value is not None:
+                    query += f" AND r.{column} = ?"
+                    params.append(_positive_int(value, column))
+            query += """
                 ORDER BY o.updated_at ASC, o.event_id ASC
                 LIMIT ?
-                """,
-                (sent_before, max_attempts, limit),
-            ).fetchall()
+            """
+            params.append(limit)
+            rows = connection.execute(query, params).fetchall()
             for row in rows:
                 connection.execute(
                     """
@@ -915,9 +1002,10 @@ class Store:
         os.chmod(self.path.parent, 0o700)
 
     def _initialize(self) -> None:
+        self._upgrade_receipt_uniqueness()
         with self._write_connection() as connection:
             connection.executescript(
-                """
+                f"""
                 CREATE TABLE IF NOT EXISTS snapshots (
                     snapshot_id TEXT PRIMARY KEY,
                     pr INTEGER NOT NULL,
@@ -947,24 +1035,7 @@ class Store:
                 );
 
                 CREATE TABLE IF NOT EXISTS receipts (
-                    receipt_id TEXT PRIMARY KEY,
-                    snapshot_id TEXT NOT NULL,
-                    pr INTEGER NOT NULL,
-                    repo TEXT NOT NULL,
-                    repo_id INTEGER NOT NULL,
-                    head_sha TEXT NOT NULL,
-                    base_sha TEXT NOT NULL,
-                    policy_version TEXT NOT NULL,
-                    question_version TEXT NOT NULL,
-                    actor_id INTEGER NOT NULL,
-                    actor_login TEXT NOT NULL,
-                    app_id INTEGER NOT NULL,
-                    installation_id INTEGER NOT NULL,
-                    created_at TEXT NOT NULL,
-                    verified_at TEXT,
-                    successful_answers_json TEXT NOT NULL,
-                    UNIQUE(snapshot_id, question_version, actor_id),
-                    FOREIGN KEY(snapshot_id) REFERENCES snapshots(snapshot_id)
+                    {_RECEIPT_TABLE_DEFINITION}
                 );
                 CREATE INDEX IF NOT EXISTS idx_receipts_snapshot
                     ON receipts(snapshot_id, created_at ASC);
@@ -984,6 +1055,7 @@ class Store:
                     last_error_code TEXT,
                     last_error TEXT,
                     remote_json TEXT,
+                    tenant_generation INTEGER,
                     FOREIGN KEY(snapshot_id) REFERENCES snapshots(snapshot_id),
                     FOREIGN KEY(receipt_id) REFERENCES receipts(receipt_id)
                 );
@@ -1024,8 +1096,58 @@ class Store:
                     ON merges(merged_at);
                 """
             )
+            self._ensure_outbox_tenant_generation(connection)
         if self.path.exists():
             os.chmod(self.path, 0o600)
+
+    def _upgrade_receipt_uniqueness(self) -> None:
+        # Rebuild without first renaming the parent, preserving outbox foreign keys.
+        with self._read_connection() as connection:
+            connection.execute("PRAGMA foreign_keys = OFF")
+            try:
+                with connection:
+                    connection.execute("BEGIN IMMEDIATE")
+                    indexes = connection.execute("PRAGMA index_list(receipts)").fetchall()
+                    if not indexes:
+                        return
+                    legacy_key = ("snapshot_id", "question_version", "actor_id")
+                    installation_key = (*legacy_key, "app_id", "installation_id")
+                    current_key = (*installation_key, "tenant_generation")
+                    unique_keys = {
+                        tuple(
+                            column["name"] for column in connection.execute(
+                                "SELECT name FROM pragma_index_info(?) ORDER BY seqno", (row["name"],),
+                            )
+                        ) for row in indexes if row["origin"] == "u"
+                    }
+                    columns = (
+                        "receipt_id", "snapshot_id", "pr", "repo", "repo_id", "head_sha", "base_sha",
+                        "policy_version", "question_version", "actor_id", "actor_login",
+                        "app_id", "installation_id", "created_at", "verified_at", "successful_answers_json",
+                    )
+                    stored_columns = tuple(row["name"] for row in connection.execute("PRAGMA table_info(receipts)"))
+                    if unique_keys == {current_key} and stored_columns == (*columns, "tenant_generation"):
+                        return
+                    if (
+                        unique_keys not in ({legacy_key}, {installation_key})
+                        or stored_columns not in (columns, (*columns, "tenant_generation"))
+                    ):
+                        raise sqlite3.DatabaseError("Unsupported receipt schema for uniqueness upgrade")
+                    schema_objects = connection.execute(
+                        """SELECT sql FROM sqlite_master WHERE tbl_name = 'receipts'
+                           AND type IN ('index', 'trigger') AND sql IS NOT NULL ORDER BY type, name""",
+                    ).fetchall()
+                    connection.execute(f"CREATE TABLE receipts_upgrade ({_RECEIPT_TABLE_DEFINITION})")
+                    names = ", ".join(stored_columns)
+                    connection.execute(f"INSERT INTO receipts_upgrade ({names}) SELECT {names} FROM receipts")
+                    connection.execute("DROP TABLE receipts")
+                    connection.execute("ALTER TABLE receipts_upgrade RENAME TO receipts")
+                    for row in schema_objects:
+                        connection.execute(row["sql"])
+                    if connection.execute("PRAGMA foreign_key_check").fetchone() is not None:
+                        raise sqlite3.IntegrityError("Receipt schema upgrade failed foreign key check")
+            finally:
+                connection.execute("PRAGMA foreign_keys = ON")
 
     @contextmanager
     def _read_connection(self) -> Iterator[sqlite3.Connection]:
@@ -1060,7 +1182,7 @@ class Store:
         now: str,
     ) -> None:
         existing = connection.execute(
-            "SELECT status, last_error_code FROM outbox WHERE event_id = ?",
+            "SELECT status, last_error_code, tenant_generation FROM outbox WHERE event_id = ?",
             (publication.event_id,),
         ).fetchone()
         due_at = publication.due_at or now
@@ -1081,8 +1203,9 @@ class Store:
                     updated_at,
                     last_error_code,
                     last_error,
-                    remote_json
-                ) VALUES (?, ?, ?, ?, ?, ?, 'pending', 0, ?, ?, ?, NULL, NULL, NULL)
+                    remote_json,
+                    tenant_generation
+                ) VALUES (?, ?, ?, ?, ?, ?, 'pending', 0, ?, ?, ?, NULL, NULL, NULL, ?)
                 """,
                 (
                     publication.event_id,
@@ -1094,9 +1217,12 @@ class Store:
                     due_at,
                     now,
                     now,
+                    self.tenant_generation,
                 ),
             )
             return
+        if existing["tenant_generation"] != self.tenant_generation:
+            raise ValueError("Publication event_id belongs to a different tenant generation")
         if existing["status"] == "sent" and not (
             publication.requeue_failed_sent and existing["last_error_code"] is not None
         ):
@@ -1133,6 +1259,17 @@ class Store:
                 publication.event_id,
             ),
         )
+
+
+    def _ensure_outbox_tenant_generation(self, connection: sqlite3.Connection) -> None:
+        columns = {row["name"] for row in connection.execute("PRAGMA table_info(outbox)")}
+        if "tenant_generation" not in columns:
+            connection.execute("ALTER TABLE outbox ADD COLUMN tenant_generation INTEGER")
+
+
+def publication_event_id(logical_id: str, tenant_generation: int | None) -> str:
+    generation = _validate_tenant_generation(tenant_generation)
+    return logical_id if generation is None else f"{logical_id}:generation:{generation}"
 
 
 def _stored_questions(questions: Sequence[Question]) -> tuple[StoredQuestion, ...]:
@@ -1270,7 +1407,18 @@ def _outbox_event_from_row(row: sqlite3.Row) -> OutboxEvent:
         last_error_code=row["last_error_code"],
         last_error=row["last_error"],
         remote=None if remote_raw is None else json.loads(remote_raw),
+        tenant_generation=row["tenant_generation"],
     )
+
+
+def _validate_tenant_generation(value: int | None) -> int | None:
+    return None if value is None else _positive_int(value, "tenant_generation")
+
+
+def _positive_int(value: object, field_name: str) -> int:
+    if isinstance(value, bool) or not isinstance(value, int) or value <= 0:
+        raise ValueError(f"{field_name} must be a positive integer")
+    return value
 
 
 def _presentation_check_needs_reconciliation(event: OutboxEvent) -> bool:

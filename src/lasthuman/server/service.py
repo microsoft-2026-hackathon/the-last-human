@@ -5,6 +5,7 @@ from __future__ import annotations
 import hashlib
 import ipaddress
 import json
+import re
 import sqlite3
 import time
 from collections.abc import Callable, Mapping, Sequence
@@ -13,7 +14,7 @@ from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from threading import RLock
 from typing import cast
-from urllib.parse import urlsplit
+from urllib.parse import quote, urlsplit
 
 from lasthuman.diff import parse_anchor
 from lasthuman.interview import (
@@ -42,6 +43,7 @@ from lasthuman.server.store import (
     Store,
     StoredReceipt,
     StoredSnapshot,
+    publication_event_id,
 )
 from lasthuman.ledger import MIN_SAMPLE, zone_of
 
@@ -60,6 +62,7 @@ _MAX_HINT_LENGTH = 200
 _VERIFIER_RETRY_AFTER_SECONDS = 300
 _MAX_VERIFIER_DISPATCH_ATTEMPTS = 3
 _MAX_PRESENTATION_ATTEMPTS = 3
+_PATH_PREFIX_RE = re.compile(r"^/repos/[1-9][0-9]*$")
 
 
 def _safe_publication_error_code(value: object) -> str | None:
@@ -199,6 +202,7 @@ class BotService:
         generate: Callable[..., list[Question]] = generate_questions,
         grade: Callable[..., Answer] = grade_answer,
         clock: Callable[[], float] = time.time,
+        access_guard: Callable[[], None] | None = None,
     ) -> None:
         self.settings = settings
         self.github = github
@@ -207,6 +211,7 @@ class BotService:
         self.generate = generate
         self.grade = grade
         self.clock = clock
+        self._access_guard = access_guard
         self._lock = RLock()
         self._executor = ThreadPoolExecutor(max_workers=1)
         self._jobs: dict[str, MemoryJob] = {}
@@ -214,6 +219,10 @@ class BotService:
 
     def shutdown(self) -> None:
         self._executor.shutdown(wait=True)
+
+    def _guard_access(self) -> None:
+        if self._access_guard is not None:
+            self._access_guard()
 
     def sync(
         self,
@@ -241,6 +250,7 @@ class BotService:
 
             existing = self.store.load_snapshot(snapshot.snapshot_id)
             now = self._now_iso()
+            self._guard_access()
             if not snapshot.risk.triggered:
                 record = self.store.save_snapshot(snapshot, (), "neutral", now=now)
                 self._queue_current_projection(record, expected_binding=expected_binding, now=now)
@@ -283,6 +293,7 @@ class BotService:
                     self._queue_current_projection(record, expected_binding=expected_binding, now=error_now)
                     raise
                 self._assert_pull_current(snapshot, self._pull_facts(pr))
+                self._guard_access()
                 record = self.store.save_snapshot(snapshot, questions, "pending", now=now)
                 self.store.clear_snapshot_preparation_error(snapshot.snapshot_id, now=now)
 
@@ -403,9 +414,15 @@ class BotService:
 
     def receipt_binding(self, receipt_id: str) -> dict[str, object]:
         with self._lock:
+            self._guard_access()
             receipt = self._receipt_or_404(receipt_id)
             snapshot = self._snapshot_or_404(receipt.snapshot_id)
-            return {
+            if (
+                self.settings.tenant_generation is not None
+                or not self.store.receipt_is_current(receipt.receipt_id)
+            ):
+                self._require_current_receipt(receipt, snapshot)
+            payload: dict[str, object] = {
                 "receipt_id": receipt.receipt_id,
                 "binding": snapshot.snapshot.binding(),
                 "actor_id": receipt.actor_id,
@@ -414,46 +431,17 @@ class BotService:
                 "app_id": receipt.app_id,
                 "installation_id": receipt.installation_id,
             }
+            repository_path = self._repository_path_metadata()
+            if repository_path is not None:
+                payload["repository_path"] = repository_path
+            return payload
 
     def receipt_publication(self, receipt_id: str) -> dict[str, object]:
         with self._lock:
+            self._guard_access()
             receipt = self._receipt_or_404(receipt_id)
             snapshot = self._snapshot_or_404(receipt.snapshot_id)
-            self._require_trusted_receipt(receipt, snapshot.snapshot)
-            receipt_facts = (
-                receipt.pr,
-                receipt.repo.casefold(),
-                receipt.head_sha,
-                receipt.base_sha,
-                receipt.policy_version,
-                receipt.actor_id,
-            )
-            snapshot_facts = (
-                snapshot.snapshot.pr,
-                snapshot.snapshot.repo.casefold(),
-                snapshot.snapshot.head_sha,
-                snapshot.snapshot.base_sha,
-                snapshot.snapshot.policy_version,
-                snapshot.snapshot.author_id,
-            )
-            if receipt_facts != snapshot_facts:
-                raise BotError(
-                    "receipt binding mismatch",
-                    code="stale",
-                    status_code=409,
-                )
-            current = self.store.load_current_snapshot(receipt.pr)
-            if (
-                current is None
-                or current.snapshot.snapshot_id != receipt.snapshot_id
-                or current.question_version != receipt.question_version
-            ):
-                raise BotError(
-                    "receipt is not current",
-                    code="stale",
-                    status_code=409,
-                )
-
+            self._require_current_receipt(receipt, snapshot)
             target_url = self._receipt_url(receipt.receipt_id)
             gate: dict[str, object] = {
                 "context": self.settings.status_context,
@@ -468,23 +456,24 @@ class BotService:
                     receipt.receipt_id,
                     target_url,
                 )
-                event = next(
-                    (
-                        candidate
-                        for candidate in self.store.load_receipt_publications(
-                            receipt.receipt_id
-                        )
-                        if candidate.event_id == event_id
-                    ),
-                    None,
-                )
+                events = self.store.load_receipt_publications(receipt.receipt_id)
+                event = next((candidate for candidate in events if candidate.event_id == event_id), None)
+                if event is None and self.settings.tenant_generation is not None:
+                    # Explicit same-context imports alone bind legacy event IDs to a generation.
+                    event = next((
+                        candidate for candidate in reversed(events)
+                        if self._outbox_generation_is_current(candidate) and candidate.kind == "success_status"
+                        and candidate.pr == receipt.pr and candidate.snapshot_id == receipt.snapshot_id
+                        and candidate.payload.get("target_url") == target_url
+                        and not candidate.event_id.endswith(f":generation:{self.settings.tenant_generation}")
+                    ), None)
                 gate = self._receipt_gate_payload(
                     receipt,
                     snapshot,
                     target_url,
                     event,
                 )
-            return {
+            payload: dict[str, object] = {
                 "receipt": {
                     "receipt_id": receipt.receipt_id,
                     "binding": snapshot.snapshot.binding(),
@@ -497,6 +486,10 @@ class BotService:
                 "verified_at": receipt.verified_at,
                 "gate": gate,
             }
+            repository_path = self._repository_path_metadata()
+            if repository_path is not None:
+                payload["repository_path"] = repository_path
+            return payload
 
     def publication_status(self, receipt_id: str, actor_id: int) -> dict[str, object]:
         with self._lock:
@@ -514,7 +507,7 @@ class BotService:
             receipt = self._receipt_or_404(receipt_id)
             snapshot = self._snapshot_or_404(receipt.snapshot_id)
             self._require_binding_match(snapshot.snapshot.binding(), binding)
-            self._require_trusted_receipt(receipt, snapshot.snapshot)
+            self._require_current_receipt(receipt, snapshot)
             current = self._pull_facts(receipt.pr)
             if current.state != "open":
                 raise BotError("Pull request is no longer open", code="stale", status_code=409)
@@ -536,10 +529,18 @@ class BotService:
 
     def flush_publications(self) -> int:
         with self._lock:
+            self._guard_access()
             processed = 0
             now = self._requeue_unverified_dispatches()
             due = self.store.load_due_publications(now=now)
             for event in due:
+                self._guard_access()
+                if not self._outbox_generation_is_current(event):
+                    self.store.mark_publication_sent(
+                        event.event_id, now=now, remote={"skipped": True, "reason": "stale_generation"},
+                    )
+                    processed += 1
+                    continue
                 if event.kind == "verifier_dispatch" and event.attempts >= _MAX_VERIFIER_DISPATCH_ATTEMPTS:
                     self.store.mark_publication_terminal(
                         event.event_id,
@@ -646,6 +647,9 @@ class BotService:
                 )
                 processed += 1
             return processed
+
+    def _outbox_generation_is_current(self, event: OutboxEvent) -> bool:
+        return event.tenant_generation == self.settings.tenant_generation
 
     def sync_merged(self, pr: int, *, pull: PullFacts | None = None) -> dict[str, object]:
         with self._lock:
@@ -865,6 +869,7 @@ class BotService:
         record: StoredSnapshot,
         answers: Sequence[dict[str, object]],
     ) -> None:
+        self._guard_access()
         with self._lock:
             job = self._active_job(job_id)
             if job is None:
@@ -934,6 +939,7 @@ class BotService:
                 job.feedback = feedback
                 job.accepted = [answer.question_id for answer in successful]
                 return
+            self._guard_access()
             receipt = self.store.save_receipt(
                 record,
                 actor_id=job.actor_id,
@@ -968,6 +974,7 @@ class BotService:
         closed_pull: PullFacts | None = None,
         now: str,
     ) -> None:
+        self._guard_access()
         for publication in self._projection_publications(
             record,
             expected_binding=expected_binding,
@@ -993,6 +1000,10 @@ class BotService:
     ) -> tuple[PublicationRequest, ...]:
         phase, receipt = self._presentation_projection(record, phase_override=phase_override)
         snapshot = record.snapshot
+        if receipt is not None:
+            self._require_current_receipt(receipt, record)
+        if phase == "verified" and (receipt is None or not receipt.verified):
+            raise BotError("Current verified receipt required", code="stale", status_code=409)
         publications: list[PublicationRequest] = []
         publications.extend(self._superseded_check_publications(snapshot, phase))
         presentation_payload: dict[str, object] = {"phase": phase}
@@ -1114,10 +1125,21 @@ class BotService:
         )
 
     def _deliver_event(self, event: OutboxEvent) -> Mapping[str, object]:
+        self._guard_access()
+        if not self._outbox_generation_is_current(event):
+            return {"skipped": True, "reason": "stale_generation"}
         if event.kind == "verifier_dispatch":
             receipt = self.store.load_receipt(event.receipt_id or "")
-            if receipt is None or receipt.verified:
+            if receipt is None:
+                return {"skipped": True, "reason": "missing_receipt"}
+            record = self._snapshot_or_404(receipt.snapshot_id)
+            self._require_event_receipt(event, receipt, record)
+            if receipt.verified:
                 return {"skipped": True, "reason": "already_verified"}
+            self._assert_pull_current(record.snapshot, self._pull_facts(receipt.pr))
+            if not self._snapshot_binding_is_current(record.snapshot):
+                return {"skipped": True, "reason": "stale_snapshot"}
+            self._require_event_receipt(event, receipt, record)
             self.github.dispatch_verification(receipt.receipt_id)
             return {"receipt_id": receipt.receipt_id}
 
@@ -1172,6 +1194,7 @@ class BotService:
             snapshot = self.store.load_snapshot(receipt.snapshot_id)
             if snapshot is None:
                 return {"skipped": True, "reason": "missing_snapshot"}
+            self._require_event_receipt(event, receipt, snapshot)
             current_record = self.store.load_current_snapshot(receipt.pr)
             if (
                 current_record is None
@@ -1199,6 +1222,7 @@ class BotService:
                     raise
             if not self._can_publish_status():
                 return {"skipped": True, "reason": "local_only"}
+            self._require_event_receipt(event, receipt, snapshot)
             return self.github.set_status(
                 snapshot.snapshot.head_sha,
                 "success",
@@ -1240,6 +1264,8 @@ class BotService:
             phase,
             None if receipt is None else receipt.receipt_id,
         )
+        if phase == "verified":
+            self._require_verified_projection(receipt, record)
         outcome = dict(self.github.ensure_pr_card(record.snapshot.pr, rendered.body))
         outcome["phase"] = phase
         outcome["channel"] = "card"
@@ -1278,6 +1304,8 @@ class BotService:
             None if receipt is None else receipt.receipt_id,
         )
         external_id = self._presentation_check_external_id(record.snapshot)
+        if phase == "verified":
+            self._require_verified_projection(receipt, record)
         outcome = dict(
             self.github.ensure_check_run(
                 record.snapshot.head_sha,
@@ -1402,9 +1430,10 @@ class BotService:
         if target.check_run_id is not None:
             payload["check_run_id"] = target.check_run_id
         return PublicationRequest(
-            event_id=(
+            event_id=publication_event_id(
                 "presentation-check-cancel:"
-                f"{target.external_id}:{current_snapshot_id}:{phase}"
+                f"{target.external_id}:{current_snapshot_id}:{phase}",
+                self.settings.tenant_generation,
             ),
             kind="presentation_check_cancel",
             pr=pr,
@@ -1435,6 +1464,8 @@ class BotService:
         return self.store.load_snapshot(event.snapshot_id)
 
     def _presentation_event_is_current(self, event: OutboxEvent, record: StoredSnapshot) -> bool:
+        if not self._outbox_generation_is_current(event) or event.pr != record.snapshot.pr:
+            return False
         current = self.store.load_current_snapshot(record.snapshot.pr)
         if current is None:
             return False
@@ -1445,10 +1476,7 @@ class BotService:
         receipt = self.store.load_receipt(event.receipt_id)
         if receipt is None:
             return False
-        return (
-            receipt.snapshot_id == record.snapshot.snapshot_id
-            and receipt.question_version == current.question_version
-        )
+        return self._receipt_matches_record(receipt, current)
 
     def _uses_closed_publication_context(self, event: OutboxEvent) -> bool:
         return self._event_phase(event) == "closed" or event.payload.get("closed") is not None
@@ -1511,6 +1539,7 @@ class BotService:
     ) -> bool:
         return (
             receipt.verified
+            and self._receipt_matches_record(receipt, record)
             and current.state == "closed"
             and current.head_sha == receipt.head_sha
             and current.head_sha == record.snapshot.head_sha
@@ -1676,21 +1705,20 @@ class BotService:
         record = self.store.load_current_snapshot(pr)
         if record is None:
             return None
-        receipt = self.store.load_receipt_by_key(
-            record.snapshot.snapshot_id,
-            record.question_version,
-            record.snapshot.author_id,
-        )
+        receipt = self._current_receipt_for_record(record)
         if receipt is None or not receipt.verified:
             return None
         return receipt
 
     def _current_receipt_for_record(self, record: StoredSnapshot) -> StoredReceipt | None:
-        return self.store.load_receipt_by_key(
+        receipt = self.store.load_receipt_by_key(
             record.snapshot.snapshot_id,
             record.question_version,
             record.snapshot.author_id,
+            app_id=self.settings.app_id,
+            installation_id=self.settings.installation_id,
         )
+        return receipt if receipt is not None and self._receipt_matches_record(receipt, record) else None
 
     def _presentation_projection(
         self,
@@ -1762,7 +1790,10 @@ class BotService:
     ) -> str:
         subject = receipt_id or snapshot.snapshot_id
         revision = presentation_revision(self.settings)
-        return f"presentation-card:v2:{snapshot.pr}:{snapshot.snapshot_id}:{phase}:{subject}:{revision}"
+        return publication_event_id(
+            f"presentation-card:v2:{snapshot.pr}:{snapshot.snapshot_id}:{phase}:{subject}:{revision}",
+            self.settings.tenant_generation,
+        )
 
     def _presentation_check_event_id(
         self,
@@ -1772,11 +1803,14 @@ class BotService:
     ) -> str:
         subject = receipt_id or snapshot.snapshot_id
         revision = presentation_revision(self.settings)
-        return f"presentation-check:v2:{snapshot.pr}:{snapshot.snapshot_id}:{phase}:{subject}:{revision}"
+        return publication_event_id(
+            f"presentation-check:v2:{snapshot.pr}:{snapshot.snapshot_id}:{phase}:{subject}:{revision}",
+            self.settings.tenant_generation,
+        )
 
     def _status_event_id(self, kind: str, subject: str, target_url: str) -> str:
         destination = self._sha256_json({"context": self.settings.status_context, "target_url": target_url})
-        return f"{kind}:{subject}:{destination}"
+        return publication_event_id(f"{kind}:{subject}:{destination}", self.settings.tenant_generation)
 
     def _presentation_check_external_id(self, snapshot: Snapshot) -> str:
         return f"pr-{snapshot.pr}-snapshot-{snapshot.snapshot_id}"
@@ -1805,6 +1839,8 @@ class BotService:
         snapshot: Snapshot,
         receipt_id: str,
     ) -> tuple[PublicationRequest, ...]:
+        receipt = self._receipt_or_404(receipt_id)
+        self._require_current_receipt(receipt, self._snapshot_or_404(snapshot.snapshot_id))
         publications: list[PublicationRequest] = [
             PublicationRequest(
                 event_id=self._presentation_card_event_id(snapshot, "verified", receipt_id),
@@ -1956,12 +1992,48 @@ class BotService:
                 raise BotError("binding does not match the stored snapshot", code="stale", status_code=409)
 
     def _require_trusted_receipt(self, receipt: StoredReceipt, snapshot: Snapshot) -> None:
-        if receipt.repo_id != self.settings.repository_id or snapshot.repo_id != self.settings.repository_id:
-            raise BotError("repository binding mismatch", code="stale", status_code=409)
-        if receipt.app_id != self.settings.app_id or receipt.installation_id != self.settings.installation_id:
-            raise BotError("app binding mismatch", code="stale", status_code=409)
-        if receipt.snapshot_id != snapshot.snapshot_id:
-            raise BotError("snapshot binding mismatch", code="stale", status_code=409)
+        if not self._receipt_matches_snapshot(receipt, snapshot):
+            raise BotError("receipt binding mismatch", code="stale", status_code=409)
+
+    def _receipt_matches_snapshot(self, receipt: StoredReceipt, snapshot: Snapshot) -> bool:
+        return (
+            self.store.receipt_is_current(receipt.receipt_id)
+            and receipt.repo_id == snapshot.repo_id == self.settings.repository_id
+            and receipt.repo.casefold() == snapshot.repo.casefold() == self.settings.repository.casefold()
+            and receipt.app_id == self.settings.app_id and receipt.installation_id == self.settings.installation_id
+            and receipt.snapshot_id == snapshot.snapshot_id and receipt.pr == snapshot.pr
+            and receipt.actor_id == snapshot.author_id and receipt.head_sha == snapshot.head_sha
+            and receipt.base_sha == snapshot.base_sha and receipt.policy_version == snapshot.policy_version
+        )
+
+    def _receipt_matches_record(self, receipt: StoredReceipt, record: StoredSnapshot) -> bool:
+        return (
+            self._receipt_matches_snapshot(receipt, record.snapshot)
+            and receipt.question_version == record.question_version
+        )
+
+    def _require_current_receipt(self, receipt: StoredReceipt, record: StoredSnapshot) -> None:
+        self._guard_access()
+        self._require_trusted_receipt(receipt, record.snapshot)
+        current = self.store.load_current_snapshot(receipt.pr)
+        if (
+            not self._receipt_matches_record(receipt, record)
+            or current is None or not self._receipt_matches_record(receipt, current)
+        ):
+            raise BotError("receipt is not current", code="stale", status_code=409)
+
+    def _require_event_receipt(self, event: OutboxEvent, receipt: StoredReceipt, record: StoredSnapshot) -> None:
+        self._require_current_receipt(receipt, record)
+        if (
+            not self._outbox_generation_is_current(event) or event.pr != receipt.pr
+            or event.snapshot_id != receipt.snapshot_id or event.receipt_id != receipt.receipt_id
+        ):
+            raise BotError("publication binding mismatch", code="stale", status_code=409)
+
+    def _require_verified_projection(self, receipt: StoredReceipt | None, record: StoredSnapshot) -> None:
+        if receipt is None or not receipt.verified:
+            raise BotError("Current verified receipt required", code="stale", status_code=409)
+        self._require_current_receipt(receipt, record)
 
     def _hunk_for_anchor(self, snapshot: Snapshot, anchor: str) -> Hunk:
         for hunk in snapshot.diff.hunks:
@@ -2000,19 +2072,46 @@ class BotService:
         return datetime.fromisoformat(value.replace("Z", "+00:00")).timestamp()
 
     def _requeue_unverified_dispatches(self) -> str:
+        self._guard_access()
         now = self._now_iso()
         self.store.requeue_unverified_dispatches(
             now=now,
             sent_before=self._iso_from_timestamp(self.clock() - _VERIFIER_RETRY_AFTER_SECONDS),
             max_attempts=_MAX_VERIFIER_DISPATCH_ATTEMPTS,
+            tenant_generation=self.settings.tenant_generation,
+            repo=self.settings.repository,
+            repo_id=self.settings.repository_id,
+            app_id=self.settings.app_id,
+            installation_id=self.settings.installation_id,
         )
         return now
 
     def _pr_url(self, pr: int) -> str:
-        return self.settings.base_url.rstrip("/") + f"/prs/{pr}"
+        return self._public_url_base() + f"/prs/{pr}"
 
     def _receipt_url(self, receipt_id: str) -> str:
-        return self.settings.base_url.rstrip("/") + f"/receipts/{receipt_id}"
+        return self._public_url_base() + f"/receipts/{quote(receipt_id, safe='')}"
+
+    def _public_url_base(self) -> str:
+        base = self.settings.base_url.rstrip("/")
+        parsed = urlsplit(base)
+        if not all((
+            parsed.scheme.lower() in {"http", "https"}, bool(parsed.netloc), parsed.path in {"", "/"},
+            not parsed.query, not parsed.fragment, not parsed.username, not parsed.password,
+        )):
+            raise BotError("public URL configuration is invalid", code="invalid_config", status_code=500)
+        prefix = self._repository_path_metadata() or ""
+        if self.settings.public_base_url.rstrip("/") != base + prefix:
+            raise BotError("public URL configuration is invalid", code="invalid_config", status_code=500)
+        return base + prefix
+
+    def _repository_path_metadata(self) -> str | None:
+        prefix = self.settings.path_prefix
+        if not prefix:
+            return None
+        if not _PATH_PREFIX_RE.fullmatch(prefix) or prefix != f"/repos/{self.settings.repository_id}":
+            raise BotError("public URL prefix is invalid", code="invalid_config", status_code=500)
+        return prefix
 
     def _can_publish_status(self) -> bool:
         parsed = urlsplit(self.settings.base_url)
@@ -2142,13 +2241,11 @@ class BotService:
         }
         if event is None:
             return gate
-        if (
-            event.kind != "success_status"
-            or event.pr != receipt.pr
-            or event.snapshot_id != snapshot.snapshot.snapshot_id
-            or event.receipt_id != receipt.receipt_id
-            or event.payload.get("target_url") != target_url
-        ):
+        if not all((
+            self._outbox_generation_is_current(event), event.kind == "success_status",
+            event.pr == receipt.pr, event.snapshot_id == snapshot.snapshot.snapshot_id,
+            event.receipt_id == receipt.receipt_id, event.payload.get("target_url") == target_url,
+        )):
             gate["state"] = "invalid"
             gate["error_code"] = "publication_invalid"
             return gate

@@ -10,7 +10,7 @@ from dataclasses import dataclass
 from functools import cache
 from pathlib import Path
 from typing import Literal, Protocol
-from urllib.parse import quote
+from urllib.parse import quote, urlsplit
 
 from ..config import glob_to_regex
 from ..diff import parse_anchor
@@ -112,11 +112,14 @@ _MARKER_RESERVE = 128
 _MIN_CONFIGURED_BUDGET = 1000
 _SHORT_TEXT_LIMIT = 220
 _LONG_TEXT_LIMIT = 520
+_PATH_PREFIX_RE = re.compile(r"^/repos/[1-9][0-9]*$")
 
 
 class PresentationSettings(Protocol):
     repository: str
     base_url: str
+    public_base_url: str
+    path_prefix: str
     presentation_name: str
     presentation_locale: PresentationLocale
     presentation_max_chars: int
@@ -175,6 +178,7 @@ def presentation_revision(settings: PresentationSettings) -> str:
         "renderer": _renderer_revision(),
         "repository": settings.repository,
         "base_url": settings.base_url,
+        "path_prefix": settings.path_prefix,
         "name": settings.presentation_name,
         "locale": settings.presentation_locale,
         "max_chars": settings.presentation_max_chars,
@@ -565,12 +569,28 @@ def _details(summary: str, body: str) -> str:
 
 
 def _action_url(settings: PresentationSettings, view: PresentationView) -> str:
+    base_url = _validated_public_base_url(settings)
     if view.phase == "verified" and view.receipt_id is not None:
         return (
-            f"{settings.base_url.rstrip('/')}/receipts/"
+            f"{base_url}/receipts/"
             f"{quote(view.receipt_id, safe='')}"
         )
-    return f"{settings.base_url.rstrip('/')}/prs/{quote(str(view.snapshot.pr), safe='')}"
+    return f"{base_url}/prs/{quote(str(view.snapshot.pr), safe='')}"
+
+
+def _validated_public_base_url(settings: PresentationSettings) -> str:
+    base = settings.base_url.rstrip("/")
+    parsed = urlsplit(base)
+    if parsed.scheme.lower() not in {"http", "https"} or not parsed.netloc:
+        raise ValueError("base_url must be an HTTP origin")
+    if parsed.path not in {"", "/"} or parsed.query or parsed.fragment or parsed.username or parsed.password:
+        raise ValueError("base_url must be an origin")
+    prefix = settings.path_prefix
+    if prefix and not _PATH_PREFIX_RE.fullmatch(prefix):
+        raise ValueError("path_prefix must be empty or /repos/<repository_id>")
+    if settings.public_base_url.rstrip("/") != base + prefix:
+        raise ValueError("public_base_url must match base_url plus path_prefix")
+    return base + prefix
 
 
 def _github_files_url(snapshot: Snapshot) -> str:
