@@ -5,13 +5,14 @@ from __future__ import annotations
 import hashlib
 import ipaddress
 import json
+import math
 import re
 import sqlite3
 import time
 from collections.abc import Callable, Mapping, Sequence
 from concurrent.futures import Future, ThreadPoolExecutor
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from threading import RLock
 from typing import cast
 from urllib.parse import quote, urlsplit
@@ -685,13 +686,43 @@ class BotService:
                 "merged_at": current.merged_at,
             }
 
-    def dashboard(self, *, days: int = 30) -> dict[str, object]:
-        """구역 단위 이해 커버리지. 사람 이름은 CODEOWNERS 담당 외에 내보내지 않는다."""
+    def dashboard(
+        self,
+        *,
+        days: int = 30,
+        include_seed: bool = True,
+        as_of: datetime | None = None,
+    ) -> dict[str, object]:
+        """구역 단위 이해 커버리지. UTC as_of는 머지 조회의 양 끝과 생성 시각을 고정한다.
+
+        as_of가 없으면 기존 clock 기반 하한만 적용하고, 시드는 기본으로 더한다.
+        사람 이름은 CODEOWNERS 담당 외에 내보내지 않는다.
+        """
         with self._lock:
             if days <= 0:
                 raise BotError("days must be positive", code="invalid_request", status_code=400)
-            since = self._iso_from_timestamp(self.clock() - days * 86400)
-            merges = self.store.load_merges_since(since=since)
+            if not isinstance(include_seed, bool):
+                raise BotError("include_seed must be a boolean", code="invalid_request", status_code=400)
+            until = None
+            if as_of is None:
+                since = self._iso_from_timestamp(self.clock() - days * 86400)
+                merges = self.store.load_merges_since(since=since)
+            else:
+                try:
+                    if not isinstance(as_of, datetime) or as_of.utcoffset() != timedelta(0):
+                        raise ValueError("as_of is not UTC-aware")
+                    timestamp = as_of.timestamp()
+                    if not math.isfinite(timestamp):
+                        raise ValueError("as_of is not finite")
+                    until = self._iso_from_timestamp(timestamp)
+                    since = self._iso_from_timestamp(timestamp - days * 86400)
+                except (TypeError, ValueError, OverflowError, OSError):
+                    raise BotError(
+                        "as_of must be a usable UTC-aware datetime",
+                        code="invalid_request",
+                        status_code=400,
+                    ) from None
+                merges = self.store.load_merges_since(since=since, until=until)
             totals = {"merged": 0, "gated": 0, "attested": 0, "forced": 0, "waiting": 0}
             measured_total = 0
             unmeasured_total = 0
@@ -782,7 +813,7 @@ class BotService:
                     # 담당 열은 보조 정보다. 읽기 실패로 대시보드를 막지 않는다.
                     owners = {}
 
-            seed = load_seed(self.settings.demo_seed) if self.settings.demo_seed else None
+            seed = load_seed(self.settings.demo_seed) if include_seed and self.settings.demo_seed else None
             payload = finalize(
                 live,
                 all_zones=all_zones,
@@ -794,7 +825,7 @@ class BotService:
             payload.update(
                 {
                     "repo": self.settings.repository,
-                    "generated_at": self._now_iso(),
+                    "generated_at": until if until is not None else self._now_iso(),
                     "window_days": days,
                     "min_sample": MIN_SAMPLE,
                     "measured_total": measured_total,
