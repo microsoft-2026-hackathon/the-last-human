@@ -732,6 +732,7 @@ def _verified_identity_matches_settings(identity: VerifiedActionsIdentity, setti
         and identity.workflow_ref == expected_workflow
         and identity.sub in expected_actions_subjects(
             settings.repository, settings.repository_id, settings.owner_id, settings.workflow_ref,
+            event_name=identity.event_name,
         )
         and identity.audience in {settings.oidc_audience, settings.repository}
     )

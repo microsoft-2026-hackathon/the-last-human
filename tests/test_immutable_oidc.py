@@ -32,8 +32,12 @@ def test_default_subjects_are_two_exact_strings() -> None:
     )
 
 
-@pytest.mark.parametrize("subject", [LEGACY, IMMUTABLE], ids=["legacy", "immutable"])
-@pytest.mark.parametrize("event", ["pull_request_target", "workflow_dispatch"])
+@pytest.mark.parametrize("subject,event", [
+    (LEGACY, "pull_request_target"), (IMMUTABLE, "pull_request_target"),
+    (LEGACY, "workflow_dispatch"), (IMMUTABLE, "workflow_dispatch"),
+    ("repo:acme/one:pull_request", "pull_request_target"),
+    ("repo:acme@77/one@101:pull_request", "pull_request_target"),
+])
 def test_rsa_subjects_in_dynamic_fallback_and_cached_tenant_verifiers(
     integration: Integration, subject: str, event: str,
 ) -> None:
@@ -72,7 +76,12 @@ def test_rsa_subjects_in_dynamic_fallback_and_cached_tenant_verifiers(
     {"sub": "repo:acme@77/one@101:ref:refs/heads/feature"},
     {"sub": "repo:acme@77/one@101:ref:refs/pull/1/merge"},
     {"sub": "repo:acme@77/one@101:environment:production"},
-    {"sub": "repo:acme@77/one@101:pull_request"},
+    {"sub": "repo:acme@77/one@101:pull_request", "event_name": "workflow_dispatch"},
+    {"sub": "repo:acme/one:pull_request", "event_name": "workflow_dispatch"},
+    {"sub": "repo:acme@77/one@101:pull_request", "ref": "refs/heads/feature"},
+    {"sub": "repo:acme@77/one@101:pull_request",
+     "workflow_ref": "acme/one/.github/workflows/lasthuman-app.yml@refs/heads/feature"},
+    {"sub": "repo:acme@77/one@101:pull_request", "event_name": "pull_request"},
     {"sub": IMMUTABLE + ":actor:pr-author"},
     {"sub": IMMUTABLE + "extra"},
     {"sub": IMMUTABLE + "\n"},
@@ -142,7 +151,8 @@ def test_registration_card_refresh_private_pass_and_five_steps(
         repo = integration.http.repositories[repository_id]
         owner, name = repo.name.split("/", 1)
         prefix = f"{owner}@{repo.owner_id}/{name}@{repository_id}" if immutable else repo.name
-        subject = f"repo:{prefix}:ref:refs/heads/main"
+        context = "pull_request" if event == "pull_request_target" else "ref:refs/heads/main"
+        subject = f"repo:{prefix}:{context}"
         emitted.append((repository_id, event, subject))
         return original_signer(
             repository_id, event=event, run_id=run_id, claims={"sub": subject, **(claims or {})}, key=key,
@@ -226,8 +236,9 @@ def test_registration_card_refresh_private_pass_and_five_steps(
         assert verified_receipt is not None and verified_receipt.verified
         assert verified_receipt.successful_answers == saved.successful_answers
         assert {(event, subject) for emitted_id, event, subject in emitted if emitted_id == repo_id} == {
-            (event, f"repo:acme@77/{'one' if repo_id == 101 else 'two'}@{repo_id}:ref:refs/heads/main"
-             if immutable else f"repo:acme/{'one' if repo_id == 101 else 'two'}:ref:refs/heads/main")
+            (event, (f"repo:acme@77/{'one' if repo_id == 101 else 'two'}@{repo_id}:"
+                     if immutable else f"repo:acme/{'one' if repo_id == 101 else 'two'}:")
+             + ("pull_request" if event == "pull_request_target" else "ref:refs/heads/main"))
             for event in ("pull_request_target", "workflow_dispatch")
         }
     public = [item for repository in integration.http.repositories.values()
