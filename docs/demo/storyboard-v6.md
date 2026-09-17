@@ -165,23 +165,23 @@ ORG의 모듈 분포 → repo의 기록·선언된 담당 → 장애 조사에 �
 
 #### 장면·메시지·English VO
 
-| 컷 | 화면 목표 | 전달할 메시지 | 화면과 실제 동작 | English VO (문장 단위 · 촬영·편집 후 확정) |
+| 컷 | 화면 실측 | 전달할 메시지 | 화면과 실제 동작 | English VO (문장 단위 · 촬영·편집 후 확정) |
 | --- | --- | --- | --- | --- |
-| D01 | 7.5s | 사람이 작업을 요청하고 에이전트가 구현·PR 생성까지 수행 | GitHub Copilot app 화면을 왼쪽에, 흐름 참고 패널을 오른쪽에 합성. 프롬프트 전문을 읽히고, 도구 호출 구간은 빠른 감기로 압축한 뒤 실제 `Pull request created` 줄로 끝냄 | We ask GitHub Copilot to handle failures in token refresh, and it opens a pull request. |
+| D01 | 7.6s | 사람이 작업을 요청하고 에이전트가 구현·PR 생성까지 수행 | GitHub Copilot app 화면을 왼쪽에, 흐름 참고 패널을 오른쪽에 합성. 프롬프트 전문을 읽히고, 도구 호출 구간은 빠른 감기로 압축한 뒤 실제 `Pull request created` 줄로 끝냄 | We ask GitHub Copilot to handle failures in token refresh, and it opens a pull request. |
 | D02 | *T1b에 포함* | 방금 요청한 작업이 검토 대상이 됨 | GitHub PR 목록에서 해당 PR 한 행을 클릭. 다른 PR은 강조하지 않음 | The pull request is ready for review. |
-| D03 | 12.0s (D02 포함) | 검사와 승인이 끝났어도 작성자의 설명 확인이 남아 있음 | 실제 CI 성공 4건과 다른 리뷰어의 Approve를 먼저 보여 준 뒤 스크롤. 비활성 Merge와 `last-human/human-verified`의 pending · Awaiting author explanation · **Required**를 강조 | Tests and lint pass, and a reviewer approves.<br>To merge, the author still needs to explain the change from the code. |
-| D04 | 5.5s | 작성자 자신의 GitHub 계정으로 면담에 진입 | PR 카드의 `Check this change` → `Authorize the-last-human-app` 계정 선택 → 작성자 계정의 `Continue` → 면담 화면. 사용하지 않는 계정 행은 가림 | The author signs in with their GitHub account. |
-| D05 | 23.0s (D06 포함) | 호출되는 코드의 동작을 빠뜨린 설명은 보완이 필요 | 두 문항에 답해 한 번에 `Submit answers`. 채점 대기를 압축하고 첫 문항 `Accepted`, 둘째 `Hold`를 읽히는 데 시간을 배정 | In this example there are two questions.<br>The first answer is accepted.<br>Unfortunately, the second is on hold. |
+| D03 | 11.5s (D02 포함) | 검사와 승인이 끝났어도 작성자의 설명 확인이 남아 있음 | 실제 CI 성공 4건과 다른 리뷰어의 Approve를 먼저 보여 준 뒤 스크롤. 비활성 Merge와 `last-human/human-verified`의 pending · Awaiting author explanation · **Required**를 강조 | Tests and lint pass, and a reviewer approves.<br>To merge, the author still needs to explain the change from the code. |
+| D04 | 5.2s | 작성자 자신의 GitHub 계정으로 면담에 진입 | PR 카드의 `Check this change` → `Authorize the-last-human-app` 계정 선택 → 작성자 계정의 `Continue` → 면담 화면. 사용하지 않는 계정 행은 가림 | The author signs in with their GitHub account. |
+| D05 | 19.4s (D06 포함) | 호출되는 코드의 동작을 빠뜨린 설명은 보완이 필요 | 두 문항에 답해 한 번에 `Submit answers`. 채점 대기를 압축하고 첫 문항 `Accepted`, 둘째 `Hold`를 읽히는 데 시간을 배정 | The first answer is accepted.<br>Unfortunately, the second is on hold. |
 | D06 | *T3에 포함* | 힌트를 따라 호출 관계를 이해하고 설명만 바로잡음 | `Look here` 안내와 `http_client.py` 발췌를 읽음. 마지막 문장에 맞춰 둘째 문항의 근거만 정정 — 코드는 바꾸지 않음 | The hint points to the called file.<br>The change retries three times; so does the code it calls.<br>So one call can become nine.<br>Only the explanation changes. |
-| D07 | 11.0s | 통과한 설명이 현재 커밋에 해당함을 확인한 뒤 작성자가 merge 여부를 결정 | 재제출 → 두 문항 Accepted → 영수증 → 같은 SHA의 `Human-verified` 필수 status success → **All checks have passed · 6 successful checks** → 활성 `Merge pull request`. merge 버튼은 클릭하지 않음 | An independent check confirms the explanation matches this commit.<br>All checks pass, and the author can decide whether to merge. |
-| D08 | 21.0s (D09 포함) | 한 PR을 넘어 조직 범위를 파악하고, 볼 수 있는 범위가 권한으로 정해짐을 밝힘 | ORG 대시보드 Demo. `Demo data` 배지를 계속 노출. 저장소 목록 → `0 confirmed authors` 카드 선택 → 해당 모듈 행 | Beyond one pull request, every repository your account can open is here.<br>One module has nobody who has confirmed a change yet. |
+| D07 | 11.6s | 통과한 설명이 현재 커밋에 해당함을 확인한 뒤 작성자가 merge 여부를 결정 | 재제출 → 두 문항 Accepted → 영수증 → 같은 SHA의 `Human-verified` 필수 status success → **All checks have passed · 6 successful checks** → 활성 `Merge pull request`. merge 버튼은 클릭하지 않음 | An independent check confirms it matches this commit.<br>All checks pass, and the author can decide whether to merge. |
+| D08 | 20.9s (D09 포함) | 한 PR을 넘어 조직 범위를 파악하고, 볼 수 있는 범위가 권한으로 정해짐을 밝힘 | ORG 대시보드 Demo. `Demo data` 배지를 계속 노출. 저장소 목록 → `0 confirmed authors` 카드 선택 → 해당 모듈 행 | Beyond one pull request: every repository your account can open.<br>One module has nobody who has confirmed a change yet. |
 | D09 | *T5에 포함* | 저장소 단위의 확인 기록과 예외 처리를 살펴봄 | repo 대시보드 Demo로 이동. `Human-verified before merge` → `Merged without verification`. `Declared owner` 열은 데모 픽스처가 비어 있어 강조하지 않음 | Inside a repository, three quarters of gated changes were human-verified.<br>Three were merged as an exception — recorded, not blocked. |
-| D10 | 12.0s | 장애가 생기면 살펴볼 코드와 상의할 출발점으로 활용 | GitHub 사후 분석의 재시도 문구·출처 → `.github/CODEOWNERS`의 선언된 담당 → 대시보드의 `CAN ANSWER` → `MAX_ATTEMPTS = 3` | GitHub's outage showed how a retry loop can amplify traffic during recovery.<br>The record names who answers for that code, and how many have explained it. |
+| D10 | 12.2s | 장애가 생기면 살펴볼 코드와 상의할 출발점으로 활용 | GitHub 사후 분석의 재시도 문구·출처 → `.github/CODEOWNERS`의 선언된 담당 → 대시보드의 `CAN ANSWER` → `MAX_ATTEMPTS = 3` | GitHub's outage showed how retries can amplify recovery traffic.<br>The record names who answers for that code, and how many have explained it. |
 
 **대본 원칙(2026-09-17 확정)**
 
 - 문장을 짧게 끊고 **문장 사이에 0.8–1.2초 쉼**을 둠. 쉼은 컷 WAV를 문장 단위로 잘라 배치 간격으로 만들며, **나레이션 배속은 쓰지 않음**.
-- 화면이 이미 말하는 문장은 대본에서 뺌. v6 초안 28문장 → **최종 20문장 · 음성 실측 72.4초**.
+- 화면이 이미 말하는 문장은 대본에서 뺌. v6 초안 28문장 → **최종 19문장 · 음성 실측 68.6초**.
 - 화면에 없는 기능은 말하지 않음. 초안의 `sorts repositories by risk`는 ORG 목록이 이름순 정렬이라 삭제함(구현은 이슈 #34).
 - `3 × 3 = 9`가 성립하려면 **두 개의 3을 모두 말해야 함**. D06 둘째 문장이 `token.py`와 호출된 코드의 재시도 횟수를 함께 말함.
 - 확인한 사람의 이름은 말하지 않음. `DECLARED OWNER`는 *누구에게 물어볼지*, `CAN ANSWER`는 *설명해 본 사람 수*이며 둘은 다름.
@@ -289,19 +289,21 @@ GitHub 사례의 연결점은 **복구 중 재시도가 트래픽을 증폭할 �
 
 `en-US-AndrewMultilingualNeural`, **rate 0%**, 컷별 WAV(`.work/demo-v6/voice/cuts/`). 아래는 계산값이 아니라 **실측**임.
 
-| 컷 | 문장 수 | 음성 실측 |
-| --- | ---: | ---: |
-| D01 | 1 | 6.2s |
-| D02 | 1 | 2.6s |
-| D03 | 2 | 6.8s |
-| D04 | 1 | 2.4s |
-| D05 | 3 | 7.8s |
-| D06 | 4 | 10.3s |
-| D07 | 2 | 8.2s |
-| D08 | 2 | 9.0s |
-| D09 | 2 | 9.7s |
-| D10 | 2 | 9.4s |
-| **합계** | **20** | **72.4s** |
+| 컷 | 문장 수 | 음성 실측 | 화면 실측 |
+| --- | ---: | ---: | ---: |
+| D01 | 1 | 6.2s | 7.6s |
+| D02 | 1 | 2.6s | 11.5s (D03과 한 테이크) |
+| D03 | 2 | 6.8s | 〃 |
+| D04 | 1 | 2.4s | 5.2s |
+| D05 | 2 | 4.9s | 19.4s (D06과 한 테이크) |
+| D06 | 4 | 10.3s | 〃 |
+| D07 | 2 | 7.8s | 11.6s |
+| D08 | 2 | 8.6s | 20.9s (D09와 한 테이크) |
+| D09 | 2 | 9.7s | 〃 |
+| D10 | 2 | 9.2s | 12.2s |
+| **합계** | **19** | **68.6s** | **88.5s** |
+
+**최종 합본 `out/T1-6.mp4` = 88.5초.** 문장 사이 쉼 0.8초 · 컷 도입 0.6초 · 끝 여운 0.5초 · 나레이션 배속 없음.
 
 - 최종 영상 길이 ≈ `음성 72.4 + 문장 사이 쉼 13회 + 컷별 도입·여운 7회`. **목표는 90초 이내**이며 88초 슬롯을 그대로 씀.
 - 쉼은 0.8–1.0초, 페이지가 바뀌는 자리만 1.2초까지. 컷 도입 0.7초, 끝 여운 0.7–0.8초.
