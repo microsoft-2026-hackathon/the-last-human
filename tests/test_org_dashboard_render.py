@@ -1,12 +1,16 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import asdict, dataclass, replace
 from html.parser import HTMLParser
 from pathlib import Path
 from urllib.parse import parse_qs, urlencode, urlsplit
 
 import pytest
 from jinja2 import Environment, FileSystemLoader, StrictUndefined
+
+from test_app_service import make_settings
+from test_org_dashboard import repository_demo_zone, set_repository_demo_zones
+from lasthuman.server.organization import OrganizationQuery, organization_view, repository_demo
 
 TEMPLATE_DIR = Path(__file__).resolve().parents[1] / "src" / "lasthuman" / "templates"
 ORG_PATH = "/repos/41/dashboard/organization"
@@ -18,6 +22,7 @@ class Element:
     tag: str
     attrs: dict[str, str | None]
     text: str = ""
+    ancestors: tuple[Element, ...] = ()
 
     @property
     def words(self) -> str:
@@ -32,7 +37,7 @@ class Page(HTMLParser):
         self.feed(html)
 
     def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
-        element = Element(tag, dict(attrs))
+        element = Element(tag, dict(attrs), ancestors=tuple(self.stack))
         self.elements.append(element)
         if tag not in {"meta", "input", "br", "hr", "link", "img"}:
             self.stack.append(element)
@@ -104,13 +109,14 @@ def _view(**overrides: object) -> dict[str, object]:
         "organization": "sample-organization",
         "demo_enabled": True,
         "repository_options": [
+            {"id": "sample-identity", "name": "sample-identity"},
+            {"id": "sample-orders", "name": "sample-orders"},
             {"id": "sample-payments", "name": "sample-payments"},
             {"id": "sample-platform", "name": "sample-platform"},
-            {"id": "sample-commerce", "name": "sample-commerce"},
         ],
         "selected_repository": "all",
         "selected_bucket": "all",
-        "summary": {"zero": 1, "one": 1, "many": 2},
+        "summary": {"zero": 1, "one": 1, "many": 5},
         "repositories": [_repository()],
         "notice": "",
         **overrides,
@@ -190,22 +196,53 @@ def test_organization_product_labels_and_module_count_cards() -> None:
     assert page.select("h1")[0].words == "sample-organization"
     assert page.by_class("span", "period")[0].words == "Last 30 days"
     assert page.by_class("span", "source-badge")[0].words == "Demo data"
-    assert page.by_class("span", "selection-name")[0].words == "3 sample repositories"
+    assert page.by_class("span", "selection-name")[0].words == "4 sample repositories"
     assert [card.words for card in page.by_class("a", "summary-card")] == [
         "0 confirmed authors 1 module",
         "1 confirmed author 1 module",
-        "2+ confirmed authors 2 modules",
+        "2+ confirmed authors 5 modules",
     ]
     assert [heading.words for heading in page.select("th", scope="col")] == [
         "Module", "Verified before merge", "Can answer", "Declared owner", "Data status",
     ]
 
 
+@pytest.mark.parametrize("source", ["actual", "demo"])
+@pytest.mark.parametrize("count", [0, 1, 3])
+def test_organization_header_permission_scope_depends_on_source(source: str, count: int) -> None:
+    options = [{"id": str(index), "name": f"acme/repo-{index}"} for index in range(count)]
+    page = Page(_render_org(_view(source=source, repository_options=options)))
+    selection = page.by_class("span", "selection-name")[0]
+    noun = "repository" if count == 1 else "repositories"
+    if source == "actual":
+        assert selection.words == f"{count} {noun} you can open"
+    else:
+        assert selection.words == f"{count} sample {noun}"
+        header = page.by_class("header", "topbar")[0].words + page.by_class("div", "selection")[0].words
+        assert not any(word in header.lower() for word in ("permission", "authorized", "you can open"))
+
+
+@pytest.mark.parametrize("source", ["actual", "demo"])
+def test_selected_repository_header_keeps_only_its_name(source: str) -> None:
+    page = Page(
+        _render_org(
+            _view(
+                source=source,
+                selected_repository="41",
+                repository_options=[{"id": "41", "name": "acme/the-last-human"}],
+            )
+        )
+    )
+    assert page.by_class("span", "selection-name")[0].words == "acme/the-last-human"
+
+
 def test_bucket_links_preserve_repository_without_recalculating_summary() -> None:
-    page = Page(_render_org(_view(selected_repository="sample-payments", selected_bucket="one")))
+    page = Page(_render_org(_view(
+        selected_repository="sample-payments", selected_bucket="one", summary={"zero": 0, "one": 0, "many": 2},
+    )))
     cards = page.by_class("a", "summary-card")
     assert [card.words for card in cards] == [
-        "0 confirmed authors 1 module", "1 confirmed author 1 module", "2+ confirmed authors 2 modules",
+        "0 confirmed authors 0 modules", "1 confirmed author 0 modules", "2+ confirmed authors 2 modules",
     ]
     assert [card.attrs.get("aria-current") for card in cards] == [None, "true", None]
     for card, bucket in zip(cards, ("zero", "one", "many"), strict=True):
@@ -334,13 +371,13 @@ def test_fake_repository_groups_all_open_actual_target_in_sample_mode() -> None:
             _view(
                 repositories=[
                     _repository(id=name, name=name)
-                    for name in ("sample-payments", "sample-platform", "sample-commerce")
+                    for name in ("sample-identity", "sample-orders", "sample-payments", "sample-platform")
                 ]
             )
         )
     )
     links = page.by_class("a", "repository-link")
-    assert len(links) == 3
+    assert len(links) == 4
     assert {link.attrs["href"] for link in links} == {f"{REPO_PATH}?data=demo"}
     assert all(link.attrs["title"] == "Open repository dashboard" for link in links)
     destination = Page(_render_repo(dashboard_source="demo"))
@@ -438,6 +475,58 @@ def test_organization_is_keyboard_accessible_and_has_no_frontend_dependencies() 
     assert all(not name.startswith("on") for element in page.elements for name in element.attrs)
 
 
+@pytest.mark.parametrize("source", ["legacy", "repo", "demo"])
+def test_repository_trust_headings_are_visible_between_cards_and_table_outside_footer(source: str) -> None:
+    page = Page(_render_repo(dashboard_source=source))
+    region = page.by_class("div", "trust-notes")[0]
+    notes = page.by_class("details", "trust-note")
+    headings = page.select("h3")
+    assert [heading.words for heading in headings] == [
+        "No people metrics", "Small samples stay small", "No retroactive credit",
+    ]
+    assert len(notes) == 3
+    for heading, note in zip(headings, notes, strict=True):
+        assert heading.ancestors[-1].tag == "summary"
+        assert note in heading.ancestors
+        assert region in heading.ancestors
+        assert "open" not in note.attrs
+        assert not any(
+            ancestor.tag == "footer" or "foot" in (ancestor.attrs.get("class") or "").split()
+            for ancestor in heading.ancestors
+        )
+        assert not any("hidden" in ancestor.attrs for ancestor in (*heading.ancestors, heading))
+    kpis = page.by_class("div", "kpis")[0]
+    table_panel = page.select("section", **{"aria-labelledby": "zones-h"})[0]
+    assert page.elements.index(kpis) < page.elements.index(region) < page.elements.index(table_panel)
+
+
+def test_repository_trust_disclosures_preserve_the_original_copy() -> None:
+    page = Page(_render_repo())
+    notes = page.by_class("details", "trust-note")
+    bodies = [
+        paragraph.words for paragraph in page.select("p")
+        if paragraph.ancestors[-1] in notes
+    ]
+    assert bodies == [
+        "Owners come from CODEOWNERS as written. People who verified are counted, never named. "
+        "No rankings, no hold history, no raw answers.",
+        "A zone with fewer than 5 gated PRs shows counts, not a rate. "
+        "A percentage of three is a signal that isn't there.",
+        "A verification after merge never raises the before-merge rate. Exceptions stay visible.",
+    ]
+
+
+def test_repository_answer_count_explanation_belongs_to_its_column() -> None:
+    page = Page(_render_repo())
+    note = page.by_class("span", "column-note")[0]
+    assert note.words == "counts, never names"
+    column = note.ancestors[-1]
+    assert column.tag == "th"
+    assert column.attrs["scope"] == "col"
+    assert column.words == "Can answer counts, never names"
+    assert "counts, never names" not in page.by_class("span", "sub")[0].words
+
+
 def test_repository_template_retains_legacy_behavior_when_new_context_is_absent() -> None:
     page = Page(_render_repo())
     assert not page.by_class("a", "org-link")
@@ -496,3 +585,172 @@ def test_repository_optional_empty_controls_and_autoescaping() -> None:
     assert not page.by_class("a", "org-link")
     assert page.select("title")[0].words == f"Last Human dashboard · {text}"
     assert page.select("style")[0].attrs["nonce"] == "repo-render-nonce"
+
+
+def test_bundled_demo_renders_six_zones_with_coherent_cards_and_unknowns(tmp_path: Path) -> None:
+    dashboard = repository_demo(replace(make_settings(tmp_path), org_demo_enabled=True))
+    page = Page(_render_repo(dashboard=dashboard, dashboard_source="demo"))
+    assert [span.words for span in page.by_class("span", "v")] == ["21/ 28 gated 75%", "3", "0"]
+    assert page.by_class("span", "l")[0].words == "Human-verified before merge"
+    assert page.by_class("span", "d")[0].words == "34 merged · 28 gated · 1 waiting"
+    assert len(page.select("tr")) == 7
+    assert [cell.words for cell in page.by_class("td", "zone")] == [
+        "sample-app/app/auth/", "sample-app/migrations/", "sample-app/app/orders/",
+        "sample-app/app/ledger/", "docs/", ".github/workflows/",
+    ]
+    assert [cell.words for cell in page.by_class("td", "owner")] == [
+        "@sample-organization/payments", "@sample-organization/platform", "@sample-organization/orders",
+        "@sample-organization/payments", "@sample-organization/platform", "@sample-organization/platform",
+    ]
+    cells = page.select("td")
+    assert [cell.words for cell in cells[2::7]] == ["1", "2", "3", "4", "—", "—"]
+    assert [cell.words for cell in cells[3::7]] == ["5", "4", "7", "12", "—", "—"]
+    assert [cell.words for cell in cells[4::7]] == [
+        "1/ 5 · 20%", "4/ 4 Sample too small", "6/ 7 · 86%", "10/ 12 · 83%", "—", "—",
+    ]
+    assert sum(int(cell.words) for cell in cells[3::7] if cell.words != "—") == 28
+    assert sum(int(cell.words) for cell in cells[5::7]) == 3
+    assert len(page.by_class("span", "people")) == 4
+    assert [span.words for span in page.by_class("span", "low")] == ["Sample too small"]
+    assert all("100%" not in row.words and "None" not in row.words for row in page.select("tr"))
+    assert [cell.words for cell in page.by_class("td", "prs")] == [
+        "#46 #43 #39", "#42 #37 #33 #29", "#47 #44 #40 #36", "#48 #45 #41 #38 #34 #30", "", "",
+    ]
+    assert not any("github.com" in (link.attrs.get("href") or "") for link in page.select("a"))
+    assert [span.words for span in page.by_class("span", "z")] == [
+        "sample-app/app/auth/", "sample-app/app/ledger/",
+    ]
+    assert [span.words for span in page.by_class("span", "a")] == [
+        "Verify 2 exceptions after the fact · owner @sample-organization/payments",
+        "Verify 1 exception after the fact · owner @sample-organization/payments",
+    ]
+
+
+def test_bundled_org_demo_renders_four_repositories_and_only_one_delayed_module(tmp_path: Path) -> None:
+    view = organization_view(
+        replace(make_settings(tmp_path), org_demo_enabled=True), OrganizationQuery("demo"),
+        user_token="unused", provider=lambda _token, _end: pytest.fail("Demo called Actual"),
+    )
+    page = Page(_render_org(asdict(view)))
+    assert page.by_class("span", "selection-name")[0].words == "4 sample repositories"
+    assert [card.words for card in page.by_class("a", "summary-card")] == [
+        "0 confirmed authors 1 module", "1 confirmed author 1 module", "2+ confirmed authors 5 modules",
+    ]
+    assert len(page.by_class("a", "repository-link")) == 4
+    assert len(page.select("th", scope="row")) == 8
+    rows = page.select("tr")
+    assert [row.words.split()[0] for row in rows if "Collection delayed" in row.words] == ["events/"]
+    assert [row.words.split()[0] for row in rows if "Sample too small" in row.words] == ["jobs/"]
+    assert all("100%" not in row.words for row in rows if "jobs/" in row.words)
+    assert all(contact.attrs.get("href") is None for contact in page.by_class("span", "contact"))
+
+
+@pytest.mark.parametrize("source", ["repo", "legacy"])
+@pytest.mark.parametrize("empty", [False, True])
+def test_actual_and_legacy_small_sample_and_empty_markup_stay_unchanged(source: str, empty: bool) -> None:
+    dashboard = {
+        "demo_seeded": False, "window_days": 30, "generated_at": "2026-09-17T00:00:00Z",
+        "attested_total": 0 if empty else 4, "gated_total": 0 if empty else 4, "attested_rate": None,
+        "min_sample": 5, "merged_total": 0 if empty else 4, "waiting_total": 0,
+        "forced_total": 0, "zero_answerer_zones": 0, "actions": [],
+        "zones": [] if empty else [{
+            "zone": "app/auth/", "owner": "@acme/security", "answerers": 2, "gated": 4,
+            "attested": 4, "rate": None, "low_sample": True, "forced": 0, "prs": [31],
+        }],
+    }
+    html = _render_repo(dashboard=dashboard, dashboard_source=source)
+    page = Page(html)
+    visible_text = page.select("body")[0].words
+    assert "Sample too small" not in visible_text and "100%" not in visible_text
+    assert [span.words for span in page.by_class("span", "low")] == ["sample < 5"]
+    assert [span.words for span in page.by_class("span", "v")] == [
+        f"{0 if empty else 4}/ {0 if empty else 4} gated sample < 5", "0", "0",
+    ]
+    if empty:
+        assert not page.select("table") and not page.by_class("span", "people")
+        assert [item.words for item in page.by_class("p", "empty")] == [
+            "No CODEOWNERS zones have been seen yet. The first analysed pull request fills this table.",
+        ]
+        assert [item.words for item in page.by_class("li", "none")] == [
+            "No gated merges in this window yet. The first verified merge lights a zone.",
+        ]
+    else:
+        assert [cell.words for cell in page.select("td")] == [
+            "app/auth/", "@acme/security", "2", "4", "4/ 4", "0", "#31",
+        ]
+        assert len(page.select("i")) == 3 and len(page.by_class("i", "off")) == 1
+        assert [link.attrs["href"] for link in page.select("a")] == [
+            "https://github.com/acme/the-last-human/pull/31",
+        ]
+        assert [item.words for item in page.by_class("li", "none")] == [
+            "Nothing to raise: no exceptions, and every gated zone has at least two people who can answer.",
+        ]
+
+
+@pytest.mark.parametrize("source", ["demo", "repo", "legacy"])
+def test_repository_metadata_actions_and_evidence_keep_source_specific_rendering(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, source: str,
+) -> None:
+    owner = '@sample-organization/<script>alert("team")</script> & group'
+    zone = '<script>alert("zone")</script>/'
+    set_repository_demo_zones(monkeypatch, [
+        repository_demo_zone(zone="quiet/", gated=0, attested=0, answerers=0),
+        repository_demo_zone(zone="ledger/", answerers=3, forced=2),
+        repository_demo_zone(zone=zone, owner=owner),
+        repository_demo_zone(zone="exceptions/", answerers=0, attested=0, forced=1),
+    ])
+    dashboard = repository_demo(replace(make_settings(tmp_path), org_demo_enabled=True))
+    html = _render_repo(dashboard=dashboard, dashboard_source=source)
+    page = Page(html)
+
+    assert [cell.words for cell in page.by_class("td", "zone")] == [
+        "exceptions/", zone, "ledger/", "quiet/",
+    ]
+    assert [cell.words for cell in page.by_class("td", "owner")] == [
+        "@sample-organization/payments", owner, "@sample-organization/payments",
+        "@sample-organization/payments",
+    ]
+    evidence_text = "#907 #903 #901" if source == "demo" else "#907#903#901"
+    assert [cell.words for cell in page.by_class("td", "prs")] == [evidence_text] * 4
+    evidence_links = [
+        link for link in page.select("a") if "/pull/" in (link.attrs.get("href") or "")
+    ]
+    if source == "demo":
+        assert evidence_links == []
+    else:
+        assert [link.attrs["href"] for link in evidence_links] == [
+            f"https://github.com/acme/the-last-human/pull/{pr}"
+            for _row in range(4) for pr in (907, 903, 901)
+        ]
+    assert [span.words for span in page.by_class("span", "z")] == [
+        "exceptions/", zone, "ledger/",
+    ]
+    assert [span.words for span in page.by_class("span", "a")] == [
+        "Verify 1 exception after the fact · owner @sample-organization/payments",
+        f"One more verified change in this zone · owner {owner}",
+        "Verify 2 exceptions after the fact · owner @sample-organization/payments",
+    ]
+    assert not page.by_class("li", "none")
+    assert not page.select("script") and "&lt;script&gt;" in html
+    assert "No suggested actions" not in html
+
+
+@pytest.mark.parametrize("source", ["demo", "repo", "legacy"])
+@pytest.mark.parametrize(
+    ("gated", "message"),
+    [
+        (0, "No gated merges in this window yet. The first verified merge lights a zone."),
+        (5, "Nothing to raise: no exceptions, and every gated zone has at least two people who can answer."),
+    ],
+)
+def test_repository_action_empty_copy_is_shared_by_demo_actual_and_legacy(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, source: str, gated: int, message: str,
+) -> None:
+    set_repository_demo_zones(monkeypatch, [
+        repository_demo_zone(gated=gated, attested=2 if gated else 0, answerers=2 if gated else 0),
+    ])
+    dashboard = repository_demo(replace(make_settings(tmp_path), org_demo_enabled=True))
+    dashboard["gated_total"] = gated
+    assert dashboard["actions"] == []
+    page = Page(_render_repo(dashboard=dashboard, dashboard_source=source))
+    assert [item.words for item in page.by_class("li", "none")] == [message]

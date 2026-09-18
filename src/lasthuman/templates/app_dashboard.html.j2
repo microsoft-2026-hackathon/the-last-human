@@ -26,12 +26,14 @@
   "kpi_zero": "Zones with 0 answerers",
   "kpi_zero_note": "Gated zones where no one has verified a change · always gated",
   "table_title": "Coverage by zone",
-  "table_sub": "Sorted by risk — fewest answerers and most exceptions first · counts, never names · rates only from %d gated PRs",
+  "table_sub": "Sorted by risk — fewest answerers and most exceptions first · rates only from %d gated PRs",
   "col_zone": "Zone",
   "col_owner": "Declared owner",
   "col_answer": "Can answer",
+  "col_answer_note": "counts, never names",
   "col_gated": "Gated",
   "col_verified": "Verified",
+  "demo_small_sample": "Sample too small",
   "col_exc": "Exc.",
   "col_evidence": "Evidence",
   "no_zones": "No CODEOWNERS zones have been seen yet. The first analysed pull request fills this table.",
@@ -116,6 +118,12 @@
   .kpi .v .chip { font-size: .78rem; letter-spacing: 0; }
   .kpi .d { font-size: .8rem; color: var(--muted); margin-top: auto; padding-top: 6px; }
 
+  .trust-notes { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); align-items: start; gap: 8px; margin-bottom: 18px; }
+  .trust-note { min-width: 0; border: 1px solid var(--line); border-radius: var(--radius); background: var(--surface); font-size: .8rem; overflow-wrap: anywhere; }
+  .trust-note summary { padding: 8px 12px; color: var(--ink-2); font-weight: 600; cursor: pointer; }
+  .trust-note h3 { display: inline; margin: 0; font-size: inherit; font-weight: inherit; }
+  .trust-note p { margin: 0; padding: 0 12px 10px; color: var(--muted); }
+
   .panel { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); margin-bottom: 14px; }
   .panel > header { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; flex-wrap: wrap; padding: 12px 16px; border-bottom: 1px solid var(--line-soft); }
   .panel h2 { margin: 0; font-size: .95rem; font-weight: 700; }
@@ -127,6 +135,7 @@
   th, td { text-align: left; vertical-align: middle; padding: 8px 10px; border-bottom: 1px solid var(--line-soft); white-space: nowrap; }
   th { font-size: .74rem; font-weight: 600; color: var(--muted); letter-spacing: .04em; text-transform: uppercase; background: var(--tint); }
   th.num, td.num { text-align: right; }
+  .column-note { display: block; margin-top: 2px; font-weight: 400; letter-spacing: normal; text-transform: none; }
   tbody tr:last-child td { border-bottom: 0; }
   tbody tr:hover td { background: #FAFBFB; }
   td.zone { font-family: var(--mono); font-size: .84rem; font-weight: 500; }
@@ -153,9 +162,15 @@
   .acts .e { font-size: .8rem; font-weight: 600; color: var(--human-ink); background: var(--human-soft); padding: 2px 8px; border-radius: 999px; white-space: nowrap; }
   .acts .none { color: var(--muted); font-size: .86rem; padding: 6px 2px; }
 
-  .foot { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 10px 24px; margin-top: 18px; padding-top: 14px; border-top: 1px solid var(--line); font-size: .8rem; color: var(--muted); }
-  .foot b { display: block; color: var(--ink-2); font-weight: 600; margin-bottom: 2px; }
-  @media (max-width: 640px) { .acts li { grid-template-columns: 1fr; } .kpi { min-height: 0; } }
+  @media (max-width: 640px) {
+    .acts li { grid-template-columns: 1fr; }
+    .kpis { grid-template-columns: 1fr; gap: 8px; margin-bottom: 12px; }
+    .kpi { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; column-gap: 10px; min-height: 0; padding: 8px 12px; }
+    .kpi .v { grid-column: 2; grid-row: 1; margin-top: 0; font-size: 1.5rem; }
+    .kpi .v small { font-size: .85rem; }
+    .kpi .d { grid-column: 1 / -1; margin-top: 0; padding-top: 4px; }
+    .trust-notes { grid-template-columns: 1fr; gap: 6px; margin-bottom: 12px; }
+  }
 </style>
 </head>
 <body>
@@ -209,6 +224,21 @@
     </div>
   </div>
 
+  <div class="trust-notes">
+    <details class="trust-note">
+      <summary><h3>{{ copy.foot_people_h }}</h3></summary>
+      <p>{{ copy.foot_people }}</p>
+    </details>
+    <details class="trust-note">
+      <summary><h3>{{ copy.foot_sample_h }}</h3></summary>
+      <p>{{ copy.foot_sample|format(dashboard.min_sample) }}</p>
+    </details>
+    <details class="trust-note">
+      <summary><h3>{{ copy.foot_retro_h }}</h3></summary>
+      <p>{{ copy.foot_retro }}</p>
+    </details>
+  </div>
+
   <section class="panel" aria-labelledby="zones-h">
     <header>
       <h2 id="zones-h">{{ copy.table_title }}</h2>
@@ -221,7 +251,7 @@
           <tr>
             <th>{{ copy.col_zone }}</th>
             <th>{{ copy.col_owner }}</th>
-            <th>{{ copy.col_answer }}</th>
+            <th scope="col">{{ copy.col_answer }} <span class="column-note">{{ copy.col_answer_note }}</span></th>
             <th class="num">{{ copy.col_gated }}</th>
             <th class="num">{{ copy.col_verified }}</th>
             <th class="num">{{ copy.col_exc }}</th>
@@ -233,14 +263,14 @@
           <tr>
             <td class="zone">{{ zone.zone }}</td>
             <td class="owner">{% if zone.owner %}{{ zone.owner }}{% else %}<span class="none">—</span>{% endif %}</td>
-            <td>
+            <td>{% if source == 'demo' and zone.answerers is none %}—{% else %}
               <span class="people">
                 <span class="marks" aria-hidden="true">{% for i in range(3) %}<i{% if i >= zone.answerers %} class="off"{% endif %}></i>{% endfor %}</span>
                 <span class="n{% if zone.answerers == 0 %} zero{% if not zone.gated %} quiet{% endif %}{% endif %}">{{ zone.answerers }}</span>
-              </span>
+              </span>{% endif %}
             </td>
             <td class="num">{% if zone.gated %}{{ zone.gated }}{% else %}—{% endif %}</td>
-            <td class="num">{% if zone.gated %}{{ zone.attested }}<span class="of">/ {{ zone.gated }}{% if zone.rate is not none %} · {{ (zone.rate * 100)|round|int }}%{% endif %}</span>{% else %}—{% endif %}</td>
+            <td class="num">{% if zone.gated %}{{ zone.attested }}<span class="of">/ {{ zone.gated }}{% if zone.rate is not none %} · {{ (zone.rate * 100)|round|int }}%{% endif %}</span>{% if source == 'demo' and zone.low_sample|default(false) %} <span class="chip low">{{ copy.demo_small_sample }}</span>{% endif %}{% else %}—{% endif %}</td>
             <td class="num">{% if zone.forced %}<span class="forced">{{ zone.forced }}</span>{% else %}0{% endif %}</td>
             <td class="prs">{% for pr in zone.prs %}{% if source == 'demo' %}<span class="mono">#{{ pr }} </span>{% else %}<a href="https://github.com/{{ repo }}/pull/{{ pr }}">#{{ pr }}</a>{% endif %}{% endfor %}</td>
           </tr>
@@ -264,17 +294,12 @@
           <span class="e">{{ action.from }} → {{ action.to }} {{ copy.actions_unit }}</span>
         </li>
       {% else %}
-        <li class="none">{% if source == 'demo' %}No suggested actions{% elif dashboard.gated_total == 0 %}{{ copy.actions_none_empty }}{% else %}{{ copy.actions_none_ok }}{% endif %}</li>
+        <li class="none">{% if dashboard.gated_total == 0 %}{{ copy.actions_none_empty }}{% else %}{{ copy.actions_none_ok }}{% endif %}</li>
       {% endfor %}
       </ul>
     </div>
   </section>
 
-  <div class="foot">
-    <div><b>{{ copy.foot_people_h }}</b>{{ copy.foot_people }}</div>
-    <div><b>{{ copy.foot_sample_h }}</b>{{ copy.foot_sample|format(dashboard.min_sample) }}</div>
-    <div><b>{{ copy.foot_retro_h }}</b>{{ copy.foot_retro }}</div>
-  </div>
 </div>
 </body>
 </html>

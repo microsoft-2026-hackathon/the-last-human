@@ -13,7 +13,7 @@ from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
-from typing import cast
+from typing import Literal, cast
 from urllib.parse import parse_qsl, quote, urlencode, urlsplit, urlunsplit
 
 import requests
@@ -22,6 +22,7 @@ from .github import GitHubClient, GitHubError, JsonObject
 from .snapshot import Snapshot, SnapshotError, SnapshotReader
 
 _DEFAULT_WORKFLOW = "lasthuman-app.yml"
+_RequestStage = Literal["request", "OIDC fetch", "event submission", "job polling"]
 _TRUSTED_WORKFLOW_REF = "refs/heads/main"
 _REQUEST_TIMEOUT = (5, 30)
 _POST_STATUSES = (202,)
@@ -687,6 +688,7 @@ def _fetch_oidc_token(
         expected_statuses=(200,),
         attempts=attempts,
         timeout=timeout,
+        stage="OIDC fetch",
     )
     return _require_nonempty_string(payload.get("value"), "value")
 
@@ -709,6 +711,7 @@ def _submit_actions_job(
         expected_statuses=_POST_STATUSES,
         attempts=attempts,
         timeout=timeout,
+        stage="event submission",
     )
     return _accepted_job(payload)
 
@@ -736,6 +739,7 @@ def _poll_actions_job(
             allow_empty=True,
             attempts=1,
             timeout=timeout,
+            stage="job polling",
         )
         if status_code in _JOB_MISSING_STATUSES:
             if resubmits >= _MAX_JOB_RESUBMITS:
@@ -1274,6 +1278,7 @@ def _request_json(
     allow_empty: bool = False,
     attempts: int = 3,
     timeout: tuple[float, float] = _REQUEST_TIMEOUT,
+    stage: _RequestStage = "request",
 ) -> JsonObject:
     _status_code, payload = _request_json_response(
         session,
@@ -1286,6 +1291,7 @@ def _request_json(
         allow_empty=allow_empty,
         attempts=attempts,
         timeout=timeout,
+        stage=stage,
     )
     return payload
 
@@ -1302,6 +1308,7 @@ def _request_json_response(
     allow_empty: bool = False,
     attempts: int = 3,
     timeout: tuple[float, float] = _REQUEST_TIMEOUT,
+    stage: _RequestStage = "request",
 ) -> tuple[int, JsonObject]:
     headers = {"Accept": "application/json"}
     if token is not None:
@@ -1325,11 +1332,11 @@ def _request_json_response(
         except requests.exceptions.Timeout:
             if remaining > 0:
                 continue
-            raise RelayError("relay request timed out") from None
+            raise RelayError(f"relay {stage} timed out") from None
         except requests.exceptions.ConnectionError:
             if remaining > 0:
                 continue
-            raise RelayError("relay connection failed") from None
+            raise RelayError(f"relay {stage} connection failed") from None
         except requests.exceptions.RequestException:
             raise RelayError("relay request failed") from None
         if response.status_code not in expected_statuses:

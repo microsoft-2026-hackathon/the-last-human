@@ -15,7 +15,7 @@ from urllib.parse import urlencode
 import requests
 
 from .config import Settings
-from .coverage import MIN_SAMPLE
+from .coverage import MIN_SAMPLE, ZoneCounts, actions_for, risk_rank
 from .github import GitHubClient, GitHubError
 from .service import BotError, BotService
 
@@ -259,7 +259,7 @@ def read_authorized_repository(
     settings: Settings, service: BotService, github: GitHubClient, *,
     user_token: str, repository_info: dict[str, object], as_of: datetime,
 ) -> RepositoryView:
-    """Caller holds only this tenant's lifecycle lock and has checked its identity."""
+    """Caller keeps this tenant admitted and has checked its identity."""
     base = RepositoryView(
         str(settings.repository_id), settings.repository, settings.path_prefix + "/dashboard?data=repo",
     )
@@ -392,7 +392,7 @@ def _demo_fixture() -> dict[str, object]:
 
 def demo_repositories(dashboard_url: str) -> tuple[RepositoryView, ...]:
     raw_repositories = _demo_fixture().get("repositories")
-    if not isinstance(raw_repositories, list) or len(raw_repositories) != 3:
+    if not isinstance(raw_repositories, list) or len(raw_repositories) < 2:
         raise ValueError("Invalid demo repositories")
     repositories: list[RepositoryView] = []
     for raw in raw_repositories:
@@ -428,34 +428,64 @@ def demo_repositories(dashboard_url: str) -> tuple[RepositoryView, ...]:
                 )
             modules.append(module)
         repositories.append(RepositoryView(repo_id, name, dashboard_url, tuple(modules)))
-    if len({repo.id for repo in repositories}) != 3 or sum(len(repo.modules) for repo in repositories) != 5:
+    if (
+        len({repo.id for repo in repositories}) != len(repositories)
+        or sum(len(repo.modules) for repo in repositories) < 4
+    ):
         raise ValueError("Invalid demo identities")
-    if summarize(repositories) != Summary(zero=1, one=1, many=2):
+    summary = summarize(repositories)
+    if summary.zero < 1 or summary.one < 1:
         raise ValueError("Invalid demo distribution")
     return tuple(repositories)
 
 
 def repository_demo(settings: Settings, *, as_of: datetime | None = None) -> dict[str, object]:
+    """Render fixture metadata with the same zone and action ordering as Actual."""
     require_demo(settings)
     raw = _demo_fixture().get("repository_dashboard")
     if not isinstance(raw, dict) or not isinstance(raw.get("zones"), list):
         raise ValueError("Invalid repository demo")
-    zones: list[dict[str, object]] = []
+    rows: list[tuple[ZoneCounts, dict[str, object]]] = []
     for row in raw["zones"]:
         if not isinstance(row, dict):
             raise ValueError("Invalid repository demo row")
-        gated, attested = _count(row.get("gated")), _count(row.get("attested"))
-        if attested > gated:
-            raise ValueError("Invalid repository demo counters")
-        zones.append({
-            **row, "prs": [], "owner": "", "rate": None if gated < MIN_SAMPLE else attested / gated,
+        zone, owner, prs = row.get("zone"), row.get("owner", ""), row.get("prs", [])
+        if not isinstance(zone, str) or not zone:
+            raise ValueError("Invalid repository demo zone")
+        if not isinstance(owner, str):
+            raise ValueError("Invalid repository demo owner")
+        if not isinstance(prs, list) or any(
+            isinstance(pr, bool) or not isinstance(pr, int) or pr <= 0 for pr in prs
+        ):
+            raise ValueError("Invalid repository demo PRs")
+        if row.get("gated") is None:
+            if row.get("attested") is not None or row.get("answerers") is not None:
+                raise ValueError("Invalid unknown repository demo row")
+            gated = attested = answerers = 0
+        else:
+            gated, attested, answerers = (_count(row.get(key)) for key in ("gated", "attested", "answerers"))
+            if attested > gated or bool(attested) != bool(answerers):
+                raise ValueError("Invalid repository demo counters")
+        counts = ZoneCounts(
+            zone=zone, owner=owner, prs=sorted(prs, reverse=True),
+            merged=_count(row.get("merged")), gated=gated, attested=attested,
+            forced=_count(row.get("forced")),
+            answerers=answerers,
+        )
+        rows.append((counts, {
+            **row, "prs": counts.prs, "owner": owner, "rate": None if gated < MIN_SAMPLE else attested / gated,
             "low_sample": 0 < gated < MIN_SAMPLE,
             "sample_state": "no_data" if not gated else "small_sample" if gated < MIN_SAMPLE else "measured",
-        })
+        }))
+    rows.sort(key=lambda item: risk_rank(item[0]))
+    zones = [zone for _counts, zone in rows]
     gated = _count(raw.get("gated_total"))
     attested = _count(raw.get("attested_total"))
+    if attested > gated:
+        raise ValueError("Invalid repository demo counters")
     return {
-        **raw, "zones": zones, "actions": [], "repo": settings.repository, "source": "demo",
+        **raw, "zones": zones, "actions": actions_for(counts for counts, _zone in rows),
+        "repo": settings.repository, "source": "demo",
         "generated_at": (as_of or datetime.now(timezone.utc)).strftime("%Y-%m-%dT%H:%M:%SZ"),
         "window_days": 30, "min_sample": MIN_SAMPLE, "demo_seeded": False,
         "attested_rate": None if gated < MIN_SAMPLE else attested / gated,

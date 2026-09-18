@@ -8,12 +8,13 @@ import logging
 import re
 import sqlite3
 import time
-from collections.abc import Callable, Mapping
+from collections.abc import Callable, Iterator, Mapping
 from concurrent.futures import Future, ThreadPoolExecutor
+from contextlib import contextmanager
 from dataclasses import dataclass, field
 from datetime import datetime
 from io import BytesIO
-from threading import BoundedSemaphore, Event, Lock, RLock, Thread
+from threading import BoundedSemaphore, Condition, Event, Lock, RLock, Thread
 from typing import TYPE_CHECKING, Protocol, TypeVar, cast
 from urllib.parse import urlsplit
 
@@ -80,32 +81,43 @@ class TenantContainer:
     service: BotService
     github: GitHubClient
     access_guard: Callable[[], None] | None = field(default=None, repr=False)
-    _lifecycle_lock: RLock = field(default_factory=RLock, repr=False)
+    _lifecycle_lock: Condition = field(default_factory=Condition, repr=False)
     _closed: bool = field(default=False, init=False, repr=False)
+    _active_operations: int = field(default=0, init=False, repr=False)
+    _shutdown_finished: Event = field(default_factory=Event, init=False, repr=False)
+    _shutdown_error: BaseException | None = field(default=None, init=False, repr=False)
 
     def _require_open(self) -> None:
-        if self._closed:
-            raise GatewayRuntimeError("tenant runtime is retired", status_code=503)
+        with self._lifecycle_lock:
+            if self._closed:
+                raise GatewayRuntimeError("tenant runtime is retired", status_code=503)
         if self.access_guard is not None:
             self.access_guard()
 
-    def dispatch(self, environ: dict[str, object]) -> Response:
-        if environ.get("PATH_INFO") == "/dashboard/organization":
-            # This read-only page visits peers. Never nest anchor and peer
-            # lifecycle locks: simultaneous A->B and B->A requests would deadlock.
-            with self._lifecycle_lock:
-                self._require_open()
-            response = Response.from_app(self.app, environ, buffered=True)
-            with self._lifecycle_lock:
-                self._require_open()
-            return response
+    @contextmanager
+    def _operation(self) -> Iterator[None]:
         with self._lifecycle_lock:
+            if self._closed:
+                raise GatewayRuntimeError("tenant runtime is retired", status_code=503)
+            self._active_operations += 1
+        try:
             self._require_open()
-            return Response.from_app(self.app, environ, buffered=True)
+            yield
+        finally:
+            with self._lifecycle_lock:
+                self._active_operations -= 1
+                self._lifecycle_lock.notify_all()
+
+    def dispatch(self, environ: dict[str, object]) -> Response:
+        with self._operation():
+            # Keep the anchor's pre/post guards even when this page visits peers.
+            # The operation is counted, but no lifecycle mutex spans a child read.
+            response = Response.from_app(self.app, environ, buffered=True)
+            self._require_open()
+            return response
 
     def organization_read(self, user_token: str, as_of: datetime) -> RepositoryView:
-        with self._lifecycle_lock:
-            self._require_open()
+        with self._operation():
             info = authorized_repository_info(self.settings, self.github, user_token)
             self._require_open()
             result = read_authorized_repository(
@@ -118,25 +130,35 @@ class TenantContainer:
             return result
 
     def tick_once(self) -> int:
-        with self._lifecycle_lock:
-            self._require_open()
+        with self._operation():
             return self.runtime.tick_once()
 
     def drain_events(self, timeout: float | None = None) -> None:
-        with self._lifecycle_lock:
-            self._require_open()
+        with self._operation():
             self.runtime.drain_events(timeout=timeout)
 
     def shutdown(self) -> None:
-        # Coordinator ticks do not run on either child executor. Join their use
-        # of the old Store as well before opening that physical DB for a new generation.
         with self._lifecycle_lock:
-            if self._closed:
-                return
+            wait = self._closed
             self._closed = True
+        if wait:
+            self._shutdown_finished.wait()
+            if self._shutdown_error is not None:
+                raise self._shutdown_error
+            return
+        try:
+            # HTTP, coordinator and organization reads also use the old Store;
+            # executor shutdown alone cannot drain them.
+            with self._lifecycle_lock:
+                self._lifecycle_lock.wait_for(lambda: self._active_operations == 0)
             self.runtime.shutdown()
             self.github.invalidate_tokens()
             atexit.unregister(self.runtime.shutdown)
+        except BaseException as error:
+            self._shutdown_error = error
+            raise
+        finally:
+            self._shutdown_finished.set()
 
 
 @dataclass(frozen=True)
@@ -210,7 +232,9 @@ class TenantManager:
         self._lock = RLock()
         self._stop = Event()
         self._shutdown_finished = Event()
+        self._shutdown_error: BaseException | None = None
         self._containers: dict[int, TenantContainer] = {}
+        self._retiring: dict[int, TenantContainer] = {}
         self._creating: dict[int, _TenantCreation] = {}
         self._inflight: dict[int, Future[None]] = {}
         self._tenant_health: dict[int, str] = {}
@@ -282,6 +306,8 @@ class TenantManager:
             self._shutdown_started = True
         if wait:
             self._shutdown_finished.wait()
+            if self._shutdown_error is not None:
+                raise self._shutdown_error
             return
         try:
             self._stop.set()
@@ -290,7 +316,7 @@ class TenantManager:
             self._wait_for_creations()
             self._executor.shutdown(wait=True)
             with self._lock:
-                containers = tuple(self._containers.values())
+                containers = tuple(self._containers.values()) + tuple(self._retiring.values())
                 self._containers.clear()
                 self._inflight.clear()
                 self._tenant_health.clear()
@@ -300,6 +326,9 @@ class TenantManager:
             if self._data_lock is not None:
                 self._data_lock.release()
             atexit.unregister(self.shutdown)
+        except BaseException as error:
+            self._shutdown_error = error
+            raise
         finally:
             self._shutdown_finished.set()
 
@@ -345,7 +374,9 @@ class TenantManager:
             try:
                 self.registry.require_current(anchor)
                 self._authorize_organization_context(context, user_token)
-                container = self.resolve(context.repository_id)
+                # A counted anchor read must not wait for a peer's retirement:
+                # another anchor could be waiting for this one's operations.
+                container = self.container_for_context(self.registry.resolve(context.repository_id), wait=False)
                 if container.context != context:
                     incomplete = True
                     continue
@@ -399,7 +430,7 @@ class TenantManager:
         self.registry.require_current(container.context)
         return container
 
-    def container_for_context(self, context: RepositoryContext) -> TenantContainer:
+    def container_for_context(self, context: RepositoryContext, *, wait: bool = True) -> TenantContainer:
         repository_id = context.repository_id
         while True:
             self.registry.require_current(context)
@@ -412,13 +443,15 @@ class TenantManager:
                     existing = self._containers.get(repository_id)
                     if existing is not None and existing.context == context:
                         return existing
-                    if (
-                        repository_id not in self._containers
-                        and len(set(self._containers) | set(self._creating)) >= self.max_tenants
-                    ):
+                    if not wait and (existing is not None or repository_id in self._retiring):
+                        raise GatewayRuntimeError("tenant runtime is transitioning", status_code=503)
+                    occupied = set(self._containers) | set(self._creating) | set(self._retiring)
+                    if repository_id not in occupied and len(occupied) >= self.max_tenants:
                         raise RegistrationDeniedError("runtime tenant limit reached")
                     creation = _TenantCreation(context, Future())
                     self._creating[repository_id] = creation
+                elif not wait:
+                    raise GatewayRuntimeError("tenant runtime is transitioning", status_code=503)
             assert creation is not None
             if creator:
                 return self._create_and_publish_container(creation)
@@ -448,8 +481,12 @@ class TenantManager:
     def _build_and_publish_container(self, context: RepositoryContext) -> TenantContainer:
         with self._lock:
             retired = self._containers.pop(context.repository_id, None)
+            if retired is not None:
+                self._retiring[context.repository_id] = retired
+            else:
+                retired = self._retiring.get(context.repository_id)
         if retired is not None:
-            retired.shutdown()
+            self._shutdown_retired(retired)
         container: TenantContainer | None = None
         published = False
         try:
@@ -465,7 +502,16 @@ class TenantManager:
             return container
         finally:
             if container is not None and not published:
-                container.shutdown()
+                with self._lock:
+                    self._retiring[context.repository_id] = container
+                self._shutdown_retired(container)
+
+    def _shutdown_retired(self, container: TenantContainer) -> None:
+        # Retain a failed closer so later creation attempts cannot reopen its DB.
+        container.shutdown()
+        with self._lock:
+            if self._retiring.get(container.context.repository_id) is container:
+                self._retiring.pop(container.context.repository_id)
 
     def _create_container(self, context: RepositoryContext) -> TenantContainer:
         settings = self.settings.tenant_settings(context)
