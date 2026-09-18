@@ -115,6 +115,9 @@ or a GitHub App installation.
 # Run the sample workload tests.
 python -m pytest -c sample-app/pytest.ini sample-app/tests
 
+# Run focused render tests while working on dashboard templates.
+python -m pytest -q tests/test_org_dashboard_render.py
+
 # Explore the CLI and server commands.
 lasthuman --help
 python -m lasthuman.server --help
